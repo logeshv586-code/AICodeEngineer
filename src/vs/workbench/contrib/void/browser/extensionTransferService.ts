@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { TransferEditorType, TransferFilesInfo } from './extensionTransferTypes.js';
 
 
@@ -51,12 +52,13 @@ class ExtensionTransferService extends Disposable implements IExtensionTransferS
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super()
 	}
 
 	async transferExtensions(os: 'mac' | 'windows' | 'linux' | null, fromEditor: TransferEditorType) {
-		const transferTheseFiles = transferTheseFilesOfOS(os, fromEditor)
+		const transferTheseFiles = transferTheseFilesOfOS(os, fromEditor, this._productService.applicationName, this._productService.dataFolderName)
 		const fileService = this._fileService
 
 		let errAcc = ''
@@ -135,7 +137,7 @@ class ExtensionTransferService extends Disposable implements IExtensionTransferS
 
 	async deleteBlacklistExtensions(os: 'mac' | 'windows' | 'linux' | null) {
 		const fileService = this._fileService
-		const extensionsURI = getExtensionsFolder(os)
+		const extensionsURI = getExtensionsFolder(os, this._productService.dataFolderName)
 		if (!extensionsURI) return
 		const eURI = await fileService.resolve(extensionsURI)
 		for (const child of eURI.children ?? []) {
@@ -185,7 +187,7 @@ registerSingleton(IExtensionTransferService, ExtensionTransferService, Instantia
 
 
 
-const transferTheseFilesOfOS = (os: 'mac' | 'windows' | 'linux' | null, fromEditor: TransferEditorType = 'VS Code'): TransferFilesInfo => {
+const transferTheseFilesOfOS = (os: 'mac' | 'windows' | 'linux' | null, fromEditor: TransferEditorType = 'VS Code', appName: string, dataFolderName: string): TransferFilesInfo => {
 	if (os === null)
 		throw new Error(`One-click switch is not possible in this environment.`)
 	if (os === 'mac') {
@@ -195,37 +197,37 @@ const transferTheseFilesOfOS = (os: 'mac' | 'windows' | 'linux' | null, fromEdit
 		if (fromEditor === 'VS Code') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Code', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Code', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.vscode', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		} else if (fromEditor === 'Cursor') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Cursor', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Cursor', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.cursor', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		} else if (fromEditor === 'Windsurf') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Windsurf', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Windsurf', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, 'Library', 'Application Support', appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.windsurf', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		}
@@ -238,37 +240,37 @@ const transferTheseFilesOfOS = (os: 'mac' | 'windows' | 'linux' | null, fromEdit
 		if (fromEditor === 'VS Code') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Code', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Code', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.vscode', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		} else if (fromEditor === 'Cursor') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Cursor', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Cursor', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.cursor', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		} else if (fromEditor === 'Windsurf') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Windsurf', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Windsurf', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.config', appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.windsurf', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), homeDir, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		}
@@ -283,37 +285,37 @@ const transferTheseFilesOfOS = (os: 'mac' | 'windows' | 'linux' | null, fromEdit
 		if (fromEditor === 'VS Code') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Code', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Code', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, '.vscode', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		} else if (fromEditor === 'Cursor') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Cursor', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Cursor', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, '.cursor', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		} else if (fromEditor === 'Windsurf') {
 			return [{
 				from: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Windsurf', 'User', 'settings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Void', 'User', 'settings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, appName, 'User', 'settings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Windsurf', 'User', 'keybindings.json'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, 'Void', 'User', 'keybindings.json'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), appdata, appName, 'User', 'keybindings.json'),
 			}, {
 				from: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, '.windsurf', 'extensions'),
-				to: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, '.void-editor', 'extensions'),
+				to: URI.joinPath(URI.from({ scheme: 'file' }), userprofile, dataFolderName, 'extensions'),
 				isExtensions: true,
 			}]
 		}
@@ -323,7 +325,7 @@ const transferTheseFilesOfOS = (os: 'mac' | 'windows' | 'linux' | null, fromEdit
 }
 
 
-const getExtensionsFolder = (os: 'mac' | 'windows' | 'linux' | null) => {
-	const t = transferTheseFilesOfOS(os, 'VS Code') // from editor doesnt matter
+const getExtensionsFolder = (os: 'mac' | 'windows' | 'linux' | null, dataFolderName: string) => {
+	const t = transferTheseFilesOfOS(os, 'VS Code', 'placeholder', dataFolderName)
 	return t.find(f => f.isExtensions)?.to
 }

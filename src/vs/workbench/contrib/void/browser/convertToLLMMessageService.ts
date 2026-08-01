@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
 import { ToolName } from '../common/toolsServiceTypes.js';
 import { IMCPService } from '../common/mcpService.js';
+import { ISkillsService } from './skillsService.js';
 
 export const EMPTY_MESSAGE = '(empty message)'
 
@@ -541,6 +542,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		@IVoidSettingsService private readonly voidSettingsService: IVoidSettingsService,
 		@IVoidModelService private readonly voidModelService: IVoidModelService,
 		@IMCPService private readonly mcpService: IMCPService,
+		@ISkillsService private readonly skillsService: ISkillsService,
 	) {
 		super()
 	}
@@ -681,7 +683,18 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 
 		const { disableSystemMessage } = this.voidSettingsService.state.globalSettings;
 		const fullSystemMessage = await this._generateChatMessagesSystemMessage(chatMode, specialToolFormat)
-		const systemMessage = disableSystemMessage ? '' : fullSystemMessage;
+
+		// Inject relevant skills into the system prompt based on the last user message
+		let skillsAddition = ''
+		if (!disableSystemMessage) {
+			const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user')
+			const lastUserContent = lastUserMsg?.role === 'user' ? (lastUserMsg.content || lastUserMsg.displayContent || '') : ''
+			if (lastUserContent) {
+				skillsAddition = this.skillsService.getSkillsSystemPromptAddition(lastUserContent)
+			}
+		}
+
+		const systemMessage = disableSystemMessage ? '' : fullSystemMessage + skillsAddition;
 
 		const modelSelectionOptions = this.voidSettingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]
 

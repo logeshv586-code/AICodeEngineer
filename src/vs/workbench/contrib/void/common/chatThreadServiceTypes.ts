@@ -8,6 +8,16 @@ import { VoidFileSnapshot } from './editCodeServiceTypes.js';
 import { AnthropicReasoning, RawToolParamsObj } from './sendLLMMessageTypes.js';
 import { ToolCallParams, ToolName, ToolResult } from './toolsServiceTypes.js';
 
+// A single step in the agent's plan (shown in the plan panel)
+export type AgentPlanItemStatus = 'pending' | 'active' | 'done' | 'failed' | 'skipped';
+export type AgentPlanItem = {
+	id: string;
+	title: string;
+	description?: string;
+	status: AgentPlanItemStatus;
+	toolName?: ToolName; // the tool associated with this step, if any
+};
+
 export type ToolMessage<T extends ToolName> = {
 	role: 'tool';
 	content: string; // give this result to LLM (string of value)

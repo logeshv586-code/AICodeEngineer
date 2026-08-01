@@ -1,0 +1,11 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "provider": {
+    "nvidia": {
+      "options": {
+        "apiKey": "nvapi-YOUR_API_KEY_HERE",
+        "baseURL": "https://integrate.api.nvidia.com/v1"
+      }
+    }
+  }
+}

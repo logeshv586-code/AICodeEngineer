@@ -16,6 +16,11 @@ import { Check, ChevronDown, ChevronUp, Info, Plus, Sparkles } from 'lucide-reac
 const builtInModelPresets: { modelName: string; providerName: ProviderName; tag?: string }[] = [
 	{ modelName: 'GPT-5.4', providerName: 'openAI', tag: 'Beta' },
 	{ modelName: 'GPT-5.2', providerName: 'openAI' },
+	{ modelName: 'z-ai/glm-5.2', providerName: 'nvidia', tag: 'NVIDIA' },
+	{ modelName: 'nvidia/llama-3.3-nemotron-70b-instruct', providerName: 'nvidia', tag: 'NVIDIA' },
+	{ modelName: 'nvidia/llama-3.1-nemotron-70b-instruct', providerName: 'nvidia' },
+	{ modelName: 'nvidia/llama-3.1-nemotron-8b-instruct', providerName: 'nvidia' },
+	{ modelName: 'nvidia/nemotron-4-340b-instruct', providerName: 'nvidia' },
 	{ modelName: 'Seed-2.1-Turbo', providerName: 'openRouter' },
 	{ modelName: 'MiniMax-M3', providerName: 'openRouter' },
 	{ modelName: 'MiniMax-M2.7', providerName: 'openRouter' },
@@ -63,37 +68,38 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	};
 
 	return (
-		<div className="relative inline-block text-left" ref={dropdownRef}>
+		<div className="relative inline-block text-left shrink-0" ref={dropdownRef}>
 			{/* Trigger Button matching Image 4 */}
 			<button
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
-				className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-void-bg-2 hover:bg-void-bg-2/80 text-void-fg-1 border border-void-border-2 transition-all cursor-pointer ${className || ''}`}
+				className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-200 border border-zinc-700/60 transition-all cursor-pointer max-w-[130px] shrink-0 min-w-0 ${className || ''}`}
+				title={currentModelName}
 			>
-				<span>{currentModelName}</span>
-				{isOpen ? <ChevronUp size={13} className="opacity-70" /> : <ChevronDown size={13} className="opacity-70" />}
+				<span className="truncate max-w-[90px] shrink min-w-0">{currentModelName}</span>
+				{isOpen ? <ChevronUp size={12} className="opacity-70 shrink-0" /> : <ChevronDown size={12} className="opacity-70 shrink-0" />}
 			</button>
 
 			{/* Dropdown Panel matching Image 4 */}
 			{isOpen && (
-				<div className="absolute right-0 bottom-full mb-2 w-72 rounded-xl bg-[#18181b] border border-zinc-700/80 shadow-2xl z-[9999] overflow-hidden text-zinc-200 animate-in fade-in zoom-in-95 duration-150">
+				<div className="absolute right-0 bottom-full mb-2 w-64 rounded-xl bg-[#18181b] border border-zinc-700/80 shadow-2xl z-[9999] overflow-hidden text-zinc-200 animate-in fade-in zoom-in-95 duration-150">
 					{/* Header: Auto Mode Toggle */}
-					<div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
-						<div className="flex items-center gap-2">
-							<Sparkles size={15} className="text-emerald-400" />
+					<div className="p-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
+						<div className="flex items-center gap-1.5">
+							<Sparkles size={14} className="text-emerald-400" />
 							<span className="text-xs font-semibold text-zinc-200">Auto Mode</span>
 						</div>
 						<VoidSwitch size="xs" value={autoMode} onChange={setAutoMode} />
 					</div>
 
 					{/* Section Header: Built-in Models */}
-					<div className="px-3 pt-3 pb-1.5 flex items-center gap-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+					<div className="px-3 pt-2 pb-1 flex items-center gap-1 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
 						<span>Built-in Models</span>
-						<Info size={12} className="text-zinc-500 cursor-help" />
+						<Info size={11} className="text-zinc-500 cursor-help" />
 					</div>
 
 					{/* Model Items List */}
-					<div className="max-h-60 overflow-y-auto py-1">
+					<div className="max-h-48 overflow-y-auto py-1">
 						{builtInModelPresets.map((m) => {
 							const isSelected = currentModelName === m.modelName;
 							return (
@@ -101,21 +107,21 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 									key={m.modelName}
 									type="button"
 									onClick={() => selectModel(m.modelName, m.providerName)}
-									className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition-colors ${
+									className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors ${
 										isSelected
 											? 'bg-zinc-800/80 text-white font-medium'
 											: 'hover:bg-zinc-800/40 text-zinc-300'
 									}`}
 								>
-									<div className="flex items-center gap-2">
-										<span>{m.modelName}</span>
+									<div className="flex items-center gap-1.5 min-w-0 pr-1">
+										<span className="truncate">{m.modelName}</span>
 										{m.tag && (
-											<span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-normal">
+											<span className="text-[9px] px-1 py-0.1 rounded bg-emerald-500/20 text-emerald-400 shrink-0 font-normal">
 												{m.tag}
 											</span>
 										)}
 									</div>
-									{isSelected && <Check size={14} className="text-emerald-400" />}
+									{isSelected && <Check size={13} className="text-emerald-400 shrink-0" />}
 								</button>
 							);
 						})}
@@ -126,9 +132,9 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 						<button
 							type="button"
 							onClick={openSettings}
-							className="w-full py-1.5 px-3 rounded-md bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-center text-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+							className="w-full py-1 px-2.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-center text-zinc-200 transition-colors flex items-center justify-center gap-1.5"
 						>
-							<Plus size={13} />
+							<Plus size={12} />
 							<span>Add Model</span>
 						</button>
 					</div>

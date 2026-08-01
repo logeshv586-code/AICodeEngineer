@@ -178,13 +178,13 @@ export const displayInfoOfSettingName = (providerName: ProviderName, settingName
 										providerName === 'awsBedrock' ? 'Endpoint' :
 											'(never)',
 
-			placeholder: providerName === 'ollama' ? defaultProviderSettings.ollama.endpoint
-				: providerName === 'vLLM' ? defaultProviderSettings.vLLM.endpoint
-					: providerName === 'openAICompatible' ? 'https://my-website.com/v1'
-						: providerName === 'lmStudio' ? defaultProviderSettings.lmStudio.endpoint
-							: providerName === 'liteLLM' ? 'http://localhost:4000'
-								: providerName === 'awsBedrock' ? 'http://localhost:4000/v1'
-									: '(never)',
+		placeholder: providerName === 'ollama' ? defaultProviderSettings.ollama.endpoint
+			: providerName === 'vLLM' ? defaultProviderSettings.vLLM.endpoint
+				: providerName === 'openAICompatible' ? 'https://my-website.com/v1'
+					: providerName === 'lmStudio' ? defaultProviderSettings.lmStudio.endpoint
+						: providerName === 'liteLLM' ? 'https://your-litellm-domain.com/v1'
+							: providerName === 'awsBedrock' ? 'https://your-bedrock-gateway.com/v1'
+								: '(never)',
 
 
 		}

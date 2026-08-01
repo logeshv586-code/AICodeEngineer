@@ -465,7 +465,12 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 	if (lower.includes('o4') && lower.includes('mini')) return toFallback(openAIModelOptions, 'o4-mini')
 
 
-	if (Object.keys(openSourceModelOptions_assumingOAICompat).map(k => k.toLowerCase()).includes(lower))
+		if (lower.includes('nemotron') || lower.includes('nvidia/llama')) {
+		const nvidiaResult = nvidiaSettings.modelOptionsFallback(modelName);
+		if (nvidiaResult) return nvidiaResult;
+	}
+
+if (Object.keys(openSourceModelOptions_assumingOAICompat).map(k => k.toLowerCase()).includes(lower))
 		return toFallback(openSourceModelOptions_assumingOAICompat, lower as keyof typeof openSourceModelOptions_assumingOAICompat)
 
 	return null
@@ -1450,9 +1455,175 @@ const openRouterSettings: VoidStaticProviderInfo = {
 
 
 
+// ---------------- NVIDIA API ----------------
+const nvidiaModelOptions: Record<string, VoidStaticModelInfo> = {
+	'nvidia/llama-3.3-nemotron-70b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0005, output: 0.0005 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/llama-3.1-nemotron-70b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0005, output: 0.0005 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/llama-3.1-nemotron-8b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0001, output: 0.0001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/llama-3.1-8b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0001, output: 0.0001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/neva-22b': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0001, output: 0.0001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/llama-3.2-90b-vision-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.001, output: 0.001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/nemotron-4-340b-instruct': {
+		contextWindow: 4096,
+		reservedOutputTokenSpace: 1024,
+		cost: { input: 0.0005, output: 0.0005 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/mistralai/mistral-7b-instruct-v0.3': {
+		contextWindow: 32_000,
+		reservedOutputTokenSpace: 4_096,
+		cost: { input: 0.0001, output: 0.0001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'system-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/meta-llama/llama-3.1-8b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0001, output: 0.0001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/meta-llama/llama-3.3-70b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0005, output: 0.0005 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/deepseek-ai/deepseek-r1': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0002, output: 0.0002 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: { supportsReasoning: true, canTurnOffReasoning: false, canIOReasoning: false, reasoningSlider: { type: 'effort_slider', values: ['low', 'medium', 'high'], default: 'low' } },
+	},
+	'nvidia/deepseek-ai/deepseek-v3': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0002, output: 0.0002 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/qwen/qwen2.5-7b-instruct': {
+		contextWindow: 32_000,
+		reservedOutputTokenSpace: 4_096,
+		cost: { input: 0.0001, output: 0.0001 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'system-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+	'nvidia/qwen/qwen2.5-72b-instruct': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0.0003, output: 0.0003 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'system-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
+} as const satisfies { [s: string]: VoidStaticModelInfo };
+
 const nvidiaSettings: VoidStaticProviderInfo = {
-	modelOptions: {},
-	modelOptionsFallback: (modelName) => extensiveModelOptionsFallback(modelName),
+	modelOptions: nvidiaModelOptions,
+	modelOptionsFallback: (modelName) => {
+		const lower = modelName.toLowerCase()
+		let fallbackName: keyof typeof nvidiaModelOptions | null = null
+		if (lower.includes('nemotron-70b') || lower.includes('llama-3.3-nemotron')) fallbackName = 'nvidia/llama-3.3-nemotron-70b-instruct'
+		if (lower.includes('llama-3.1-nemotron')) fallbackName = 'nvidia/llama-3.1-nemotron-70b-instruct'
+		if (lower.includes('nemotron-8b') || lower.includes('llama-3.1-nemotron-8b')) fallbackName = 'nvidia/llama-3.1-nemotron-8b-instruct'
+		if (lower.includes('llama-3.1-8b') && lower.includes('nemotron')) fallbackName = 'nvidia/llama-3.1-nemotron-8b-instruct'
+		if (lower.includes('nemotron-4') || lower.includes('340b')) fallbackName = 'nvidia/nemotron-4-340b-instruct'
+		if (lower.includes('llama-3.2') && lower.includes('vision')) fallbackName = 'nvidia/llama-3.2-90b-vision-instruct'
+		if (lower.includes('mistral') && lower.includes('7b') && !fallbackName) fallbackName = 'nvidia/mistralai/mistral-7b-instruct-v0.3'
+		if (lower.includes('deepseek-r1') || lower.includes('deepseek/')) fallbackName = 'nvidia/deepseek-ai/deepseek-r1'
+		if (lower.includes('deepseek-v3') || lower.includes('deepseek/')) fallbackName = 'nvidia/deepseek-ai/deepseek-v3'
+		if (lower.includes('qwen2.5') && lower.includes('72b')) fallbackName = 'nvidia/qwen/qwen2.5-72b-instruct'
+		if (lower.includes('qwen2.5') && lower.includes('7b')) fallbackName = 'nvidia/qwen/qwen2.5-7b-instruct'
+		if (lower.includes('llama-3.1') && lower.includes('8b') && lower.includes('nvidia')) fallbackName = 'nvidia/meta-llama/llama-3.1-8b-instruct'
+		if (lower.includes('llama-3.3') && lower.includes('70b')) fallbackName = 'nvidia/meta-llama/llama-3.3-70b-instruct'
+		if (fallbackName) return { modelName: fallbackName, recognizedModelName: fallbackName, ...nvidiaModelOptions[fallbackName] }
+		return null
+	},
+	providerReasoningIOSettings: {
+		input: { includeInPayload: openAICompatIncludeInPayloadReasoning },
+		output: { nameOfFieldInDelta: 'reasoning_content' },
+	},
 }
 
 // ---------------- model settings of everything above ----------------

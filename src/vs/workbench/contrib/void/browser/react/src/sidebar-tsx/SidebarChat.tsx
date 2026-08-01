@@ -32,6 +32,7 @@ import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE, MAX_TERMINAL
 import { RawToolCallObj } from '../../../../common/sendLLMMessageTypes.js';
 import ErrorBoundary from './ErrorBoundary.js';
 import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.js';
+import { AgentPlanPanel, RunStateBar } from './AgentPlanPanel.js';
 
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
@@ -341,15 +342,13 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 		<div
 			ref={divRef}
 			className={`
-				gap-x-1
-                flex flex-col p-2.5 relative input text-left shrink-0
-                rounded-xl
-                bg-[#18181b]
+				flex flex-col p-2.5 relative text-left shrink-0
+				rounded-xl bg-[#18181b]
 				transition-all duration-200
 				border border-zinc-800 focus-within:border-zinc-600 hover:border-zinc-700
-				max-h-[80vh] overflow-y-auto shadow-lg
-                ${className}
-            `}
+				shadow-lg overflow-visible
+				${className}
+			`}
 			onClick={(e) => {
 				onClickAnywhere?.()
 			}}
@@ -377,7 +376,7 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 
 				{/* Close button (X) if onClose is provided */}
 				{onClose && (
-					<div className='absolute -top-1 -right-1 cursor-pointer z-1'>
+					<div className='absolute -top-1 -right-1 cursor-pointer z-10'>
 						<IconX
 							size={12}
 							className="stroke-[2] opacity-80 text-void-fg-3 hover:brightness-95"
@@ -388,20 +387,20 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 			</div>
 
 			{/* Bottom row matching Image 4 */}
-			<div className='flex flex-row justify-between items-center gap-2 pt-2 border-t border-zinc-800/80 mt-2'>
-				<div className="flex items-center gap-1.5">
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold" title="Mention">@</button>
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold" title="Context">#</button>
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors" title="Attach Media"><ImageIcon size={14} /></button>
+			<div className='flex flex-row justify-between items-center gap-1.5 pt-2 border-t border-zinc-800/80 mt-2 min-w-0'>
+				<div className="flex items-center gap-1 min-w-0 py-0.5">
+					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold shrink-0" title="Mention">@</button>
+					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold shrink-0" title="Context">#</button>
+					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors shrink-0" title="Attach Media"><ImageIcon size={14} /></button>
 					
 					{showModelDropdown && (
-						<ModelDropdown featureName={featureName} className='text-xs bg-zinc-800/80 text-zinc-200 border border-zinc-700/60 rounded-md px-2 py-0.5' />
+						<ModelDropdown featureName={featureName} className='text-xs bg-zinc-800/80 text-zinc-200 border border-zinc-700/60 rounded-md px-2 py-0.5 shrink-0' />
 					)}
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors" title="AI Features"><Sparkles size={14} /></button>
+					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors shrink-0" title="AI Features"><Sparkles size={14} /></button>
 				</div>
 
-				<div className="flex items-center gap-2">
-					<button type="button" className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-full transition-colors" title="Voice Input"><Mic size={15} /></button>
+				<div className="flex items-center gap-1.5 shrink-0">
+					<button type="button" className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-full transition-colors shrink-0" title="Voice Input"><Mic size={15} /></button>
 
 					{isStreaming && loadingIcon}
 
@@ -802,6 +801,7 @@ const ToolHeaderWrapper = ({
 	className, // applies to the main content
 }: ToolHeaderParams) => {
 
+	// Collapsed by default for successful read-only tools; expanded for errors, rejections, and running/request states
 	const [isOpen_, setIsOpen] = useState(false);
 	const isExpanded = isOpen !== undefined ? isOpen : isOpen_
 
@@ -1329,11 +1329,16 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 
 	const accessor = useAccessor()
 	const chatThreadsService = accessor.get('IChatThreadService')
+	const settingsService = accessor.get('IVoidSettingsService')
 
 	const reasoningStr = chatMessage.reasoning?.trim() || null
 	const hasReasoning = !!reasoningStr
 	const isDoneReasoning = !!chatMessage.displayContent
 	const thread = chatThreadsService.getCurrentThread()
+
+	// Get current model selection for display in the footer
+	const modelSel = settingsService.state.modelSelectionOfFeature['Chat']
+	const modelLabel = modelSel ? modelSel.modelName : ''
 
 
 	const chatMessageLocation: ChatMessageLocation = {
@@ -1377,12 +1382,11 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 				{isCommitted && (
 					<div className="flex items-center justify-between mt-3 pt-2 border-t border-zinc-800/60 text-xs text-zinc-400">
 						<div className="flex items-center gap-2">
-							<span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-800/40 text-emerald-400 font-medium text-[11px]">
-								<CheckCircle2 size={12} />
-								<span>Completed</span>
-								<span className="text-emerald-500/70">|</span>
-								<span>51%</span>
-							</span>
+							{modelLabel && (
+								<span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-800/60 border border-zinc-700/40 text-zinc-400 font-mono text-[10px]">
+									{modelLabel}
+								</span>
+							)}
 						</div>
 
 						<div className="flex items-center gap-1 text-zinc-400">
@@ -3055,8 +3059,8 @@ export const SidebarChat = () => {
 		{/* Generating tool */}
 		{generatingTool}
 
-		{/* loading indicator */}
-		{isRunning === 'LLM' || isRunning === 'idle' && !toolIsGenerating ? <ProseWrapper>
+	{/* loading indicator - replaced by RunStateBar in the input area */}
+		{isRunning === 'idle' && !toolIsGenerating ? <ProseWrapper>
 			{<IconLoading className='opacity-50 text-sm' />}
 		</ProseWrapper> : null}
 
@@ -3140,20 +3144,40 @@ export const SidebarChat = () => {
 		<div className='px-4'>
 			<CommandBarInChat />
 		</div>
+
+		{/* Agent plan panel - visible while or after agent runs */}
+		{currThreadStreamState?.agentPlan && currThreadStreamState.agentPlan.length > 0 && (
+			<div className='px-2 pb-1'>
+				<AgentPlanPanel plan={currThreadStreamState.agentPlan} />
+			</div>
+		)}
+
+		{/* Run-state bar - shows labeled agent state with elapsed time */}
+		{isRunning && (
+			<div className='px-2 pb-1'>
+				<RunStateBar
+					isRunning={isRunning}
+					toolName={currThreadStreamState?.toolInfo?.toolName}
+					agentRunStartedAt={currThreadStreamState?.agentRunStartedAt}
+					onAbort={onAbort}
+				/>
+			</div>
+		)}
+
 		<div className='px-2 pb-2'>
 			{inputChatArea}
 		</div>
 	</div>
 
-	const landingPageInput = <div>
-		<div className='pt-8'>
+	const landingPageInput = <div className="w-full">
+		<div className='pt-2 pb-1'>
 			{inputChatArea}
 		</div>
 	</div>
 
 	const landingPageContent = <div
 		ref={sidebarRef}
-		className='w-full h-full max-h-full flex flex-col overflow-auto px-4'
+		className='w-full h-full max-h-full flex flex-col overflow-y-auto px-3 py-2'
 	>
 		<ErrorBoundary>
 			{landingPageInput}
@@ -3161,12 +3185,12 @@ export const SidebarChat = () => {
 
 		{Object.keys(chatThreadsState.allThreads).length > 1 ? // show if there are threads
 			<ErrorBoundary>
-				<div className='pt-8 mb-2 text-void-fg-3 text-root select-none pointer-events-none'>Previous Threads</div>
+				<div className='pt-4 mb-2 text-void-fg-3 text-xs font-semibold uppercase tracking-wider select-none pointer-events-none'>Previous Threads</div>
 				<PastThreadsList />
 			</ErrorBoundary>
 			:
 			<ErrorBoundary>
-				<div className='pt-8 mb-2 text-void-fg-3 text-root select-none pointer-events-none'>Suggestions</div>
+				<div className='pt-4 mb-2 text-void-fg-3 text-xs font-semibold uppercase tracking-wider select-none pointer-events-none'>Suggestions</div>
 				{initiallySuggestedPromptsHTML}
 			</ErrorBoundary>
 		}

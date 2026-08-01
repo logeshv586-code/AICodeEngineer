@@ -38,14 +38,7 @@ type Tab =
 	| 'browser'
 	| 'tab'
 	| 'editor'
-	| 'ws_AIcodeEngineer'
-	| 'ws_work'
-	| 'ws_OcrExtraction'
-	| 'ws_face_matching'
-	| 'ws_electron_frs'
-	| 'ws_demo_iwms'
-	| 'ws_IWMS'
-	| 'ws_VMS'
+	| 'ws_workspace'
 	| 'mcp'
 	| 'all';
 
@@ -1056,6 +1049,25 @@ export const Settings = () => {
 	const [enableSounds, setEnableSounds] = useState(false);
 	const [browserJsPolicy, setBrowserJsPolicy] = useState('Disabled');
 
+	const accessor = useAccessor();
+	const workspaceContextService = accessor.get('IWorkspaceContextService');
+	const workspaceFolders = workspaceContextService.getWorkspace().folders;
+	const workspaceNavItems = useMemo(() => {
+		const seen = new Set<string>();
+		return workspaceFolders.map((folder, idx) => {
+			let name = folder.name;
+			if (!name) {
+				name = folder.uri.fsPath.split(/[\\/]/).filter(Boolean).pop() || 'Workspace ' + (idx + 1);
+			}
+			let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'ws_' + idx;
+			let tabKey = 'ws_' + slug;
+			let counter = 1;
+			while (seen.has(tabKey)) { tabKey = 'ws_' + slug + '_' + counter; counter++; }
+			seen.add(tabKey);
+			return { tab: tabKey as Tab, label: name };
+		});
+	}, [workspaceFolders]);
+
 	const navItems: { tab: Tab; label: string; isHeader?: boolean }[] = [
 		{ tab: 'general', label: 'General' },
 		{ tab: 'account', label: 'Account' },
@@ -1067,20 +1079,18 @@ export const Settings = () => {
 		{ tab: 'browser', label: 'Browser' },
 		{ tab: 'tab', label: 'Tab' },
 		{ tab: 'editor', label: 'Editor' },
-		{ tab: 'ws_AIcodeEngineer', label: 'Workspaces', isHeader: true },
-		{ tab: 'ws_AIcodeEngineer', label: 'AIcodeEngineer' },
-		{ tab: 'ws_work', label: 'work' },
-		{ tab: 'ws_OcrExtraction', label: 'OcrExtraction' },
-		{ tab: 'ws_face_matching', label: 'face_matching_api_TNCSC' },
-		{ tab: 'ws_electron_frs', label: 'electron_frs' },
-		{ tab: 'ws_demo_iwms', label: 'demo-iwms' },
-		{ tab: 'ws_IWMS', label: 'IWMS' },
-		{ tab: 'ws_VMS', label: 'VMS' },
+		...(workspaceNavItems.length > 0 ? [{ tab: 'ws_workspace' as Tab, label: 'Workspaces', isHeader: true }, ...workspaceNavItems.map(w => ({ tab: w.tab, label: w.label }))] : []),
 		{ tab: 'mcp', label: 'MCP' },
 		{ tab: 'all', label: 'All Settings' },
 	];
-	const shouldShowTab = (tab: Tab) => selectedSection === 'all' || selectedSection === tab;
-	const accessor = useAccessor()
+	const shouldShowTab = (tab: Tab) => {
+		if (selectedSection === 'all') return true;
+		if (tab === selectedSection) return true;
+		if (tab.startsWith('ws_') && selectedSection.startsWith('ws_')) {
+			return tab === selectedSection;
+		}
+		return false;
+	};
 	const commandService = accessor.get('ICommandService')
 	const environmentService = accessor.get('IEnvironmentService')
 	const nativeHostService = accessor.get('INativeHostService')
@@ -1371,14 +1381,15 @@ export const Settings = () => {
 							</div>
 
 							{/* Workspace Settings */}
-							{['ws_AIcodeEngineer', 'ws_work', 'ws_OcrExtraction', 'ws_face_matching', 'ws_electron_frs', 'ws_demo_iwms', 'ws_IWMS', 'ws_VMS'].map((wsKey) => (
-								<div key={wsKey} className={shouldShowTab(wsKey as Tab) ? `` : 'hidden'}>
+							{workspaceNavItems.map((wsItem) => {
+								const wsLabel = wsItem.label;
+								return <div key={wsItem.tab} className={shouldShowTab(wsItem.tab) ? `` : 'hidden'}>
 									<ErrorBoundary>
-										<h2 className="text-2xl font-bold mb-1 text-void-fg-1">Workspace: {wsKey.replace('ws_', '')}</h2>
-										<p className="text-sm text-void-fg-3 mb-6">Configure workspace-specific indexing rules and agent settings for {wsKey.replace('ws_', '')}.</p>
+										<h2 className="text-2xl font-bold mb-1 text-void-fg-1">Workspace: {wsLabel}</h2>
+										<p className="text-sm text-void-fg-3 mb-6">Configure workspace-specific indexing rules and agent settings for {wsLabel}.</p>
 									</ErrorBoundary>
 								</div>
-							))}
+							})}
 
 							{/* Models section (formerly FeaturesTab) */}
 							<div className={shouldShowTab('models') ? `` : 'hidden'}>

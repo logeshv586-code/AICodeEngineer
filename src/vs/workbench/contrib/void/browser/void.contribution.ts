@@ -42,6 +42,9 @@ import './forge/semanticSearchService.js'
 import './toolsService.js'
 import './terminalToolService.js'
 
+// skills (domain-specific context injected into system prompt)
+import './skillsService.js'
+
 // register Thread History
 import './chatThreadService.js'
 
