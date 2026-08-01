@@ -157,7 +157,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: VOID_OPEN_SIDEBAR_ACTION_ID,
-			title: 'Open Void Sidebar',
+			title: 'Open Forge AI Sidebar',
 		})
 	}
 	run(accessor: ServicesAccessor): void {

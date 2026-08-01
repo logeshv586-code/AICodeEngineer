@@ -340,7 +340,7 @@ const getOptionsAtPath = async (accessor: ReturnType<typeof useAccessor>, path: 
 
 
 
-export type TextAreaFns = { setValue: (v: string) => void, enable: () => void, disable: () => void }
+export type TextAreaFns = { setValue: (v: string) => void, enable: () => void, disable: () => void, triggerMention: () => void, focus: () => void }
 type InputBox2Props = {
 	initValue?: string | null;
 	placeholder: string;
@@ -721,7 +721,19 @@ export const VoidInputBox2 = forwardRef<HTMLTextAreaElement, InputBox2Props>(fun
 		},
 		enable: () => { setEnabled(true) },
 		disable: () => { setEnabled(false) },
-	}), [onChangeText, adjustHeight])
+		triggerMention: () => {
+			const r = textAreaRef.current
+			if (!r) return
+			r.focus()
+			r.value = (r.value || '') + '@'
+			onChangeText?.(r.value)
+			adjustHeight()
+			onOpenOptionMenu()
+		},
+		focus: () => {
+			textAreaRef.current?.focus()
+		},
+	}), [onChangeText, adjustHeight, onOpenOptionMenu])
 
 
 
@@ -753,12 +765,9 @@ export const VoidInputBox2 = forwardRef<HTMLTextAreaElement, InputBox2Props>(fun
 
 			disabled={!isEnabled}
 
-			className={`w-full resize-none max-h-[500px] overflow-y-auto text-void-fg-1 placeholder:text-void-fg-3 ${className}`}
+			className={`w-full resize-none max-h-[300px] overflow-y-auto text-void-fg-1 placeholder:text-zinc-500 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${className}`}
 			style={{
-				// defaultInputBoxStyles
-				background: asCssVariable(inputBackground),
 				color: asCssVariable(inputForeground)
-				// inputBorder: asCssVariable(inputBorder),
 			}}
 
 			onInput={useCallback((event: React.FormEvent<HTMLTextAreaElement>) => {

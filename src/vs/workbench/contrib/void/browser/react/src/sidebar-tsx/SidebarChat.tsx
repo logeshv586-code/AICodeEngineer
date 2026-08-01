@@ -32,9 +32,24 @@ import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE, MAX_TERMINAL
 import { RawToolCallObj } from '../../../../common/sendLLMMessageTypes.js';
 import ErrorBoundary from './ErrorBoundary.js';
 import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.js';
+import { AgentPlanPanel, RunStateBar } from './AgentPlanPanel.js';
 
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
+
+// Universal Agent Workspace imports
+import { TopBar } from '../workspace-tsx/components/TopBar.js';
+import { LeftToolbar } from '../workspace-tsx/components/LeftToolbar.js';
+import { RightPanel } from '../workspace-tsx/components/RightPanel.js';
+import { BottomStatusBar } from '../workspace-tsx/components/BottomStatusBar.js';
+import { UniversalComposer } from '../workspace-tsx/components/UniversalComposer.js';
+import { useModelCapabilities } from '../workspace-tsx/hooks/useModelCapabilities.js';
+import { TaskMode } from '../workspace-tsx/components/TaskMode.js';
+import { MultiAgent } from '../workspace-tsx/components/MultiAgent.js';
+import { VoiceSupport } from '../workspace-tsx/components/VoiceSupport.js';
+import { ImageSupport } from '../workspace-tsx/components/ImageSupport.js';
+import { ArtSupport } from '../workspace-tsx/components/ArtSupport.js';
+import { CodeSupport } from '../workspace-tsx/components/CodeSupport.js';
 
 
 
@@ -309,8 +324,7 @@ interface VoidChatAreaProps {
 
 	selections?: StagingSelectionItem[]
 	setSelections?: (s: StagingSelectionItem[]) => void
-	// selections?: any[];
-	// onSelectionsChange?: (selections: any[]) => void;
+	textAreaFnsRef?: React.MutableRefObject<TextAreaFns | null>;
 
 	onClickAnywhere?: () => void;
 	// Optional close button
@@ -336,29 +350,96 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 	setSelections,
 	featureName,
 	loadingIcon,
+	textAreaFnsRef,
 }) => {
+	const accessor = useAccessor();
+	const commandService = accessor.get('ICommandService');
+	const chatThreadsService = accessor.get('IChatThreadService');
+	const voidSettingsService = accessor.get('IVoidSettingsService');
+	const settingsState = useSettingsState();
+
+	const [isVoiceListening, setIsVoiceListening] = useState(false);
+	const mediaFileInputRef = useRef<HTMLInputElement>(null);
+
+	const chatMode = settingsState.globalSettings.chatMode || 'agent';
+
+	const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (!e.target.files || e.target.files.length === 0) return;
+		const files = Array.from(e.target.files);
+		for (const file of files) {
+			const isImg = file.type.startsWith('image/');
+			const uri = URI.file((file as any).path || file.name);
+			if (isImg) {
+				const reader = new FileReader();
+				reader.onload = (evt) => {
+					const dataUrl = evt.target?.result as string;
+					chatThreadsService.addNewStagingSelection({
+						type: 'Image',
+						uri,
+						dataUrl,
+						mimeType: file.type,
+					});
+				};
+				reader.readAsDataURL(file);
+			} else {
+				chatThreadsService.addNewStagingSelection({
+					type: 'File',
+					uri,
+					language: '',
+					state: { wasAddedAsCurrentFile: false },
+				});
+			}
+		}
+		e.target.value = '';
+	};
+
+	const handleAtMentionClick = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (textAreaFnsRef?.current) {
+			textAreaFnsRef.current.triggerMention();
+		}
+	};
+
+	const handleHashContextClick = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (textAreaFnsRef?.current) {
+			textAreaFnsRef.current.triggerMention();
+		}
+	};
+
+	const handleVoiceToggle = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		setIsVoiceListening(!isVoiceListening);
+	};
+
 	return (
 		<div
 			ref={divRef}
 			className={`
-				gap-x-1
-                flex flex-col p-2.5 relative input text-left shrink-0
-                rounded-xl
-                bg-[#18181b]
+				flex flex-col p-2.5 relative text-left shrink-0
+				rounded-xl bg-[#18181b]
 				transition-all duration-200
 				border border-zinc-800 focus-within:border-zinc-600 hover:border-zinc-700
-				max-h-[80vh] overflow-y-auto shadow-lg
-                ${className}
-            `}
-			onClick={(e) => {
-				onClickAnywhere?.()
+				shadow-lg overflow-visible
+				${className}
+			`}
+			onClick={() => {
+				onClickAnywhere?.();
 			}}
 		>
-			{/* Top Header Tag matching Image 4 */}
-			<div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200 bg-zinc-800/60 rounded-md px-2 py-1 w-fit mb-2 border border-zinc-700/50">
-				<Bot size={14} className="text-emerald-400" />
-				<span>@Agent</span>
-				<Sparkles size={12} className="text-zinc-400" />
+			{/* Hidden file input for Media attachments */}
+			<input
+				type="file"
+				ref={mediaFileInputRef}
+				onChange={handleMediaSelect}
+				accept="image/*,video/*,audio/*,.pdf,.txt,.js,.ts,.tsx,.jsx,.py,.json"
+				multiple
+				className="hidden"
+			/>
+
+			{/* Interactive Mode Tag Header matching Image 4 */}
+			<div className="flex items-center gap-1.5 mb-2">
+				<ChatModeDropdown className="text-xs font-semibold text-zinc-200 bg-zinc-800/80 hover:bg-zinc-700/80 rounded-md px-2 py-0.5 border border-zinc-700/60 cursor-pointer" />
 			</div>
 
 			{/* Selections section */}
@@ -375,9 +456,17 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 			<div className="relative w-full">
 				{children}
 
+				{/* Voice Listening indicator */}
+				{isVoiceListening && (
+					<div className="absolute right-2 top-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-950/80 border border-red-700/60 text-red-400 text-xs animate-pulse pointer-events-none">
+						<span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
+						<span>Listening...</span>
+					</div>
+				)}
+
 				{/* Close button (X) if onClose is provided */}
 				{onClose && (
-					<div className='absolute -top-1 -right-1 cursor-pointer z-1'>
+					<div className='absolute -top-1 -right-1 cursor-pointer z-10'>
 						<IconX
 							size={12}
 							className="stroke-[2] opacity-80 text-void-fg-3 hover:brightness-95"
@@ -388,20 +477,59 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 			</div>
 
 			{/* Bottom row matching Image 4 */}
-			<div className='flex flex-row justify-between items-center gap-2 pt-2 border-t border-zinc-800/80 mt-2'>
-				<div className="flex items-center gap-1.5">
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold" title="Mention">@</button>
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold" title="Context">#</button>
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors" title="Attach Media"><ImageIcon size={14} /></button>
+			<div className='flex flex-row justify-between items-center gap-1.5 pt-2 border-t border-zinc-800/80 mt-2 min-w-0'>
+				<div className="flex items-center gap-1 min-w-0 py-0.5">
+					<button
+						type="button"
+						onClick={handleAtMentionClick}
+						className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold shrink-0 cursor-pointer"
+						title="Mention File / Folder (@)"
+					>
+						@
+					</button>
+					<button
+						type="button"
+						onClick={handleHashContextClick}
+						className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors text-xs font-semibold shrink-0 cursor-pointer"
+						title="Add Context Symbol (#)"
+					>
+						#
+					</button>
+					<button
+						type="button"
+						onClick={(e) => { e.stopPropagation(); mediaFileInputRef.current?.click(); }}
+						className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors shrink-0 cursor-pointer"
+						title="Attach Media / File"
+					>
+						<ImageIcon size={14} />
+					</button>
 					
 					{showModelDropdown && (
-						<ModelDropdown featureName={featureName} className='text-xs bg-zinc-800/80 text-zinc-200 border border-zinc-700/60 rounded-md px-2 py-0.5' />
+						<ModelDropdown featureName={featureName} className='text-xs bg-zinc-800/80 text-zinc-200 border border-zinc-700/60 rounded-md px-2 py-0.5 shrink-0' />
 					)}
-					<button type="button" className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors" title="AI Features"><Sparkles size={14} /></button>
+					<button
+						type="button"
+						onClick={(e) => { e.stopPropagation(); commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID); }}
+						className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors shrink-0 cursor-pointer"
+						title="AI Settings & Features"
+					>
+						<Sparkles size={14} />
+					</button>
 				</div>
 
-				<div className="flex items-center gap-2">
-					<button type="button" className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-full transition-colors" title="Voice Input"><Mic size={15} /></button>
+				<div className="flex items-center gap-1.5 shrink-0">
+					<button
+						type="button"
+						onClick={handleVoiceToggle}
+						className={`p-1.5 rounded-full transition-colors shrink-0 cursor-pointer ${
+							isVoiceListening
+								? 'bg-red-600 text-white animate-pulse'
+								: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+						}`}
+						title={isVoiceListening ? 'Stop Voice Input' : 'Voice Input'}
+					>
+						<Mic size={15} />
+					</button>
 
 					{isStreaming && loadingIcon}
 
@@ -655,13 +783,15 @@ export const SelectedFiles = (
 				const thisKey = selection.type === 'CodeSelection' ? selection.type + selection.language + selection.range + selection.state.wasAddedAsCurrentFile + selection.uri.fsPath
 					: selection.type === 'File' ? selection.type + selection.language + selection.state.wasAddedAsCurrentFile + selection.uri.fsPath
 						: selection.type === 'Folder' ? selection.type + selection.language + selection.state + selection.uri.fsPath
-							: i
+							: selection.type === 'Image' ? selection.type + selection.uri.fsPath
+								: i
 
 				const SelectionIcon = (
 					selection.type === 'File' ? File
 						: selection.type === 'Folder' ? Folder
 							: selection.type === 'CodeSelection' ? Text
-								: (undefined as never)
+								: selection.type === 'Image' ? ImageIcon
+									: File
 				)
 
 				return <div // container for summarybox and code
@@ -802,6 +932,7 @@ const ToolHeaderWrapper = ({
 	className, // applies to the main content
 }: ToolHeaderParams) => {
 
+	// Collapsed by default for successful read-only tools; expanded for errors, rejections, and running/request states
 	const [isOpen_, setIsOpen] = useState(false);
 	const isExpanded = isOpen !== undefined ? isOpen : isOpen_
 
@@ -1329,11 +1460,16 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 
 	const accessor = useAccessor()
 	const chatThreadsService = accessor.get('IChatThreadService')
+	const settingsService = accessor.get('IVoidSettingsService')
 
 	const reasoningStr = chatMessage.reasoning?.trim() || null
 	const hasReasoning = !!reasoningStr
 	const isDoneReasoning = !!chatMessage.displayContent
 	const thread = chatThreadsService.getCurrentThread()
+
+	// Get current model selection for display in the footer
+	const modelSel = settingsService.state.modelSelectionOfFeature['Chat']
+	const modelLabel = modelSel ? modelSel.modelName : ''
 
 
 	const chatMessageLocation: ChatMessageLocation = {
@@ -1377,12 +1513,11 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 				{isCommitted && (
 					<div className="flex items-center justify-between mt-3 pt-2 border-t border-zinc-800/60 text-xs text-zinc-400">
 						<div className="flex items-center gap-2">
-							<span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-800/40 text-emerald-400 font-medium text-[11px]">
-								<CheckCircle2 size={12} />
-								<span>Completed</span>
-								<span className="text-emerald-500/70">|</span>
-								<span>51%</span>
-							</span>
+							{modelLabel && (
+								<span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-800/60 border border-zinc-700/40 text-zinc-400 font-mono text-[10px]">
+									{modelLabel}
+								</span>
+							)}
 						</div>
 
 						<div className="flex items-center gap-1 text-zinc-400">
@@ -2942,6 +3077,23 @@ export const SidebarChat = () => {
 
 	const sidebarRef = useRef<HTMLDivElement>(null)
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
+	// Universal Agent Workspace state
+	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
+	const [activeTool, setActiveTool] = useState('chat')
+	const [activeFeature, setActiveFeature] = useState('Chat')
+	const [rightPanelTab, setRightPanelTab] = useState('tasks')
+	const [attachments, setAttachments] = useState<{ uri: string; dataUrl: string; mimeType: string }[]>([])
+	const [isListening, setIsListening] = useState(false)
+	const [artEnabled, setArtEnabled] = useState(false)
+	const [codeEnabled, setCodeEnabled] = useState(false)
+	const [taskModeEnabled, setTaskModeEnabled] = useState(false)
+	const [multiAgentEnabled, setMultiAgentEnabled] = useState(false)
+	const [tasks, setTasks] = useState<{ id: string; title: string; status: string }[]>([])
+	const [agents, setAgents] = useState<{ id: string; name: string; status: string }[]>([])
+
+	const capabilities = useModelCapabilities(settingsState)
+
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 
 		if (isDisabled && !_forceSubmit) return
@@ -3055,8 +3207,8 @@ export const SidebarChat = () => {
 		{/* Generating tool */}
 		{generatingTool}
 
-		{/* loading indicator */}
-		{isRunning === 'LLM' || isRunning === 'idle' && !toolIsGenerating ? <ProseWrapper>
+	{/* loading indicator - replaced by RunStateBar in the input area */}
+		{isRunning === 'idle' && !toolIsGenerating ? <ProseWrapper>
 			{<IconLoading className='opacity-50 text-sm' />}
 		</ProseWrapper> : null}
 
@@ -3088,72 +3240,142 @@ export const SidebarChat = () => {
 		}
 	}, [onSubmit, onAbort, isRunning])
 
-	const inputChatArea = <VoidChatArea
-		featureName='Chat'
-		onSubmit={() => onSubmit()}
-		onAbort={onAbort}
-		isStreaming={!!isRunning}
-		isDisabled={isDisabled}
-		showSelections={true}
-		// showProspectiveSelections={previousMessagesHTML.length === 0}
-		selections={selections}
-		setSelections={setSelections}
-		onClickAnywhere={() => { textAreaRef.current?.focus() }}
-	>
-		<VoidInputBox2
-			enableAtToMention
-			className={`min-h-[81px] px-0.5 py-0.5`}
-			placeholder="You are chatting with Agent now. Type '/' for more capabilities"
-			onChangeText={onChangeText}
-			onKeyDown={onKeyDown}
-			onFocus={() => { chatThreadsService.setCurrentlyFocusedMessageIdx(undefined) }}
-			ref={textAreaRef}
-			fnsRef={textAreaFnsRef}
-			multiline={true}
-		/>
-
-	</VoidChatArea>
-
-
 	const isLandingPage = previousMessages.length === 0
-
-
-	const initiallySuggestedPromptsHTML = <div className='flex flex-col gap-2 w-full text-nowrap text-void-fg-3 select-none'>
-		{[
-			'Summarize my codebase',
-			'How do types work in Rust?',
-			'Create a .voidrules file for me'
-		].map((text, index) => (
-			<div
-				key={index}
-				className='py-1 px-2 rounded text-sm bg-zinc-700/5 hover:bg-zinc-700/10 dark:bg-zinc-300/5 dark:hover:bg-zinc-300/10 cursor-pointer opacity-80 hover:opacity-100'
-				onClick={() => onSubmit(text)}
-			>
-				{text}
-			</div>
-		))}
-	</div>
-
-
 
 	const threadPageInput = <div key={'input' + chatThreadsState.currentThreadId}>
 		<div className='px-4'>
 			<CommandBarInChat />
 		</div>
+
+		{/* Agent plan panel - visible while or after agent runs */}
+		{currThreadStreamState?.agentPlan && currThreadStreamState.agentPlan.length > 0 && (
+			<div className='px-2 pb-1'>
+				<AgentPlanPanel plan={currThreadStreamState.agentPlan} />
+			</div>
+		)}
+
+		{/* Run-state bar - shows labeled agent state with elapsed time */}
+		{isRunning && (
+			<div className='px-2 pb-1'>
+				<RunStateBar
+					isRunning={isRunning}
+					toolName={currThreadStreamState?.toolInfo?.toolName}
+					agentRunStartedAt={currThreadStreamState?.agentRunStartedAt}
+					onAbort={onAbort}
+				/>
+			</div>
+		)}
+
+		{/* Task Mode */}
+		{taskModeEnabled && (
+			<div className='px-2 pb-1'>
+				<TaskMode
+					enabled={taskModeEnabled}
+					tasks={tasks}
+					onToggle={() => setTaskModeEnabled(v => !v)}
+					onAddTask={(title) => {
+						setTasks(prev => [...prev, { id: `task-${Date.now()}`, title, status: 'pending' }])
+					}}
+					onUpdateTask={(id, updates) => {
+						setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+					}}
+					onCompleteTask={(id) => {
+						setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'done', completedAt: Date.now() } : t))
+					}}
+				/>
+			</div>
+		)}
+
+		{/* Multi-Agent */}
+		{multiAgentEnabled && (
+			<div className='px-2 pb-1'>
+				<MultiAgent
+					config={{
+						enabled: multiAgentEnabled,
+						agents: agents,
+						collaborationMode: 'sequential',
+					}}
+					onToggle={() => setMultiAgentEnabled(v => !v)}
+					onUpdateConfig={(config) => {
+						setMultiAgentEnabled(config.enabled)
+						setAgents(config.agents)
+					}}
+				/>
+			</div>
+		)}
+
 		<div className='px-2 pb-2'>
-			{inputChatArea}
+			<UniversalComposer
+				value={textAreaRef.current?.value || ''}
+				onChange={(val) => {
+					if (textAreaRef.current) {
+						textAreaRef.current.value = val
+					}
+					setInstructionsAreEmpty(!val)
+				}}
+				onSubmit={onSubmit}
+				onAbort={onAbort}
+				isStreaming={!!isRunning}
+				isDisabled={isDisabled}
+				placeholder="You are chatting with Agent now. Type '/' for more capabilities"
+				featureName={activeFeature}
+				capabilities={capabilities}
+				attachments={attachments}
+				onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+				textAreaFnsRef={textAreaFnsRef}
+				tokenCount={0}
+				maxTokens={capabilities?.maxContextTokens ?? undefined}
+				slashCommandsEnabled={true}
+				voiceEnabled={capabilities?.canUseVoice ?? false}
+				isListening={isListening}
+				onVoiceToggle={() => setIsListening(v => !v)}
+				artEnabled={artEnabled}
+				onArtToggle={() => setArtEnabled(v => !v)}
+				codeEnabled={codeEnabled}
+				onCodeToggle={() => setCodeEnabled(v => !v)}
+			/>
 		</div>
 	</div>
 
-	const landingPageInput = <div>
-		<div className='pt-8'>
-			{inputChatArea}
+	const landingPageInput = <div className="w-full">
+		<div className='pt-2 pb-1'>
+			<UniversalComposer
+				value={textAreaRef.current?.value || ''}
+				onChange={(val) => {
+					if (textAreaRef.current) {
+						textAreaRef.current.value = val
+					}
+					setInstructionsAreEmpty(!val)
+				}}
+				onSubmit={onSubmit}
+				onAbort={onAbort}
+				isStreaming={!!isRunning}
+				isDisabled={isDisabled}
+				placeholder="You are chatting with Agent now. Type '/' for more capabilities"
+				featureName={activeFeature}
+				capabilities={capabilities}
+				attachments={attachments}
+				onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+				textAreaFnsRef={textAreaFnsRef}
+				tokenCount={0}
+				maxTokens={capabilities?.maxContextTokens ?? undefined}
+				slashCommandsEnabled={true}
+				voiceEnabled={capabilities?.canUseVoice ?? false}
+				isListening={isListening}
+				onVoiceToggle={() => setIsListening(v => !v)}
+				artEnabled={artEnabled}
+				onArtToggle={() => setArtEnabled(v => !v)}
+				codeEnabled={codeEnabled}
+				onCodeToggle={() => setCodeEnabled(v => !v)}
+			/>
 		</div>
 	</div>
 
 	const landingPageContent = <div
 		ref={sidebarRef}
-		className='w-full h-full max-h-full flex flex-col overflow-auto px-4'
+		className='w-full h-full max-h-full flex flex-col overflow-y-auto px-3 py-2'
 	>
 		<ErrorBoundary>
 			{landingPageInput}
@@ -3161,14 +3383,10 @@ export const SidebarChat = () => {
 
 		{Object.keys(chatThreadsState.allThreads).length > 1 ? // show if there are threads
 			<ErrorBoundary>
-				<div className='pt-8 mb-2 text-void-fg-3 text-root select-none pointer-events-none'>Previous Threads</div>
+				<div className='pt-4 mb-2 text-void-fg-3 text-xs font-semibold uppercase tracking-wider select-none pointer-events-none'>Previous Threads</div>
 				<PastThreadsList />
 			</ErrorBoundary>
-			:
-			<ErrorBoundary>
-				<div className='pt-8 mb-2 text-void-fg-3 text-root select-none pointer-events-none'>Suggestions</div>
-				{initiallySuggestedPromptsHTML}
-			</ErrorBoundary>
+			: null
 		}
 	</div>
 
@@ -3190,13 +3408,62 @@ export const SidebarChat = () => {
 		ref={sidebarRef}
 		className='w-full h-full flex flex-col overflow-hidden'
 	>
+		{/* Top Bar */}
+		<TopBar
+			providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? null}
+			modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
+			capabilities={capabilities}
+			isConnected={true}
+			isStreaming={!!isRunning}
+			activeFeature={activeFeature}
+			onFeatureChange={setActiveFeature}
+		/>
 
-		<ErrorBoundary>
-			{messagesHTML}
-		</ErrorBoundary>
-		<ErrorBoundary>
-			{threadPageInput}
-		</ErrorBoundary>
+		<div className="flex flex-1 overflow-hidden">
+			{/* Left Toolbar */}
+			<LeftToolbar
+				activeTool={activeTool}
+				onToolChange={setActiveTool}
+				hasActiveThread={previousMessages.length > 0}
+				threadCount={Object.keys(chatThreadsState.allThreads).length}
+				isRightPanelOpen={isRightPanelOpen}
+				onToggleRightPanel={() => setIsRightPanelOpen(v => !v)}
+			/>
+
+			{/* Main content area */}
+			<div className="flex-1 flex flex-col overflow-hidden">
+				<ErrorBoundary>
+					{messagesHTML}
+				</ErrorBoundary>
+
+				<ErrorBoundary>
+					{threadPageInput}
+				</ErrorBoundary>
+			</div>
+
+			{/* Right Panel */}
+			<RightPanel
+				isOpen={isRightPanelOpen}
+				activeTab={rightPanelTab}
+				onTabChange={setRightPanelTab}
+				onClose={() => setIsRightPanelOpen(false)}
+				tasks={tasks}
+				agents={agents}
+			/>
+		</div>
+
+		{/* Bottom Status Bar */}
+		<BottomStatusBar
+			contextTokens={0}
+			maxContextTokens={capabilities?.maxContextTokens ?? null}
+			gpuMemoryUsage={null}
+			gpuMemoryTotal={null}
+			cpuUsage={null}
+			latencyMs={null}
+			isRunning={!!isRunning}
+			activeTool={activeTool}
+			threadId={threadId}
+		/>
 	</div>
 
 
