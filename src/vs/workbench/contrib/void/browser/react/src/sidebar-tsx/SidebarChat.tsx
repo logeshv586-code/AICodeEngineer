@@ -37,6 +37,20 @@ import { AgentPlanPanel, RunStateBar } from './AgentPlanPanel.js';
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
 
+// Universal Agent Workspace imports
+import { TopBar } from '../workspace-tsx/components/TopBar.js';
+import { LeftToolbar } from '../workspace-tsx/components/LeftToolbar.js';
+import { RightPanel } from '../workspace-tsx/components/RightPanel.js';
+import { BottomStatusBar } from '../workspace-tsx/components/BottomStatusBar.js';
+import { UniversalComposer } from '../workspace-tsx/components/UniversalComposer.js';
+import { useModelCapabilities } from '../workspace-tsx/hooks/useModelCapabilities.js';
+import { TaskMode } from '../workspace-tsx/components/TaskMode.js';
+import { MultiAgent } from '../workspace-tsx/components/MultiAgent.js';
+import { VoiceSupport } from '../workspace-tsx/components/VoiceSupport.js';
+import { ImageSupport } from '../workspace-tsx/components/ImageSupport.js';
+import { ArtSupport } from '../workspace-tsx/components/ArtSupport.js';
+import { CodeSupport } from '../workspace-tsx/components/CodeSupport.js';
+
 
 
 export const IconX = ({ size, className = '', ...props }: { size: number, className?: string } & React.SVGProps<SVGSVGElement>) => {
@@ -3063,6 +3077,23 @@ export const SidebarChat = () => {
 
 	const sidebarRef = useRef<HTMLDivElement>(null)
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
+	// Universal Agent Workspace state
+	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
+	const [activeTool, setActiveTool] = useState('chat')
+	const [activeFeature, setActiveFeature] = useState('Chat')
+	const [rightPanelTab, setRightPanelTab] = useState('tasks')
+	const [attachments, setAttachments] = useState<{ uri: string; dataUrl: string; mimeType: string }[]>([])
+	const [isListening, setIsListening] = useState(false)
+	const [artEnabled, setArtEnabled] = useState(false)
+	const [codeEnabled, setCodeEnabled] = useState(false)
+	const [taskModeEnabled, setTaskModeEnabled] = useState(false)
+	const [multiAgentEnabled, setMultiAgentEnabled] = useState(false)
+	const [tasks, setTasks] = useState<{ id: string; title: string; status: string }[]>([])
+	const [agents, setAgents] = useState<{ id: string; name: string; status: string }[]>([])
+
+	const capabilities = useModelCapabilities(settingsState)
+
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 
 		if (isDisabled && !_forceSubmit) return
@@ -3209,33 +3240,6 @@ export const SidebarChat = () => {
 		}
 	}, [onSubmit, onAbort, isRunning])
 
-	const inputChatArea = <VoidChatArea
-		featureName='Chat'
-		onSubmit={() => onSubmit()}
-		onAbort={onAbort}
-		isStreaming={!!isRunning}
-		isDisabled={isDisabled}
-		showSelections={true}
-		selections={selections}
-		setSelections={setSelections}
-		textAreaFnsRef={textAreaFnsRef}
-		onClickAnywhere={() => { textAreaRef.current?.focus() }}
-	>
-		<VoidInputBox2
-			enableAtToMention
-			className={`min-h-[81px] px-0.5 py-0.5`}
-			placeholder="You are chatting with Agent now. Type '/' for more capabilities"
-			onChangeText={onChangeText}
-			onKeyDown={onKeyDown}
-			onFocus={() => { chatThreadsService.setCurrentlyFocusedMessageIdx(undefined) }}
-			ref={textAreaRef}
-			fnsRef={textAreaFnsRef}
-			multiline={true}
-		/>
-
-	</VoidChatArea>
-
-
 	const isLandingPage = previousMessages.length === 0
 
 	const threadPageInput = <div key={'input' + chatThreadsState.currentThreadId}>
@@ -3262,14 +3266,110 @@ export const SidebarChat = () => {
 			</div>
 		)}
 
+		{/* Task Mode */}
+		{taskModeEnabled && (
+			<div className='px-2 pb-1'>
+				<TaskMode
+					enabled={taskModeEnabled}
+					tasks={tasks}
+					onToggle={() => setTaskModeEnabled(v => !v)}
+					onAddTask={(title) => {
+						setTasks(prev => [...prev, { id: `task-${Date.now()}`, title, status: 'pending' }])
+					}}
+					onUpdateTask={(id, updates) => {
+						setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+					}}
+					onCompleteTask={(id) => {
+						setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'done', completedAt: Date.now() } : t))
+					}}
+				/>
+			</div>
+		)}
+
+		{/* Multi-Agent */}
+		{multiAgentEnabled && (
+			<div className='px-2 pb-1'>
+				<MultiAgent
+					config={{
+						enabled: multiAgentEnabled,
+						agents: agents,
+						collaborationMode: 'sequential',
+					}}
+					onToggle={() => setMultiAgentEnabled(v => !v)}
+					onUpdateConfig={(config) => {
+						setMultiAgentEnabled(config.enabled)
+						setAgents(config.agents)
+					}}
+				/>
+			</div>
+		)}
+
 		<div className='px-2 pb-2'>
-			{inputChatArea}
+			<UniversalComposer
+				value={textAreaRef.current?.value || ''}
+				onChange={(val) => {
+					if (textAreaRef.current) {
+						textAreaRef.current.value = val
+					}
+					setInstructionsAreEmpty(!val)
+				}}
+				onSubmit={onSubmit}
+				onAbort={onAbort}
+				isStreaming={!!isRunning}
+				isDisabled={isDisabled}
+				placeholder="You are chatting with Agent now. Type '/' for more capabilities"
+				featureName={activeFeature}
+				capabilities={capabilities}
+				attachments={attachments}
+				onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+				textAreaFnsRef={textAreaFnsRef}
+				tokenCount={0}
+				maxTokens={capabilities?.maxContextTokens ?? undefined}
+				slashCommandsEnabled={true}
+				voiceEnabled={capabilities?.canUseVoice ?? false}
+				isListening={isListening}
+				onVoiceToggle={() => setIsListening(v => !v)}
+				artEnabled={artEnabled}
+				onArtToggle={() => setArtEnabled(v => !v)}
+				codeEnabled={codeEnabled}
+				onCodeToggle={() => setCodeEnabled(v => !v)}
+			/>
 		</div>
 	</div>
 
 	const landingPageInput = <div className="w-full">
 		<div className='pt-2 pb-1'>
-			{inputChatArea}
+			<UniversalComposer
+				value={textAreaRef.current?.value || ''}
+				onChange={(val) => {
+					if (textAreaRef.current) {
+						textAreaRef.current.value = val
+					}
+					setInstructionsAreEmpty(!val)
+				}}
+				onSubmit={onSubmit}
+				onAbort={onAbort}
+				isStreaming={!!isRunning}
+				isDisabled={isDisabled}
+				placeholder="You are chatting with Agent now. Type '/' for more capabilities"
+				featureName={activeFeature}
+				capabilities={capabilities}
+				attachments={attachments}
+				onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+				textAreaFnsRef={textAreaFnsRef}
+				tokenCount={0}
+				maxTokens={capabilities?.maxContextTokens ?? undefined}
+				slashCommandsEnabled={true}
+				voiceEnabled={capabilities?.canUseVoice ?? false}
+				isListening={isListening}
+				onVoiceToggle={() => setIsListening(v => !v)}
+				artEnabled={artEnabled}
+				onArtToggle={() => setArtEnabled(v => !v)}
+				codeEnabled={codeEnabled}
+				onCodeToggle={() => setCodeEnabled(v => !v)}
+			/>
 		</div>
 	</div>
 
@@ -3308,13 +3408,62 @@ export const SidebarChat = () => {
 		ref={sidebarRef}
 		className='w-full h-full flex flex-col overflow-hidden'
 	>
+		{/* Top Bar */}
+		<TopBar
+			providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? null}
+			modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
+			capabilities={capabilities}
+			isConnected={true}
+			isStreaming={!!isRunning}
+			activeFeature={activeFeature}
+			onFeatureChange={setActiveFeature}
+		/>
 
-		<ErrorBoundary>
-			{messagesHTML}
-		</ErrorBoundary>
-		<ErrorBoundary>
-			{threadPageInput}
-		</ErrorBoundary>
+		<div className="flex flex-1 overflow-hidden">
+			{/* Left Toolbar */}
+			<LeftToolbar
+				activeTool={activeTool}
+				onToolChange={setActiveTool}
+				hasActiveThread={previousMessages.length > 0}
+				threadCount={Object.keys(chatThreadsState.allThreads).length}
+				isRightPanelOpen={isRightPanelOpen}
+				onToggleRightPanel={() => setIsRightPanelOpen(v => !v)}
+			/>
+
+			{/* Main content area */}
+			<div className="flex-1 flex flex-col overflow-hidden">
+				<ErrorBoundary>
+					{messagesHTML}
+				</ErrorBoundary>
+
+				<ErrorBoundary>
+					{threadPageInput}
+				</ErrorBoundary>
+			</div>
+
+			{/* Right Panel */}
+			<RightPanel
+				isOpen={isRightPanelOpen}
+				activeTab={rightPanelTab}
+				onTabChange={setRightPanelTab}
+				onClose={() => setIsRightPanelOpen(false)}
+				tasks={tasks}
+				agents={agents}
+			/>
+		</div>
+
+		{/* Bottom Status Bar */}
+		<BottomStatusBar
+			contextTokens={0}
+			maxContextTokens={capabilities?.maxContextTokens ?? null}
+			gpuMemoryUsage={null}
+			gpuMemoryTotal={null}
+			cpuUsage={null}
+			latencyMs={null}
+			isRunning={!!isRunning}
+			activeTool={activeTool}
+			threadId={threadId}
+		/>
 	</div>
 
 

@@ -19,7 +19,6 @@
 	--void-fg-1: var(--vscode-editor-foreground);
 	--void-fg-2: var(--vscode-input-foreground);
 	--void-fg-3: var(--vscode-input-placeholderForeground);
-	/* --void-fg-4: var(--vscode-tab-inactiveForeground); */
 	--void-fg-4: var(--vscode-list-deemphasizedForeground);
 
 	--void-warning: var(--vscode-charts-yellow);
@@ -31,8 +30,188 @@
 
 	--void-ring-color: #007FD4;
 	--void-link-color: #007FD4;
+
+	/* Glass UI variables */
+	--void-glass-bg: rgba(24, 24, 27, 0.7);
+	--void-glass-border: rgba(63, 63, 70, 0.5);
+	--void-glass-shadow: rgba(0, 0, 0, 0.3);
+	--void-glass-blur: blur(12px);
+
+	/* Animation variables */
+	--void-transition-fast: 150ms ease;
+	--void-transition-normal: 200ms ease;
+	--void-transition-slow: 300ms ease;
 }
 
+/* Glass UI base styles */
+.glass-bg {
+	background: var(--void-glass-bg);
+	backdrop-filter: var(--void-glass-blur);
+	-webkit-backdrop-filter: var(--void-glass-blur);
+}
+
+.glass-border {
+	border: 1px solid var(--void-glass-border);
+}
+
+.glass-shadow {
+	box-shadow: 0 4px 24px var(--void-glass-shadow);
+}
+
+.glass-panel {
+	background: var(--void-glass-bg);
+	backdrop-filter: var(--void-glass-blur);
+	-webkit-backdrop-filter: var(--void-glass-blur);
+	border: 1px solid var(--void-glass-border);
+	border-radius: 12px;
+}
+
+/* Animations */
+@keyframes void-fade-in {
+	from { opacity: 0; transform: translateY(4px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes void-slide-in-right {
+	from { opacity: 0; transform: translateX(20px); }
+	to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes void-slide-in-left {
+	from { opacity: 0; transform: translateX(-20px); }
+	to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes void-slide-in-up {
+	from { opacity: 0; transform: translateY(20px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes void-pulse-glow {
+	0%, 100% { box-shadow: 0 0 4px rgba(0, 127, 212, 0.2); }
+	50% { box-shadow: 0 0 12px rgba(0, 127, 212, 0.4); }
+}
+
+@keyframes void-shimmer {
+	0% { background-position: -200% 0; }
+	100% { background-position: 200% 0; }
+}
+
+@keyframes void-breathe {
+	0%, 100% { opacity: 0.6; }
+	50% { opacity: 1; }
+}
+
+.animate-fade-in {
+	animation: void-fade-in var(--void-transition-normal) forwards;
+}
+
+.animate-slide-in-right {
+	animation: void-slide-in-right var(--void-transition-normal) forwards;
+}
+
+.animate-slide-in-left {
+	animation: void-slide-in-left var(--void-transition-normal) forwards;
+}
+
+.animate-slide-in-up {
+	animation: void-slide-in-up var(--void-transition-normal) forwards;
+}
+
+.animate-pulse-glow {
+	animation: void-pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+	background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+	background-size: 200% 100%;
+	animation: void-shimmer 2s linear infinite;
+}
+
+.animate-breathe {
+	animation: void-breathe 2s ease-in-out infinite;
+}
+
+/* Transition utilities */
+.transition-glass {
+	transition: background var(--void-transition-normal), border-color var(--void-transition-normal), box-shadow var(--void-transition-normal);
+}
+
+/* Dark theme enhancements */
+.dark {
+	--void-glass-bg: rgba(10, 10, 12, 0.8);
+	--void-glass-border: rgba(63, 63, 70, 0.6);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+	.void-sidebar-panel {
+		position: fixed;
+		z-index: 100;
+		inset: 0;
+		width: 100%;
+		max-width: 100%;
+	}
+
+	.void-right-panel {
+		position: fixed;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		width: 280px;
+		z-index: 110;
+		transform: translateX(100%);
+		transition: transform var(--void-transition-normal);
+	}
+
+	.void-right-panel.open {
+		transform: translateX(0);
+	}
+
+	.void-left-toolbar {
+		display: none;
+	}
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--void-border-3);
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--void-fg-4);
+}
+
+/* Focus ring */
+.focus-ring:focus-visible {
+	outline: 2px solid var(--void-ring-color);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* Selection styling */
+::selection {
+	background: rgba(0, 127, 212, 0.3);
+	color: var(--void-fg-1);
+}
+
+/* Placeholder styling */
+::placeholder {
+	color: var(--void-fg-3);
+	opacity: 1;
+}
+
+/* Selection child restyle */
 .select-child-restyle select {
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -47,55 +226,10 @@
 	outline: none !important;
 }
 
-
-
 .inherit-bg-all-restyle > * {
 	background-color: inherit !important;
 }
 
-
 .bg-editor-style-override {
 	--vscode-sideBar-background: var(--vscode-editor-background);
 }
-
-
-
-/* html {
-	font-size: var(--vscode-font-size);
-}
-
-.btn {
-	@apply cursor-pointer transition-colors;
-
-	&.btn-primary {
-		@apply bg-vscode-button-bg text-vscode-button-fg;
-
-		&:not(:disabled) {
-			@apply hover:bg-vscode-button-hoverBg;
-		}
-	}
-
-	&.btn-sm {
-		@apply px-3 py-1 text-sm;
-	}
-
-	&.btn-secondary {
-		@apply bg-vscode-button-secondary-bg text-vscode-button-secondary-fg;
-
-		&:not(:disabled) {
-			@apply hover:bg-vscode-button-secondary-hoverBg;
-		}
-	}
-
-	&:disabled {
-		@apply opacity-75 cursor-not-allowed;
-	}
-}
-
-.input {
-	@apply bg-vscode-input-bg text-vscode-input-fg border-vscode-input-border focus:outline-vscode-focus-border;
-}
-
-.dropdown {
-	@apply bg-vscode-dropdown-bg text-vscode-dropdown-foreground border-vscode-dropdown-border focus:outline-vscode-focus-border;
-} */
