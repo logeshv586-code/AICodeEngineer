@@ -340,7 +340,7 @@ const getOptionsAtPath = async (accessor: ReturnType<typeof useAccessor>, path: 
 
 
 
-export type TextAreaFns = { setValue: (v: string) => void, enable: () => void, disable: () => void }
+export type TextAreaFns = { setValue: (v: string) => void, enable: () => void, disable: () => void, triggerMention: () => void, focus: () => void }
 type InputBox2Props = {
 	initValue?: string | null;
 	placeholder: string;
@@ -721,7 +721,19 @@ export const VoidInputBox2 = forwardRef<HTMLTextAreaElement, InputBox2Props>(fun
 		},
 		enable: () => { setEnabled(true) },
 		disable: () => { setEnabled(false) },
-	}), [onChangeText, adjustHeight])
+		triggerMention: () => {
+			const r = textAreaRef.current
+			if (!r) return
+			r.focus()
+			r.value = (r.value || '') + '@'
+			onChangeText?.(r.value)
+			adjustHeight()
+			onOpenOptionMenu()
+		},
+		focus: () => {
+			textAreaRef.current?.focus()
+		},
+	}), [onChangeText, adjustHeight, onOpenOptionMenu])
 
 
 

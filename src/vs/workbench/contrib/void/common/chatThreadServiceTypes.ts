@@ -96,6 +96,13 @@ export type StagingSelectionItem = {
 	uri: URI;
 	language?: undefined;
 	state?: undefined;
+} | {
+	type: 'Image';
+	uri: URI;
+	dataUrl?: string;
+	mimeType?: string;
+	language?: undefined;
+	state?: undefined;
 }
 
 
