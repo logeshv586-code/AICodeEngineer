@@ -211,6 +211,140 @@
 	color: var(--void-fg-1);
 }
 
+/* CocoIndex-inspired Forge surface: ink, paper, and living lime. */
+.forge-coco-shell {
+	--forge-coco-ink: #090b0a;
+	--forge-coco-panel: #101311;
+	--forge-coco-panel-raised: #171b17;
+	--forge-coco-paper: #f2f1e9;
+	--forge-coco-muted: #92978e;
+	--forge-coco-line: rgba(242, 241, 233, 0.13);
+	--forge-coco-lime: #b9f227;
+	--forge-coco-lime-soft: rgba(185, 242, 39, 0.12);
+	background: var(--forge-coco-ink);
+	color: var(--forge-coco-paper);
+}
+
+.forge-coco-shell button,
+.forge-coco-shell input,
+.forge-coco-shell select,
+.forge-coco-shell textarea {
+	font-family: inherit;
+}
+
+.forge-coco-agent-dock {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin: 8px 12px 4px;
+	padding: 9px 10px;
+	border: 1px solid var(--forge-coco-line);
+	border-radius: 10px;
+	background: linear-gradient(135deg, rgba(185, 242, 39, 0.08), rgba(255, 255, 255, 0.025));
+}
+
+.forge-coco-agent-mark {
+	display: grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 7px;
+	background: var(--forge-coco-lime);
+	color: #10130d;
+}
+
+.forge-coco-kicker {
+	font-size: 9px;
+	letter-spacing: 0.13em;
+	color: var(--forge-coco-muted);
+}
+
+.forge-coco-agent-select {
+	max-width: 150px;
+	margin-top: 2px;
+	background: transparent;
+	color: var(--forge-coco-paper);
+	font-size: 12px;
+	font-weight: 600;
+	border: 0;
+	outline: 0;
+}
+
+.forge-coco-agent-select option {
+	background: var(--forge-coco-panel);
+	color: var(--forge-coco-paper);
+}
+
+.forge-coco-create-agent {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 7px;
+	border: 1px solid rgba(185, 242, 39, 0.35);
+	border-radius: 6px;
+	background: var(--forge-coco-lime-soft);
+	color: var(--forge-coco-lime);
+	font-size: 10px;
+	cursor: pointer;
+}
+
+.forge-coco-create-agent:hover { background: rgba(185, 242, 39, 0.2); }
+
+.forge-coco-agent-create-row {
+	display: flex;
+	position: absolute;
+	left: 12px;
+	right: 12px;
+	margin-top: 84px;
+	z-index: 20;
+	gap: 5px;
+	padding: 7px;
+	border: 1px solid var(--forge-coco-line);
+	border-radius: 8px;
+	background: var(--forge-coco-panel-raised);
+	box-shadow: 0 12px 30px rgba(0,0,0,.35);
+}
+
+.forge-coco-agent-create-row input {
+	min-width: 0;
+	flex: 1;
+	padding: 5px 7px;
+	border: 1px solid var(--forge-coco-line);
+	border-radius: 5px;
+	background: var(--forge-coco-ink);
+	color: var(--forge-coco-paper);
+	font-size: 11px;
+	outline: none;
+}
+
+.forge-coco-agent-create-row button {
+	padding: 5px 8px;
+	border: 0;
+	border-radius: 5px;
+	background: var(--forge-coco-lime);
+	color: #10130d;
+	font-size: 11px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.forge-coco-composer {
+	border-radius: 11px;
+}
+
+.forge-coco-composer > div:last-child {
+	border-color: var(--forge-coco-line);
+}
+
+.forge-coco-attachment {
+	background: var(--forge-coco-lime-soft);
+	border: 1px solid rgba(185, 242, 39, 0.25);
+	color: var(--forge-coco-paper);
+}
+
+.forge-coco-remove:hover { color: var(--forge-coco-lime); }
+
 /* Placeholder styling */
 ::placeholder {
 	color: var(--void-fg-3);

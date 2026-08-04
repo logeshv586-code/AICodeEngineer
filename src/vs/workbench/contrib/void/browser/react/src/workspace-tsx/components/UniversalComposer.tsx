@@ -9,6 +9,8 @@ import { VoidInputBox2 } from '../../util/inputs.tsx';
 import { TextAreaFns } from '../../util/inputs.tsx';
 import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
 import { ModelCapability } from '../utils/modelCapabilityManifest.js';
+import { ModelDropdown } from '../../void-settings-tsx/ModelDropdown.tsx';
+import { FeatureName } from '../../../../common/voidSettingsTypes.js';
 
 interface UniversalComposerProps {
   value: string;
@@ -18,7 +20,7 @@ interface UniversalComposerProps {
   isStreaming: boolean;
   isDisabled?: boolean;
   placeholder?: string;
-  featureName: string;
+  featureName: FeatureName;
   capabilities: ModelCapability;
   attachments: { uri: string; dataUrl: string; mimeType: string }[];
   onAddAttachment: (attachment: { uri: string; dataUrl: string; mimeType: string }) => void;
@@ -67,6 +69,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
   const [showArtPanel, setShowArtPanel] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const slashCommands = getSlashCommands();
   const filteredCommands = slashQuery
@@ -126,8 +129,31 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 
   const tokenColor = tokenPercentage > 90 ? 'bg-red-500' : tokenPercentage > 70 ? 'bg-amber-500' : 'bg-emerald-500';
 
+  const addFiles = useCallback((files: File[]) => {
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = event => onAddAttachment({
+        uri: (file as File & { path?: string }).path || file.name,
+        dataUrl: String(event.target?.result || ''),
+        mimeType: file.type || 'application/octet-stream',
+      });
+      reader.readAsDataURL(file);
+    });
+  }, [onAddAttachment]);
+
+  const handleFileInput = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(event.target.files || []));
+    event.target.value = '';
+  }, [addFiles]);
+
+  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    addFiles(Array.from(event.dataTransfer.files || []));
+  }, [addFiles]);
+
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative w-full forge-coco-composer" onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
+      <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.txt,.md,.js,.ts,.tsx,.jsx,.py,.json,.css,.html,.svg" className="hidden" onChange={handleFileInput} />
       {/* Slash command palette */}
       {isSlashOpen && (
         <div className="absolute bottom-full left-0 mb-2 w-72 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl z-50 overflow-hidden">
@@ -211,14 +237,14 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
           {attachments.map((att, i) => (
             <div
               key={i}
-              className="flex items-center gap-1 px-2 py-0.5 bg-zinc-800/60 border border-zinc-700/60 rounded text-xs text-zinc-400"
+              className="forge-coco-attachment flex items-center gap-1 px-2 py-0.5 rounded text-xs"
             >
-              <ImageIcon size={10} />
-              <span className="truncate max-w-[120px]">{att.uri}</span>
+              {att.mimeType.startsWith('image/') && att.dataUrl ? <img src={att.dataUrl} alt="" className="h-5 w-5 rounded object-cover" /> : <Paperclip size={10} />}
+              <span className="truncate max-w-[120px]">{att.uri.split(/[\\/]/).pop()}</span>
               <button
                 type="button"
                 onClick={() => onRemoveAttachment(i)}
-                className="text-zinc-600 hover:text-zinc-400"
+                className="forge-coco-remove text-zinc-600 hover:text-zinc-400"
               >
                 ×
               </button>
@@ -261,6 +287,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
           {/* Attachment button */}
           <button
             type="button"
+            onClick={() => fileInputRef.current?.click()}
             className="p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
             title="Attach file"
           >
@@ -339,6 +366,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
         <div className="flex items-center justify-between px-2 py-1.5 border-t border-zinc-700/60">
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-zinc-600">{featureName}</span>
+            <ModelDropdown featureName={featureName} className="text-[10px] bg-transparent text-zinc-400 border-0 outline-none max-w-[130px]" />
           </div>
 
           <div className="flex items-center gap-1">

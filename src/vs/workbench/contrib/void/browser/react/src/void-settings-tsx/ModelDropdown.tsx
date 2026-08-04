@@ -123,7 +123,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 
 			{/* Dropdown Panel matching Image 4 */}
 			{isOpen && (
-				<div className="absolute right-0 bottom-full mb-2 w-68 rounded-xl bg-[#18181b] border border-zinc-700/80 shadow-2xl z-[9999] overflow-hidden text-zinc-200 animate-in fade-in zoom-in-95 duration-150">
+				<div className="absolute right-0 bottom-full mb-2 w-[280px] max-w-[calc(100vw-16px)] rounded-xl bg-[#101311] border border-lime-300/20 shadow-2xl z-[9999] overflow-hidden text-zinc-200 animate-in fade-in zoom-in-95 duration-150">
 					{/* Header: Auto Mode Toggle */}
 					<div className="p-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
 						<div className="flex items-center gap-1.5">

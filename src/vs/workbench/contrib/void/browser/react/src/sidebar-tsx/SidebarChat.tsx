@@ -3038,6 +3038,47 @@ const EditToolSoFar = ({ toolCallSoFar, }: { toolCallSoFar: RawToolCallObj }) =>
 }
 
 
+const AgentDock = ({
+	agents,
+	selectedAgentId,
+	onSelect,
+	onCreate,
+}: {
+	agents: { id: string; name: string; status: string }[]
+	selectedAgentId: string
+	onSelect: (id: string) => void
+	onCreate: (name: string) => void
+}) => {
+	const [isCreating, setIsCreating] = useState(false)
+	const [name, setName] = useState('')
+	const selected = agents.find(agent => agent.id === selectedAgentId) ?? agents[0]
+	return <div className='forge-coco-agent-dock'>
+		<div className='flex items-center gap-2 min-w-0'>
+			<div className='forge-coco-agent-mark'><Sparkles size={13} /></div>
+			<div className='min-w-0'>
+				<div className='forge-coco-kicker'>ACTIVE AGENT</div>
+				<select value={selected?.id ?? ''} onChange={event => onSelect(event.target.value)} className='forge-coco-agent-select'>
+					{agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+				</select>
+			</div>
+		</div>
+		<button type='button' className='forge-coco-create-agent' onClick={() => setIsCreating(value => !value)} title='Create an agent'>
+			<CirclePlus size={14} /><span>New agent</span>
+		</button>
+		{isCreating && <form className='forge-coco-agent-create-row' onSubmit={event => {
+			event.preventDefault()
+			const trimmed = name.trim()
+			if (!trimmed) return
+			onCreate(trimmed)
+			setName('')
+			setIsCreating(false)
+		}}>
+			<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder='Agent name' />
+			<button type='submit'>Create</button>
+		</form>}
+	</div>
+}
+
 export const SidebarChat = () => {
 	const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
 	const textAreaFnsRef = useRef<TextAreaFns | null>(null)
@@ -3072,8 +3113,10 @@ export const SidebarChat = () => {
 	// state of current message
 	const initVal = ''
 	const [instructionsAreEmpty, setInstructionsAreEmpty] = useState(!initVal)
+	const [draftText, setDraftText] = useState('')
+	const [attachments, setAttachments] = useState<{ uri: string; dataUrl: string; mimeType: string }[]>([])
 
-	const isDisabled = instructionsAreEmpty || !!isFeatureNameDisabled('Chat', settingsState)
+	const isDisabled = (instructionsAreEmpty && selections.length === 0 && attachments.length === 0) || !!isFeatureNameDisabled('Chat', settingsState)
 
 	const sidebarRef = useRef<HTMLDivElement>(null)
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -3083,7 +3126,6 @@ export const SidebarChat = () => {
 	const [activeTool, setActiveTool] = useState('chat')
 	const [activeFeature, setActiveFeature] = useState('Chat')
 	const [rightPanelTab, setRightPanelTab] = useState('tasks')
-	const [attachments, setAttachments] = useState<{ uri: string; dataUrl: string; mimeType: string }[]>([])
 	const [isListening, setIsListening] = useState(false)
 	const [artEnabled, setArtEnabled] = useState(false)
 	const [codeEnabled, setCodeEnabled] = useState(false)
@@ -3091,6 +3133,8 @@ export const SidebarChat = () => {
 	const [multiAgentEnabled, setMultiAgentEnabled] = useState(false)
 	const [tasks, setTasks] = useState<{ id: string; title: string; status: string }[]>([])
 	const [agents, setAgents] = useState<{ id: string; name: string; status: string }[]>([])
+	const [selectedAgentId, setSelectedAgentId] = useState('forge-agent')
+	const agentProfiles = agents.length > 0 ? agents : [{ id: 'forge-agent', name: 'Forge Agent', status: 'ready' }]
 
 	const capabilities = useModelCapabilities(settingsState)
 
@@ -3099,15 +3143,16 @@ export const SidebarChat = () => {
 			const detail = (event as CustomEvent<{ kind?: string; content?: string }>).detail;
 			if (!detail?.content) return;
 			const prefix = detail.kind ? `[${detail.kind}]\n` : '';
-			const current = textAreaRef.current?.value ?? '';
+			const current = draftText;
 			const next = current ? `${current}\n\n${prefix}${detail.content}` : `${prefix}${detail.content}`;
+			setDraftText(next);
 			textAreaFnsRef.current?.setValue(next);
 			setInstructionsAreEmpty(false);
 			textAreaFnsRef.current?.focus();
 		};
 		window.addEventListener('forge:add-context', handleForgeContext);
 		return () => window.removeEventListener('forge:add-context', handleForgeContext);
-	}, [])
+	}, [draftText])
 
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 
@@ -3117,7 +3162,9 @@ export const SidebarChat = () => {
 		const threadId = chatThreadsService.state.currentThreadId
 
 		// send message to LLM
-		const userMessage = _forceSubmit || textAreaRef.current?.value || ''
+		const selectedAgent = agentProfiles.find(agent => agent.id === selectedAgentId) ?? agentProfiles[0]
+		const draft = _forceSubmit || draftText
+		const userMessage = `[Forge agent: ${selectedAgent?.name ?? 'Forge Agent'}]\n\n${draft || 'Inspect the attached context and apply the requested changes to the codebase.'}`
 
 		try {
 			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, threadId })
@@ -3126,10 +3173,27 @@ export const SidebarChat = () => {
 		}
 
 		setSelections([]) // clear staging
+		setAttachments([])
+		setDraftText('')
 		textAreaFnsRef.current?.setValue('')
-		textAreaRef.current?.focus() // focus input after submit
+		textAreaFnsRef.current?.focus()
 
-	}, [chatThreadsService, isDisabled, isRunning, textAreaRef, textAreaFnsRef, setSelections, settingsState])
+	}, [chatThreadsService, isDisabled, isRunning, textAreaFnsRef, setSelections, settingsState, agentProfiles, selectedAgentId, draftText])
+
+	const onAddAttachment = useCallback((attachment: { uri: string; dataUrl: string; mimeType: string }) => {
+		setAttachments(previous => [...previous, attachment])
+		if (attachment.mimeType.startsWith('image/')) {
+			chatThreadsService.addNewStagingSelection({ type: 'Image', uri: URI.file(attachment.uri), dataUrl: attachment.dataUrl, mimeType: attachment.mimeType })
+		} else {
+			chatThreadsService.addNewStagingSelection({ type: 'File', uri: URI.file(attachment.uri), language: attachment.uri.split('.').pop() || '', state: { wasAddedAsCurrentFile: false } })
+		}
+	}, [chatThreadsService])
+
+	const createAgent = useCallback((name: string) => {
+		const id = `agent-${Date.now()}`
+		setAgents(previous => [...previous, { id, name, status: 'ready' }])
+		setSelectedAgentId(id)
+	}, [])
 
 	const onAbort = async () => {
 		const threadId = currentThread.id
@@ -3258,6 +3322,7 @@ export const SidebarChat = () => {
 	const isLandingPage = previousMessages.length === 0
 
 	const threadPageInput = <div key={'input' + chatThreadsState.currentThreadId}>
+		<AgentDock agents={agentProfiles} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onCreate={createAgent} />
 		<div className='px-4'>
 			<CommandBarInChat />
 		</div>
@@ -3321,11 +3386,9 @@ export const SidebarChat = () => {
 
 		<div className='px-2 pb-2'>
 			<UniversalComposer
-				value={textAreaRef.current?.value || ''}
+				value={draftText}
 				onChange={(val) => {
-					if (textAreaRef.current) {
-						textAreaRef.current.value = val
-					}
+					setDraftText(val)
 					setInstructionsAreEmpty(!val)
 				}}
 				onSubmit={onSubmit}
@@ -3336,7 +3399,7 @@ export const SidebarChat = () => {
 				featureName={activeFeature}
 				capabilities={capabilities}
 				attachments={attachments}
-				onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+				onAddAttachment={onAddAttachment}
 				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
 				textAreaFnsRef={textAreaFnsRef}
 				tokenCount={0}
@@ -3353,14 +3416,13 @@ export const SidebarChat = () => {
 		</div>
 	</div>
 
-	const landingPageInput = <div className="w-full">
+	const landingPageInput = <div className="w-full mt-auto pb-3">
+		<AgentDock agents={agentProfiles} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onCreate={createAgent} />
 		<div className='pt-2 pb-1'>
 			<UniversalComposer
-				value={textAreaRef.current?.value || ''}
+				value={draftText}
 				onChange={(val) => {
-					if (textAreaRef.current) {
-						textAreaRef.current.value = val
-					}
+					setDraftText(val)
 					setInstructionsAreEmpty(!val)
 				}}
 				onSubmit={onSubmit}
@@ -3371,7 +3433,7 @@ export const SidebarChat = () => {
 				featureName={activeFeature}
 				capabilities={capabilities}
 				attachments={attachments}
-				onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+				onAddAttachment={onAddAttachment}
 				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
 				textAreaFnsRef={textAreaFnsRef}
 				tokenCount={0}
@@ -3390,7 +3452,7 @@ export const SidebarChat = () => {
 
 	const landingPageContent = <div
 		ref={sidebarRef}
-		className='w-full h-full max-h-full flex flex-col overflow-y-auto px-3 py-2'
+		className='forge-coco-shell w-full h-full max-h-full flex flex-col overflow-y-auto px-3 py-2'
 	>
 		<ErrorBoundary>
 			{landingPageInput}
@@ -3421,7 +3483,7 @@ export const SidebarChat = () => {
 	// </div>
 	const threadPageContent = <div
 		ref={sidebarRef}
-		className='w-full h-full flex flex-col overflow-hidden'
+		className='forge-coco-shell w-full h-full flex flex-col overflow-hidden'
 	>
 		{/* Top Bar */}
 		<TopBar

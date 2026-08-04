@@ -18,6 +18,14 @@ const requiredRuntimeFiles = [
 	'out/base/common/event.js',
 	'out/vs/workbench/base/common/event.js',
 ];
+const coreRuntimeFiles = [
+	'out/vs/workbench/workbench.desktop.main.js',
+	'out/vs/workbench/contrib/void/common/modelCapabilities.js',
+	'out/vs/workbench/contrib/void/browser/forge/events/forgeEventBus.js',
+	'out/vs/workbench/contrib/void/browser/forge/execution/agents/agentRegistry.js',
+	'out/vs/workbench/contrib/void/browser/forge/execution/blackboard/blackboard.js',
+	'out/vs/base/common/event.js',
+];
 
 const missingFiles = () => requiredRuntimeFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
 
@@ -36,7 +44,7 @@ const run = (command, args) => {
 };
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const initialMissing = missingFiles();
+const initialMissing = coreRuntimeFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
 
 if (initialMissing.length > 0) {
 	console.warn('[forge-guard] Missing runtime artifacts:');
