@@ -157,5 +157,28 @@ if (isWatch) {
 	fs.cpSync(path.join(__dirname, 'out'), runtimeReactOut, { recursive: true });
 	console.log(`[forge] Synced React bundles to ${runtimeReactOut}`);
 
+	// React is emitted from a flattened `react/out` directory. Forge modules
+	// imported by that bundle therefore resolve through `void/forge`, while the
+	// TypeScript compiler emits them under `void/browser/forge`. Keep both
+	// runtime layouts available so vscode-file imports remain valid in dev mode.
+	const workspaceOut = path.join(path.dirname(packageJsonPath), 'out');
+	const runtimeBrowserForge = path.join(workspaceOut, 'vs/workbench/contrib/void/browser/forge');
+	const runtimeVoidForge = path.join(workspaceOut, 'vs/workbench/contrib/void/forge');
+	if (fs.existsSync(runtimeBrowserForge)) {
+		fs.cpSync(runtimeBrowserForge, runtimeVoidForge, { recursive: true });
+		console.log(`[forge] Synced Forge modules to ${runtimeVoidForge}`);
+	}
+
+	// One Forge event import is preserved six levels deep by tsup and resolves
+	// to workbench/base/common at runtime. Mirror the compiled base common
+	// modules into that compatibility location.
+	const runtimeBaseCommon = path.join(workspaceOut, 'vs/base/common');
+	const runtimeWorkbenchBaseCommon = path.join(workspaceOut, 'vs/workbench/base/common');
+	const runtimeRootBaseCommon = path.join(workspaceOut, 'base/common');
+	if (fs.existsSync(runtimeBaseCommon)) {
+		fs.cpSync(runtimeBaseCommon, runtimeWorkbenchBaseCommon, { recursive: true });
+		fs.cpSync(runtimeBaseCommon, runtimeRootBaseCommon, { recursive: true });
+	}
+
 	console.log('✅ Build complete!');
 }

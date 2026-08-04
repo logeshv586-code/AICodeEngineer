@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { TokenBudgetManager } from '../../../../browser/forge/context/tokenBudgetManager';
+import { TokenBudgetManager } from '../../../../../forge/context/tokenBudgetManager';
 
 export const TokenBudgetInspector: React.FC<{ currentEstTokens?: number }> = ({ currentEstTokens = 1250 }) => {
 	const manager = new TokenBudgetManager(4000);

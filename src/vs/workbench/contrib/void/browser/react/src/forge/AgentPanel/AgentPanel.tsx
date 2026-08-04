@@ -15,12 +15,16 @@ import { PlannerOutput } from '../../../../common/forge/planner/planSchema';
 import { ForgeEvent } from '../../../../common/forge/events/forgeEvents';
 import { WorkspaceSnapshot } from '../../../../common/forge/types/workspaceTypes';
 import { WorkspaceHealthStats, KnowledgeGraphSnapshot } from '../../../../common/forge/types/knowledgeGraphTypes';
-import { ForgeEventBus } from '../../../events/forgeEventBus';
-import { ExecutionBus } from '../../execution/bus/executionBus';
-import { WorkspaceIntelligenceService } from '../../../services/workspaceIntelligenceService';
-import { KnowledgeService } from '../../../services/knowledgeService';
+import { ForgeEventBus } from '../../../../forge/events/forgeEventBus';
+import { ExecutionBus } from '../../../../forge/execution/bus/executionBus';
+import { WorkspaceIntelligenceService } from '../../../../forge/services/workspaceIntelligenceService';
+import { KnowledgeService } from '../../../../forge/services/knowledgeService';
+import { useAccessor } from '../../util/services.tsx';
+import { FORGE_CHANNEL_NAME } from '../../../../common/forge/contracts/forgeIPC.js';
 
 export const AgentPanel: React.FC = () => {
+	const accessor = useAccessor();
+	const forgeChannel = accessor.get('IMainProcessService').getChannel(FORGE_CHANNEL_NAME);
 	const [activeTab, setActiveTab] = useState<'plan' | 'diff' | 'timeline' | 'logs' | 'workspace' | 'browser' | 'health' | 'collaboration'>('plan');
 	const [plan, setPlan] = useState<PlannerOutput | null>(null);
 	const [events, setEvents] = useState<ForgeEvent[]>([]);
@@ -62,11 +66,11 @@ export const AgentPanel: React.FC = () => {
 	}, [plan]);
 
 	const handleBuildWorkspace = async () => {
-		const service = WorkspaceIntelligenceService.create(null);
+		const service = WorkspaceIntelligenceService.create(forgeChannel);
 		const result = await service.buildWorkspace('.', true);
 		if (result) {
 			setSnapshot(result);
-			const ks = KnowledgeService.create(null);
+			const ks = KnowledgeService.create(forgeChannel);
 			const h = await ks.getWorkspaceHealth('.');
 			const g = await ks.getKnowledgeGraph('.');
 			setHealth(h);

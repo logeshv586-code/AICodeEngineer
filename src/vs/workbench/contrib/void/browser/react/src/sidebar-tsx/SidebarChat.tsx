@@ -3094,6 +3094,21 @@ export const SidebarChat = () => {
 
 	const capabilities = useModelCapabilities(settingsState)
 
+	useEffect(() => {
+		const handleForgeContext = (event: Event) => {
+			const detail = (event as CustomEvent<{ kind?: string; content?: string }>).detail;
+			if (!detail?.content) return;
+			const prefix = detail.kind ? `[${detail.kind}]\n` : '';
+			const current = textAreaRef.current?.value ?? '';
+			const next = current ? `${current}\n\n${prefix}${detail.content}` : `${prefix}${detail.content}`;
+			textAreaFnsRef.current?.setValue(next);
+			setInstructionsAreEmpty(false);
+			textAreaFnsRef.current?.focus();
+		};
+		window.addEventListener('forge:add-context', handleForgeContext);
+		return () => window.removeEventListener('forge:add-context', handleForgeContext);
+	}, [])
+
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 
 		if (isDisabled && !_forceSubmit) return
@@ -3423,7 +3438,13 @@ export const SidebarChat = () => {
 			{/* Left Toolbar */}
 			<LeftToolbar
 				activeTool={activeTool}
-				onToolChange={setActiveTool}
+				onToolChange={tool => {
+					setActiveTool(tool)
+					if (tool === 'agents' || tool === 'knowledge') {
+						setRightPanelTab('forge')
+						setIsRightPanelOpen(true)
+					}
+				}}
 				hasActiveThread={previousMessages.length > 0}
 				threadCount={Object.keys(chatThreadsState.allThreads).length}
 				isRightPanelOpen={isRightPanelOpen}

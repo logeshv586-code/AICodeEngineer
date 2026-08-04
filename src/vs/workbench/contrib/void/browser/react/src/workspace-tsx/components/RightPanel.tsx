@@ -22,9 +22,11 @@ import {
   Terminal,
   BookOpen,
   Search,
+  Sparkles,
 } from 'lucide-react';
+import { AgentPanel } from '../../forge/AgentPanel/AgentPanel';
 
-type RightPanelTab = 'tasks' | 'artifacts' | 'context' | 'memory' | 'agents' | 'code' | 'search';
+type RightPanelTab = 'tasks' | 'artifacts' | 'context' | 'memory' | 'agents' | 'code' | 'search' | 'forge';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -47,6 +49,7 @@ const tabs: { id: RightPanelTab; label: string; icon: React.ReactNode }[] = [
   { id: 'agents', label: 'Agents', icon: <GitBranch size={14} /> },
   { id: 'code', label: 'Code', icon: <Code2 size={14} /> },
   { id: 'search', label: 'Search', icon: <Search size={14} /> },
+  { id: 'forge', label: 'Forge Agent', icon: <Sparkles size={14} /> },
 ];
 
 export const RightPanel: React.FC<RightPanelProps> = ({
@@ -65,6 +68,8 @@ export const RightPanel: React.FC<RightPanelProps> = ({
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'forge':
+        return <AgentPanel />;
       case 'tasks':
         return (
           <div className="flex flex-col gap-2 p-3">

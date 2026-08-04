@@ -32,6 +32,14 @@ export const SelectionToolbar: React.FC<{
 			{actions.map(act => (
 				<button
 					key={act.id}
+					type="button"
+					draggable={act.id === 'add_prompt'}
+					onDragStart={event => {
+						if (act.id === 'add_prompt') {
+							event.dataTransfer.setData('text/plain', selection.text);
+							event.dataTransfer.effectAllowed = 'copy';
+						}
+					}}
 					onClick={() => onAction(act.id)}
 					className="flex items-center space-x-1 px-2.5 py-1 rounded hover:bg-[#6C5CE7]/20 text-slate-200 hover:text-[#00D4FF] transition-all font-medium"
 				>
