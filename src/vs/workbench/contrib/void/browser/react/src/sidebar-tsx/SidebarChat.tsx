@@ -29,7 +29,7 @@ import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButt
 import { IsRunningType } from '../../../chatThreadService.js';
 import { acceptAllBg, acceptBorder, buttonFontSize, buttonTextColor, rejectAllBg, rejectBg, rejectBorder } from '../../../../common/helpers/colors.js';
 import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_INACTIVE_TIME } from '../../../../common/prompt/prompts.js';
-import { RawToolCallObj } from '../../../../common/sendLLMMessageTypes.js';
+import { readableLLMContent, RawToolCallObj } from '../../../../common/sendLLMMessageTypes.js';
 import ErrorBoundary from './ErrorBoundary.js';
 import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.tsx';
 import { AgentPlanPanel, RunStateBar } from './AgentPlanPanel.js';
@@ -50,6 +50,8 @@ import { VoiceSupport } from '../workspace-tsx/components/VoiceSupport.tsx';
 import { ImageSupport } from '../workspace-tsx/components/ImageSupport.tsx';
 import { ArtSupport } from '../workspace-tsx/components/ArtSupport.tsx';
 import { CodeSupport } from '../workspace-tsx/components/CodeSupport.tsx';
+
+const readableChatContent = (value: unknown) => readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')
 
 
 
@@ -1224,7 +1226,7 @@ const UserMessageComponent = ({ chatMessage, messageIdx, isCheckpointGhost, curr
 	if (mode === 'display') {
 		chatbubbleContents = <>
 			<SelectedFiles type='past' messageIdx={messageIdx} selections={chatMessage.selections || []} />
-			<span className='px-0.5'>{chatMessage.displayContent}</span>
+			<span className='px-0.5 whitespace-pre-wrap'>{readableChatContent(chatMessage.displayContent)}</span>
 		</>
 	}
 	else if (mode === 'edit') {
@@ -1502,7 +1504,7 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 			<div className={`${isCheckpointGhost ? 'opacity-50' : ''}`}>
 				<ProseWrapper>
 					<ChatMarkdownRender
-						string={chatMessage.displayContent || ''}
+						string={readableChatContent(chatMessage.displayContent)}
 						chatMessageLocation={chatMessageLocation}
 						isApplyEnabled={true}
 						isLinkDetectionEnabled={true}
@@ -3245,8 +3247,8 @@ export const SidebarChat = () => {
 			currCheckpointIdx={currCheckpointIdx}
 			chatMessage={{
 				role: 'assistant',
-				displayContent: displayContentSoFar ?? '',
-				reasoning: reasoningSoFar ?? '',
+				displayContent: readableLLMContent(displayContentSoFar),
+				reasoning: readableLLMContent(reasoningSoFar),
 				anthropicReasoning: null,
 			}}
 			messageIdx={streamingChatIdx}
@@ -3322,11 +3324,6 @@ export const SidebarChat = () => {
 	const isLandingPage = previousMessages.length === 0
 
 	const threadPageInput = <div key={'input' + chatThreadsState.currentThreadId}>
-		<AgentDock agents={agentProfiles} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onCreate={createAgent} />
-		<div className='px-4'>
-			<CommandBarInChat />
-		</div>
-
 		{/* Agent plan panel - visible while or after agent runs */}
 		{currThreadStreamState?.agentPlan && currThreadStreamState.agentPlan.length > 0 && (
 			<div className='px-2 pb-1'>
@@ -3402,6 +3399,10 @@ export const SidebarChat = () => {
 				onAddAttachment={onAddAttachment}
 				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
 				textAreaFnsRef={textAreaFnsRef}
+				agentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
+				agentOptions={agentProfiles.map(agent => ({ id: agent.id, name: agent.name }))}
+				selectedAgentId={selectedAgentId}
+				onAgentChange={setSelectedAgentId}
 				tokenCount={0}
 				maxTokens={capabilities?.maxContextTokens ?? undefined}
 				slashCommandsEnabled={true}
@@ -3417,7 +3418,6 @@ export const SidebarChat = () => {
 	</div>
 
 	const landingPageInput = <div className="w-full mt-auto pb-3">
-		<AgentDock agents={agentProfiles} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onCreate={createAgent} />
 		<div className='pt-2 pb-1'>
 			<UniversalComposer
 				value={draftText}
@@ -3436,6 +3436,10 @@ export const SidebarChat = () => {
 				onAddAttachment={onAddAttachment}
 				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
 				textAreaFnsRef={textAreaFnsRef}
+				agentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
+				agentOptions={agentProfiles.map(agent => ({ id: agent.id, name: agent.name }))}
+				selectedAgentId={selectedAgentId}
+				onAgentChange={setSelectedAgentId}
 				tokenCount={0}
 				maxTokens={capabilities?.maxContextTokens ?? undefined}
 				slashCommandsEnabled={true}
@@ -3530,8 +3534,11 @@ export const SidebarChat = () => {
 				activeTab={rightPanelTab}
 				onTabChange={setRightPanelTab}
 				onClose={() => setIsRightPanelOpen(false)}
-				tasks={tasks}
+				 tasks={tasks}
 				agents={agents}
+				activeAgentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
+				providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? 'Auto'}
+				modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? 'Auto'}
 			/>
 		</div>
 

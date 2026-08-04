@@ -211,18 +211,43 @@
 	color: var(--void-fg-1);
 }
 
-/* CocoIndex-inspired Forge surface: ink, paper, and living lime. */
+/* CocoIndex-inspired Forge surface: warm paper, plum ink, and terracotta action. */
 .forge-coco-shell {
-	--forge-coco-ink: #090b0a;
-	--forge-coco-panel: #101311;
-	--forge-coco-panel-raised: #171b17;
-	--forge-coco-paper: #f2f1e9;
-	--forge-coco-muted: #92978e;
-	--forge-coco-line: rgba(242, 241, 233, 0.13);
-	--forge-coco-lime: #b9f227;
-	--forge-coco-lime-soft: rgba(185, 242, 39, 0.12);
+	--forge-coco-ink: #2d0b1b;
+	--forge-coco-panel: #3a1424;
+	--forge-coco-panel-raised: #4b1b2b;
+	--forge-coco-paper: #fff8ea;
+	--forge-coco-muted: #bca7a1;
+	--forge-coco-line: rgba(255, 248, 234, 0.18);
+	--forge-coco-accent: #c55232;
+	--forge-coco-accent-soft: rgba(197, 82, 50, 0.18);
 	background: var(--forge-coco-ink);
 	color: var(--forge-coco-paper);
+	min-width: 0;
+	min-height: 0;
+	isolation: isolate;
+}
+
+.forge-coco-shell > .flex,
+.forge-coco-shell .flex-1 {
+	min-width: 0;
+	min-height: 0;
+}
+
+.void-right-panel {
+	min-height: 0;
+	max-height: 100%;
+	overflow: hidden;
+}
+
+.void-right-panel > .flex-1 {
+	min-height: 0;
+	overflow: auto;
+}
+
+.void-left-toolbar {
+	position: relative;
+	z-index: 2;
 }
 
 .forge-coco-shell button,
@@ -250,8 +275,8 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 7px;
-	background: var(--forge-coco-lime);
-	color: #10130d;
+	background: var(--forge-coco-accent);
+	color: var(--forge-coco-paper);
 }
 
 .forge-coco-kicker {
@@ -281,15 +306,15 @@
 	align-items: center;
 	gap: 5px;
 	padding: 5px 7px;
-	border: 1px solid rgba(185, 242, 39, 0.35);
+	border: 1px solid rgba(197, 82, 50, 0.45);
 	border-radius: 6px;
-	background: var(--forge-coco-lime-soft);
-	color: var(--forge-coco-lime);
+	background: var(--forge-coco-accent-soft);
+	color: #f1a184;
 	font-size: 10px;
 	cursor: pointer;
 }
 
-.forge-coco-create-agent:hover { background: rgba(185, 242, 39, 0.2); }
+.forge-coco-create-agent:hover { background: rgba(197, 82, 50, 0.3); }
 
 .forge-coco-agent-create-row {
 	display: flex;
@@ -322,8 +347,8 @@
 	padding: 5px 8px;
 	border: 0;
 	border-radius: 5px;
-	background: var(--forge-coco-lime);
-	color: #10130d;
+	background: var(--forge-coco-accent);
+	color: var(--forge-coco-paper);
 	font-size: 11px;
 	font-weight: 700;
 	cursor: pointer;
@@ -337,13 +362,25 @@
 	border-color: var(--forge-coco-line);
 }
 
+.forge-coco-model-trigger {
+	background: rgba(255, 248, 234, 0.08) !important;
+	border: 1px solid rgba(255, 248, 234, 0.2) !important;
+	color: var(--forge-coco-paper) !important;
+	min-height: 26px;
+}
+
+.forge-coco-model-trigger:hover {
+	background: var(--forge-coco-accent-soft) !important;
+	border-color: rgba(197, 82, 50, 0.6) !important;
+}
+
 .forge-coco-attachment {
-	background: var(--forge-coco-lime-soft);
-	border: 1px solid rgba(185, 242, 39, 0.25);
+	background: var(--forge-coco-accent-soft);
+	border: 1px solid rgba(197, 82, 50, 0.35);
 	color: var(--forge-coco-paper);
 }
 
-.forge-coco-remove:hover { color: var(--forge-coco-lime); }
+.forge-coco-remove:hover { color: #f1a184; }
 
 /* Placeholder styling */
 ::placeholder {

@@ -48,7 +48,7 @@ export const LeftToolbar: React.FC<LeftToolbarProps> = ({
   disabled = false,
 }) => {
   return (
-    <div className="flex flex-col items-center py-2 px-1 gap-0.5 border-r border-zinc-700/60 bg-zinc-900/40 shrink-0">
+    <div className="void-left-toolbar flex flex-col items-center py-2 px-1 gap-0.5 border-r border-zinc-700/60 bg-zinc-900/40 shrink-0">
       {/* Logo / App name */}
       <div className="w-8 h-8 mb-2 flex items-center justify-center">
         <div className="w-6 h-6 rounded-lg bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">

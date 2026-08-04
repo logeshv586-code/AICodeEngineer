@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { displayInfoOfProviderName, FeatureName, featureNames, isFeatureNameDisabled, ModelSelection, modelSelectionsEqual, ProviderName, providerNames } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
 import { useSettingsState, useRefreshModelState, useAccessor } from '../util/services.tsx';
 import { VoidSwitch } from '../util/inputs.tsx';
@@ -38,6 +39,9 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	const [isOpen, setIsOpen] = useState(false);
 	const [autoMode, setAutoMode] = useState(true);
 	const dropdownRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	const menuRef = useRef<HTMLDivElement>(null);
+	const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8, width: 280 });
 
 	const selection = voidSettingsService.state.modelSelectionOfFeature[featureName];
 	const currentModelName = selection?.modelName || 'Claude 3.5 Sonnet';
@@ -50,7 +54,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	// Close on outside click
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+			if (!dropdownRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
 				setIsOpen(false);
 			}
 		};
@@ -61,6 +65,29 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			document.removeEventListener('mousedown', handleClickOutside);
 		};
 	}, [isOpen]);
+
+	useEffect(() => {
+		if (!isOpen) return;
+		const updatePosition = () => {
+			const rect = triggerRef.current?.getBoundingClientRect();
+			if (!rect) return;
+			const width = Math.min(280, Math.max(220, window.innerWidth - 16));
+			setMenuPosition({
+				left: Math.min(Math.max(8, rect.right - width), Math.max(8, window.innerWidth - width - 8)),
+				top: Math.max(8, rect.top - 330),
+				width,
+			});
+		};
+		updatePosition();
+		window.addEventListener('resize', updatePosition);
+		window.addEventListener('scroll', updatePosition, true);
+		return () => {
+			window.removeEventListener('resize', updatePosition);
+			window.removeEventListener('scroll', updatePosition, true);
+		};
+	}, [isOpen]);
+
+	const toggleMenu = () => setIsOpen(open => !open);
 
 	const selectModel = (modelName: string, providerName: ProviderName) => {
 		voidSettingsService.setModelSelectionOfFeature(featureName, { modelName, providerName });
@@ -113,7 +140,8 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			{/* Trigger Button matching Image 4 */}
 			<button
 				type="button"
-				onClick={() => setIsOpen(!isOpen)}
+				ref={triggerRef}
+				onClick={toggleMenu}
 				className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-200 border border-zinc-700/60 transition-all cursor-pointer max-w-[150px] shrink-0 min-w-0 ${className || ''}`}
 				title={currentModelName}
 			>
@@ -122,12 +150,12 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			</button>
 
 			{/* Dropdown Panel matching Image 4 */}
-			{isOpen && (
-				<div className="absolute right-0 bottom-full mb-2 w-[280px] max-w-[calc(100vw-16px)] rounded-xl bg-[#101311] border border-lime-300/20 shadow-2xl z-[9999] overflow-hidden text-zinc-200 animate-in fade-in zoom-in-95 duration-150">
+			{isOpen && typeof document !== 'undefined' && createPortal((
+				<div ref={menuRef} className="fixed rounded-xl bg-[#2d0b1b] border border-[#c55232]/50 shadow-2xl z-[9999] overflow-hidden text-[#fff8ea] animate-in fade-in zoom-in-95 duration-150" style={{ left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: 'calc(100vh - 16px)' }}>
 					{/* Header: Auto Mode Toggle */}
 					<div className="p-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
 						<div className="flex items-center gap-1.5">
-							<Sparkles size={14} className="text-emerald-400" />
+							<Sparkles size={14} className="text-[#e58b6d]" />
 							<span className="text-xs font-semibold text-zinc-200">Auto Mode</span>
 						</div>
 						<VoidSwitch size="xs" value={autoMode} onChange={setAutoMode} />
@@ -184,7 +212,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 						</button>
 					</div>
 				</div>
-			)}
+			), document.body)}
 		</div>
 	);
 };

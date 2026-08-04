@@ -24,7 +24,29 @@ export const errorDetails = (fullError: Error | null): string | null => {
 
 export const getErrorMessage: (error: unknown) => string = (error) => {
 	if (error instanceof Error) return `${error.name}: ${error.message}`
-	return error + ''
+	return readableLLMContent(error)
+}
+
+/** Convert provider SDK payloads into safe text before they reach React or chat history. */
+export const readableLLMContent = (value: unknown): string => {
+	if (value === null || value === undefined) return ''
+	if (typeof value === 'string') {
+		return value.replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')
+	}
+	if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value)
+	if (Array.isArray(value)) return value.map(readableLLMContent).filter(Boolean).join('\n\n')
+	if (typeof value === 'object') {
+		const record = value as Record<string, unknown>
+		for (const key of ['text', 'content', 'message', 'output', 'response', 'value']) {
+			if (key in record && record[key] !== value) {
+				const nested = readableLLMContent(record[key])
+				if (nested) return nested
+			}
+		}
+		try { return JSON.stringify(value, null, 2) }
+		catch { return '[Unserializable provider response]' }
+	}
+	return String(value)
 }
 
 

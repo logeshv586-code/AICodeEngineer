@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Send, Square, Upload, Paperclip, Mic, Image as ImageIcon, Code2, Palette, Zap, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Send, Square, Upload, Paperclip, Mic, Image as ImageIcon, AtSign, WandSparkles, Code2, Palette, Zap, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { VoidInputBox2 } from '../../util/inputs.tsx';
 import { TextAreaFns } from '../../util/inputs.tsx';
 import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
@@ -26,6 +26,10 @@ interface UniversalComposerProps {
   onAddAttachment: (attachment: { uri: string; dataUrl: string; mimeType: string }) => void;
   onRemoveAttachment: (index: number) => void;
   textAreaFnsRef: React.MutableRefObject<TextAreaFns | null>;
+  agentName?: string;
+  agentOptions?: { id: string; name: string }[];
+  selectedAgentId?: string;
+  onAgentChange?: (id: string) => void;
   tokenCount?: number;
   maxTokens?: number;
   slashCommandsEnabled?: boolean;
@@ -52,6 +56,10 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
   onAddAttachment,
   onRemoveAttachment,
   textAreaFnsRef,
+  agentName = 'Forge Agent',
+  agentOptions = [],
+  selectedAgentId,
+  onAgentChange,
   tokenCount,
   maxTokens,
   slashCommandsEnabled = true,
@@ -150,6 +158,11 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
     event.preventDefault();
     addFiles(Array.from(event.dataTransfer.files || []));
   }, [addFiles]);
+
+  const enhancePrompt = useCallback(() => {
+    if (!value.trim()) return;
+    onChange(`Improve this request for a coding agent. Preserve the intent, add precise acceptance criteria, and identify the files or symbols likely involved:\n\n${value.trim()}`);
+  }, [onChange, value]);
 
   return (
     <div ref={containerRef} className="relative w-full forge-coco-composer" onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
@@ -270,8 +283,22 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 
       {/* Main input area */}
       <div className="relative rounded-xl bg-zinc-900/80 border border-zinc-700/60 focus-within:border-zinc-500/60 transition-colors">
-        {/* Top action bar */}
-        <div className="flex items-center gap-1 px-2 pt-1.5">
+        {/* Trae-style agent header: one source of truth for the active agent. */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-800/80">
+          <label className="flex min-w-0 items-center gap-1 text-xs text-zinc-300">
+            <AtSign size={13} className="text-[#e58b6d]" />
+            <span className="text-zinc-500">Agent</span>
+            {agentOptions.length > 0 ? (
+              <select value={selectedAgentId ?? agentOptions[0].id} onChange={event => onAgentChange?.(event.target.value)} className="max-w-[150px] truncate bg-transparent font-medium text-zinc-200 outline-none">
+                {agentOptions.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+              </select>
+            ) : <span className="truncate font-medium">{agentName}</span>}
+          </label>
+          <span className="shrink-0 text-[10px] text-zinc-500">Auto <span className="text-[#e58b6d]">✦</span></span>
+        </div>
+
+        {/* Legacy optional tools stay implemented but are hidden from the primary chat surface. */}
+        <div className="hidden flex items-center gap-1 px-2 pt-1.5">
           {/* Slash command trigger */}
           {slashCommandsEnabled && (
             <button
@@ -284,6 +311,15 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
             </button>
           )}
 
+          <button
+            type="button"
+            onClick={() => textAreaFnsRef.current?.triggerMention()}
+            className="p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+            title="Reference files or folders"
+          >
+            <AtSign size={14} />
+          </button>
+
           {/* Attachment button */}
           <button
             type="button"
@@ -292,6 +328,25 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
             title="Attach file"
           >
             <Paperclip size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+            title="Add image"
+          >
+            <ImageIcon size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={enhancePrompt}
+            disabled={!value.trim()}
+            className="p-1 text-lime-300/70 hover:text-lime-200 hover:bg-lime-300/10 rounded transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Enhance prompt"
+          >
+            <WandSparkles size={14} />
           </button>
 
           {/* Voice button */}
@@ -365,8 +420,13 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
         {/* Bottom action bar */}
         <div className="flex items-center justify-between px-2 py-1.5 border-t border-zinc-700/60">
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-zinc-600">{featureName}</span>
-            <ModelDropdown featureName={featureName} className="text-[10px] bg-transparent text-zinc-400 border-0 outline-none max-w-[130px]" />
+            <button type="button" onClick={() => textAreaFnsRef.current?.triggerMention()} className="p-1 text-zinc-500 hover:text-zinc-300 rounded cursor-pointer" title="Reference files or folders">
+              <AtSign size={13} />
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1 text-zinc-500 hover:text-zinc-300 rounded cursor-pointer" title="Attach image or file">
+              <ImageIcon size={13} />
+            </button>
+            <ModelDropdown featureName={featureName} className="forge-coco-model-trigger max-w-[155px]" />
           </div>
 
           <div className="flex items-center gap-1">
@@ -386,7 +446,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
                 onClick={onSubmit}
                 data-action="submit"
                 disabled={isDisabled || !value.trim()}
-                className="flex items-center gap-1 px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1 text-xs bg-[#c55232] hover:bg-[#df6844] text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Send size={12} />
                 Send

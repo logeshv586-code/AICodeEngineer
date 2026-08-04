@@ -38,6 +38,9 @@ interface RightPanelProps {
   contextItems?: { id: string; name: string; type: string }[];
   memoryItems?: { id: string; content: string }[];
   agents?: { id: string; name: string; status: string }[];
+  activeAgentName?: string;
+  providerName?: string;
+  modelName?: string;
   disabled?: boolean;
 }
 
@@ -62,6 +65,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   contextItems = [],
   memoryItems = [],
   agents = [],
+  activeAgentName = 'Forge Agent',
+  providerName = 'Auto',
+  modelName = 'Auto',
   disabled = false,
 }) => {
   if (!isOpen) return null;
@@ -178,7 +184,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   };
 
   return (
-    <div className="w-72 border-l border-zinc-700/60 bg-zinc-900/60 backdrop-blur-sm flex flex-col shrink-0">
+    <div className="void-right-panel w-72 min-w-0 min-h-0 border-l border-zinc-700/60 bg-zinc-900/60 backdrop-blur-sm flex flex-col shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-700/60">
         <span className="text-xs font-medium text-zinc-300">Panel</span>
@@ -189,6 +195,17 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         >
           <ChevronRight size={14} />
         </button>
+      </div>
+
+      <div className="mx-2 mt-2 rounded-lg border border-lime-300/15 bg-lime-300/[0.04] p-3">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-lime-300/70">Active agent</div>
+        <div className="mb-2 text-sm font-medium text-zinc-100">{activeAgentName}</div>
+        <div className="grid grid-cols-2 gap-2 text-[10px]">
+          <div><div className="text-zinc-500">Provider</div><div className="truncate text-zinc-300">{providerName}</div></div>
+          <div><div className="text-zinc-500">Model</div><div className="truncate text-zinc-300">{modelName}</div></div>
+          <div><div className="text-zinc-500">Context</div><div className="text-zinc-300">Ready</div></div>
+          <div><div className="text-zinc-500">Memory</div><div className="text-lime-300">Enabled</div></div>
+        </div>
       </div>
 
       {/* Tab navigation */}
