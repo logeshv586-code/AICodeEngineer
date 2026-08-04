@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { PlannerOutput } from '../../../../../common/forge/planner/planSchema';
+import { PlannerOutput } from '../../../../common/forge/planner/planSchema.js';
 
 export const StatusBar: React.FC<{ plan: PlannerOutput | null; activeEventCount: number }> = ({ plan, activeEventCount }) => {
 	const completedSteps = plan ? plan.steps.filter(s => s.status === 'completed').length : 0;

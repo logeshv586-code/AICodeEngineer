@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { BrowserPage } from '../../../../../common/forge/types/browserTypes';
+import { BrowserPage } from '../../../../common/forge/types/browserTypes.js';
 
 export const BrowserOverlay: React.FC<{ page?: BrowserPage }> = ({ page }) => {
 	if (!page) return null;

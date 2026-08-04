@@ -7,14 +7,14 @@ import React, { JSX, useMemo, useState } from 'react'
 import { marked, MarkedToken, Token } from 'marked'
 
 import { convertToVscodeLang, detectLanguage } from '../../../../common/helpers/languageHelpers.js'
-import { BlockCodeApplyWrapper } from './ApplyBlockHoverButtons.js'
-import { useAccessor } from '../util/services.js'
+import { BlockCodeApplyWrapper } from './ApplyBlockHoverButtons.tsx'
+import { useAccessor } from '../util/services.tsx'
 import { URI } from '../../../../../../../base/common/uri.js'
 import { isAbsolute } from '../../../../../../../base/common/path.js'
 import { separateOutFirstLine } from '../../../../common/helpers/util.js'
-import { BlockCode } from '../util/inputs.js'
+import { BlockCode } from '../util/inputs.tsx'
 import { CodespanLocationLink } from '../../../../common/chatThreadServiceTypes.js'
-import { getBasename, getRelative, voidOpenFileFn } from '../sidebar-tsx/SidebarChat.js'
+import { getBasename, getRelative, voidOpenFileFn } from '../sidebar-tsx/SidebarChat.tsx'
 
 
 export type ChatMessageLocation = {

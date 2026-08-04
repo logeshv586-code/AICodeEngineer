@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react';
 import { ModelCapability, createCapabilityManifest, CapabilityManifest } from '../utils/modelCapabilityManifest.js';
-import { ProviderName } from '../../../../common/voidSettingsTypes.js';
 import { VoidSettingsState } from '../../../../common/voidSettingsService.js';
 
 export function useModelCapabilities(

@@ -144,5 +144,18 @@ if (isWatch) {
 	// Run tsup once
 	execSync('npx tsup', { stdio: 'inherit' });
 
+	// The TypeScript compiler copies react/out into out/ during the core build,
+	// but this standalone React build must also refresh the files Electron loads.
+	const packageJsonPath = findDesiredPathFromLocalPath('./package.json', __dirname);
+	if (packageJsonPath === undefined) {
+		throw new Error('[forge] Could not locate the workspace root');
+	}
+	const runtimeReactOut = path.join(
+		path.dirname(packageJsonPath),
+		'out/vs/workbench/contrib/void/browser/react/out'
+	);
+	fs.cpSync(path.join(__dirname, 'out'), runtimeReactOut, { recursive: true });
+	console.log(`[forge] Synced React bundles to ${runtimeReactOut}`);
+
 	console.log('✅ Build complete!');
 }

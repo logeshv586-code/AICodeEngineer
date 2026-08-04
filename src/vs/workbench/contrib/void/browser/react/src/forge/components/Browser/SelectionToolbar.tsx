@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { DOMSelection } from '../../../../../common/forge/types/browserTypes';
+import { DOMSelection } from '../../../../common/forge/types/browserTypes.js';
 
 export const SelectionToolbar: React.FC<{
 	selection: DOMSelection | null;

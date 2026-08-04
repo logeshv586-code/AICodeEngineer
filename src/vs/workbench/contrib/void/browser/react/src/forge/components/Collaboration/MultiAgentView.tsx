@@ -1,6 +1,6 @@
 import React from 'react';
-import { AgentRegistry } from '../../../../../browser/forge/execution/agents/agentRegistry';
-import { SharedBlackboard } from '../../../../../browser/forge/execution/blackboard/blackboard';
+import { AgentRegistry } from '../../../../forge/execution/agents/agentRegistry.js';
+import { SharedBlackboard } from '../../../../forge/execution/blackboard/blackboard.js';
 
 export const MultiAgentView: React.FC = () => {
 	const agents = AgentRegistry.getInstance().getAllAgents();

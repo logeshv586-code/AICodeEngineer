@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { PlannerOutput } from '../../../../../common/forge/planner/planSchema';
+import { PlannerOutput } from '../../../../common/forge/planner/planSchema.js';
 
 export const PlanView: React.FC<{ plan: PlannerOutput | null }> = ({ plan }) => {
 	if (!plan) {

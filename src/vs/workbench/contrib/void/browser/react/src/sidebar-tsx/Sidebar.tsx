@@ -3,13 +3,13 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import { useIsDark } from '../util/services.js';
+import { useIsDark } from '../util/services.tsx';
 // import { SidebarThreadSelector } from './SidebarThreadSelector.js';
-// import { SidebarChat } from './SidebarChat.js';
+// import { SidebarChat } from './SidebarChat.tsx';
 
 import '../styles.css'
-import { SidebarChat } from './SidebarChat.js';
-import ErrorBoundary from './ErrorBoundary.js';
+import { SidebarChat } from './SidebarChat.tsx';
+import ErrorBoundary from './ErrorBoundary.tsx';
 
 export const Sidebar = ({ className }: { className: string }) => {
 

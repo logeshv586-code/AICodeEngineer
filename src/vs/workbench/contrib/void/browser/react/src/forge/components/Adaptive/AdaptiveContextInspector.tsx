@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { IntentAnalysis } from '../../../../../common/forge/types/adaptiveTypes';
+import { IntentAnalysis } from '../../../../common/forge/types/adaptiveTypes.js';
 
 export const AdaptiveContextInspector: React.FC<{ analysis?: IntentAnalysis }> = ({
 	analysis = { intent: 'Debug', confidence: 0.92, keywords: ['debug'], explanation: 'User troubleshooting error' }

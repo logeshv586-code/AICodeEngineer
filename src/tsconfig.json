@@ -29,6 +29,7 @@
 		"./*.ts",
 		"./typings",
 		"./vs/**/*.ts",
+		"./vs/**/*.d.ts",
 		"./vscode-dts/vscode.proposed.*.d.ts",
 		"./vscode-dts/vscode.d.ts"
 	]

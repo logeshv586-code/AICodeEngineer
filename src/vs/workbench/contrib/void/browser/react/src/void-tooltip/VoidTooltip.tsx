@@ -6,7 +6,7 @@
 import '../styles.css'
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
-import { useIsDark } from '../util/services.js';
+import { useIsDark } from '../util/services.tsx';
 
 /**
  * Creates a configured global tooltip component with consistent styling

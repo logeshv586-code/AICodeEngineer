@@ -5,8 +5,8 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Send, Square, Upload, Paperclip, Mic, Image as ImageIcon, Code2, Palette, Zap, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { VoidInputBox2 } from '../../../util/inputs.js';
-import { TextAreaFns } from '../../../util/inputs.js';
+import { VoidInputBox2 } from '../../util/inputs.tsx';
+import { TextAreaFns } from '../../util/inputs.tsx';
 import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
 import { ModelCapability } from '../utils/modelCapabilityManifest.js';
 

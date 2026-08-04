@@ -5,12 +5,12 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { displayInfoOfProviderName, FeatureName, featureNames, isFeatureNameDisabled, ModelSelection, modelSelectionsEqual, ProviderName, providerNames } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
-import { useSettingsState, useRefreshModelState, useAccessor } from '../util/services.js';
-import { VoidSwitch } from '../util/inputs.js';
+import { useSettingsState, useRefreshModelState, useAccessor } from '../util/services.tsx';
+import { VoidSwitch } from '../util/inputs.tsx';
 import { VOID_OPEN_SETTINGS_ACTION_ID } from '../../../voidSettingsPane.js';
 import { modelFilterOfFeatureName, ModelOption } from '../../../../../../../workbench/contrib/void/common/voidSettingsService.js';
 import { WarningBox } from './WarningBox.js';
-import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.js';
+import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.tsx';
 import { Check, ChevronDown, ChevronUp, Info, Plus, Sparkles } from 'lucide-react';
 
 const builtInModelPresets: { modelName: string; providerName: ProviderName; tag?: string }[] = [

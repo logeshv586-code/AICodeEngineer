@@ -6,50 +6,50 @@
 import React, { ButtonHTMLAttributes, FormEvent, FormHTMLAttributes, Fragment, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 
-import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useSettingsState, useActiveURI, useCommandBarState, useFullChatThreadsStreamState } from '../util/services.js';
+import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useSettingsState, useActiveURI, useCommandBarState, useFullChatThreadsStreamState } from '../util/services.tsx';
 import { ScrollType } from '../../../../../../../editor/common/editorCommon.js';
 
-import { ChatMarkdownRender, ChatMessageLocation, getApplyBoxId } from '../markdown/ChatMarkdownRender.js';
+import { ChatMarkdownRender, ChatMessageLocation, getApplyBoxId } from '../markdown/ChatMarkdownRender.tsx';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { ErrorDisplay } from './ErrorDisplay.js';
-import { BlockCode, TextAreaFns, VoidCustomDropdownBox, VoidInputBox2, VoidSlider, VoidSwitch, VoidDiffEditor } from '../util/inputs.js';
-import { ModelDropdown, } from '../void-settings-tsx/ModelDropdown.js';
-import { PastThreadsList } from './SidebarThreadSelector.js';
+import { ErrorDisplay } from './ErrorDisplay.tsx';
+import { BlockCode, TextAreaFns, VoidCustomDropdownBox, VoidInputBox2, VoidSlider, VoidSwitch, VoidDiffEditor } from '../util/inputs.tsx';
+import { ModelDropdown, } from '../void-settings-tsx/ModelDropdown.tsx';
+import { PastThreadsList } from './SidebarThreadSelector.tsx';
 import { VOID_CTRL_L_ACTION_ID } from '../../../actionIDs.js';
 import { VOID_OPEN_SETTINGS_ACTION_ID } from '../../../voidSettingsPane.js';
 import { ChatMode, displayInfoOfProviderName, FeatureName, isFeatureNameDisabled } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { WarningBox } from '../void-settings-tsx/WarningBox.js';
+import { WarningBox } from '../void-settings-tsx/WarningBox.tsx';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
 import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Bot, Sparkles, Mic, Image as ImageIcon, Hash, AtSign, ThumbsUp, ThumbsDown, GitFork, CheckCircle2 } from 'lucide-react';
 import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage } from '../../../../common/chatThreadServiceTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, ToolName, LintErrorItem, ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js';
-import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.js';
+import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.tsx';
 import { IsRunningType } from '../../../chatThreadService.js';
 import { acceptAllBg, acceptBorder, buttonFontSize, buttonTextColor, rejectAllBg, rejectBg, rejectBorder } from '../../../../common/helpers/colors.js';
 import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_INACTIVE_TIME } from '../../../../common/prompt/prompts.js';
 import { RawToolCallObj } from '../../../../common/sendLLMMessageTypes.js';
 import ErrorBoundary from './ErrorBoundary.js';
-import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.js';
+import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.tsx';
 import { AgentPlanPanel, RunStateBar } from './AgentPlanPanel.js';
 
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
 
 // Universal Agent Workspace imports
-import { TopBar } from '../workspace-tsx/components/TopBar.js';
-import { LeftToolbar } from '../workspace-tsx/components/LeftToolbar.js';
-import { RightPanel } from '../workspace-tsx/components/RightPanel.js';
-import { BottomStatusBar } from '../workspace-tsx/components/BottomStatusBar.js';
-import { UniversalComposer } from '../workspace-tsx/components/UniversalComposer.js';
-import { useModelCapabilities } from '../workspace-tsx/hooks/useModelCapabilities.js';
-import { TaskMode } from '../workspace-tsx/components/TaskMode.js';
-import { MultiAgent } from '../workspace-tsx/components/MultiAgent.js';
-import { VoiceSupport } from '../workspace-tsx/components/VoiceSupport.js';
-import { ImageSupport } from '../workspace-tsx/components/ImageSupport.js';
-import { ArtSupport } from '../workspace-tsx/components/ArtSupport.js';
-import { CodeSupport } from '../workspace-tsx/components/CodeSupport.js';
+import { TopBar } from '../workspace-tsx/components/TopBar.tsx';
+import { LeftToolbar } from '../workspace-tsx/components/LeftToolbar.tsx';
+import { RightPanel } from '../workspace-tsx/components/RightPanel.tsx';
+import { BottomStatusBar } from '../workspace-tsx/components/BottomStatusBar.tsx';
+import { UniversalComposer } from '../workspace-tsx/components/UniversalComposer.tsx';
+import { useModelCapabilities } from '../workspace-tsx/hooks/useModelCapabilities.ts';
+import { TaskMode } from '../workspace-tsx/components/TaskMode.tsx';
+import { MultiAgent } from '../workspace-tsx/components/MultiAgent.tsx';
+import { VoiceSupport } from '../workspace-tsx/components/VoiceSupport.tsx';
+import { ImageSupport } from '../workspace-tsx/components/ImageSupport.tsx';
+import { ArtSupport } from '../workspace-tsx/components/ArtSupport.tsx';
+import { CodeSupport } from '../workspace-tsx/components/CodeSupport.tsx';
 
 
 

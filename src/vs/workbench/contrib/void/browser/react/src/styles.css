@@ -8,12 +8,13 @@
 @tailwind utilities;
 
 & {
-	--void-bg-1: var(--vscode-input-background);
-	--void-bg-1-alt: var(--vscode-badge-background);
-	--void-bg-2: var(--vscode-sideBar-background);
-	--void-bg-2-alt: color-mix(in srgb, var(--vscode-editor-background) 30%, var(--vscode-sideBar-background) 70%);
-	--void-bg-2-hover: color-mix(in srgb, var(--vscode-editor-foreground) 2%, var(--vscode-sideBar-background) 98%);
-	--void-bg-3: var(--vscode-editor-background);
+	/* Forge's midnight / sapphire palette: quiet surfaces, precise accents. */
+	--void-bg-1: color-mix(in srgb, #121827 72%, var(--vscode-input-background) 28%);
+	--void-bg-1-alt: color-mix(in srgb, #283b68 48%, var(--vscode-badge-background) 52%);
+	--void-bg-2: color-mix(in srgb, #0d1321 74%, var(--vscode-sideBar-background) 26%);
+	--void-bg-2-alt: color-mix(in srgb, #18243d 38%, var(--vscode-editor-background) 62%);
+	--void-bg-2-hover: color-mix(in srgb, #5ea7ff 7%, var(--vscode-sideBar-background) 93%);
+	--void-bg-3: color-mix(in srgb, #0b1020 40%, var(--vscode-editor-background) 60%);
 
 	--void-fg-0: color-mix(in srgb, var(--vscode-tab-activeForeground) 90%, black 10%);
 	--void-fg-1: var(--vscode-editor-foreground);
@@ -28,14 +29,18 @@
 	--void-border-3: var(--vscode-commandCenter-inactiveBorder);
 	--void-border-4: var(--vscode-editorGroup-border);
 
-	--void-ring-color: #007FD4;
-	--void-link-color: #007FD4;
+	--void-ring-color: #72b7ff;
+	--void-link-color: #8ac5ff;
+	--void-accent: #6daeff;
+	--void-accent-strong: #a98bff;
+	--void-accent-soft: rgba(109, 174, 255, 0.14);
+	--void-surface-highlight: rgba(255, 255, 255, 0.045);
 
 	/* Glass UI variables */
-	--void-glass-bg: rgba(24, 24, 27, 0.7);
-	--void-glass-border: rgba(63, 63, 70, 0.5);
-	--void-glass-shadow: rgba(0, 0, 0, 0.3);
-	--void-glass-blur: blur(12px);
+	--void-glass-bg: rgba(17, 25, 43, 0.72);
+	--void-glass-border: rgba(132, 173, 235, 0.18);
+	--void-glass-shadow: rgba(0, 4, 18, 0.42);
+	--void-glass-blur: blur(16px);
 
 	/* Animation variables */
 	--void-transition-fast: 150ms ease;
@@ -64,6 +69,7 @@
 	-webkit-backdrop-filter: var(--void-glass-blur);
 	border: 1px solid var(--void-glass-border);
 	border-radius: 12px;
+	box-shadow: 0 14px 36px var(--void-glass-shadow), inset 0 1px 0 var(--void-surface-highlight);
 }
 
 /* Animations */
@@ -88,8 +94,8 @@
 }
 
 @keyframes void-pulse-glow {
-	0%, 100% { box-shadow: 0 0 4px rgba(0, 127, 212, 0.2); }
-	50% { box-shadow: 0 0 12px rgba(0, 127, 212, 0.4); }
+	0%, 100% { box-shadow: 0 0 4px rgba(109, 174, 255, 0.18); }
+	50% { box-shadow: 0 0 18px rgba(109, 174, 255, 0.42); }
 }
 
 @keyframes void-shimmer {
@@ -139,8 +145,8 @@
 
 /* Dark theme enhancements */
 .dark {
-	--void-glass-bg: rgba(10, 10, 12, 0.8);
-	--void-glass-border: rgba(63, 63, 70, 0.6);
+	--void-glass-bg: rgba(9, 15, 29, 0.82);
+	--void-glass-border: rgba(132, 173, 235, 0.22);
 }
 
 /* Responsive design */
@@ -201,7 +207,7 @@
 
 /* Selection styling */
 ::selection {
-	background: rgba(0, 127, 212, 0.3);
+	background: rgba(109, 174, 255, 0.3);
 	color: var(--void-fg-1);
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { WorkspaceSnapshot, SymbolInfo, ModuleNode } from '../../../../../common/forge/types/workspaceTypes';
+import { WorkspaceSnapshot, SymbolInfo, ModuleNode } from '../../../../common/forge/types/workspaceTypes.js';
 
 // ── Colour tokens for the workspace accent (teal / cyan) ─────────────────────
 const accent = '#14b8a6';       // teal-500

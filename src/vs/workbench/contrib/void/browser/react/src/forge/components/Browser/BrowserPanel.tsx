@@ -9,7 +9,7 @@ import { BrowserToolbar } from './BrowserToolbar';
 import { BrowserOverlay } from './BrowserOverlay';
 import { SelectionToolbar } from './SelectionToolbar';
 import { WorkspaceMatches } from './WorkspaceMatches';
-import { BrowserTabState, DOMSelection, WorkspaceMatch, BrowserPage } from '../../../../../common/forge/types/browserTypes';
+import { BrowserTabState, DOMSelection, WorkspaceMatch, BrowserPage } from '../../../../common/forge/types/browserTypes.js';
 import { BrowserSessionService } from '../../../services/browserSessionService';
 import { DOMCaptureService } from '../../../services/domCaptureService';
 import { SelectionService } from '../../../services/selectionService';

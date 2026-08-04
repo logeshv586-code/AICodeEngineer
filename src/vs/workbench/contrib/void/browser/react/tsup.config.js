@@ -31,10 +31,8 @@ export default defineConfig({
 	noExternal: [ // noExternal means we should take these things and make them not external (bundle them into the output file) - anything that doesn't start with a "." needs to be force-flagged as not external
 		/^(?!\.).*$/
 	],
-	external: [ // these imports should be kept external ../../../ are external (this is just an optimization so the output file doesn't re-implement functions)
-		new RegExp('../../../*.js'
-			.replaceAll('.', '\\.')
-			.replaceAll('*', '.*'))
+	external: [ // these imports should be kept external: ../../../ and deeper are external (VS Code modules); internal React imports (../ and ../../) should be bundled
+		/\.\.\/\.\.\/\.\.\/.*\.js/
 	],
 	treeshake: true,
 	esbuildOptions(options) {

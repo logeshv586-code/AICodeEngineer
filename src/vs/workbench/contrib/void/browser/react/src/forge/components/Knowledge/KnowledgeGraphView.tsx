@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { KnowledgeGraphSnapshot } from '../../../../../common/forge/types/knowledgeGraphTypes';
+import { KnowledgeGraphSnapshot } from '../../../../common/forge/types/knowledgeGraphTypes.js';
 
 export const KnowledgeGraphView: React.FC<{ snapshot: KnowledgeGraphSnapshot | null }> = ({ snapshot }) => {
 	if (!snapshot || snapshot.totalEntities === 0) {

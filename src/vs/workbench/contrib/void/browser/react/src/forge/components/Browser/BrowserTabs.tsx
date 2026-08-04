@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { BrowserTabState } from '../../../../../common/forge/types/browserTypes';
+import { BrowserTabState } from '../../../../common/forge/types/browserTypes.js';
 import { ForgeTheme } from '../../theme/theme';
 
 export const BrowserTabs: React.FC<{

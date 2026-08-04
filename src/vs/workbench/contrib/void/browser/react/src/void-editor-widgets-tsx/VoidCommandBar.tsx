@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 
-import { useAccessor, useCommandBarState, useIsDark } from '../util/services.js';
+import { useAccessor, useCommandBarState, useIsDark } from '../util/services.tsx';
 
 import '../styles.css'
 import { useCallback, useEffect, useState, useRef } from 'react';

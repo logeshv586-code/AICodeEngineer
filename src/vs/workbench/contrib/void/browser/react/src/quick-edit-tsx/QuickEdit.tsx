@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useEffect, useState } from 'react'
-import { useIsDark } from '../util/services.js'
-import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.js'
-import { QuickEditChat } from './QuickEditChat.js'
+import { useIsDark } from '../util/services.tsx'
+import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.tsx'
+import { QuickEditChat } from './QuickEditChat.tsx'
 import { QuickEditPropsType } from '../../../quickEditActions.js'
 
 export const QuickEdit = (props: QuickEditPropsType) => {

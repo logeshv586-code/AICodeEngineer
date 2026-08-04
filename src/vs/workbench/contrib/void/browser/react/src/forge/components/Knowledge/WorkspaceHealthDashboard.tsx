@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { WorkspaceHealthStats } from '../../../../../common/forge/types/knowledgeGraphTypes';
+import { WorkspaceHealthStats } from '../../../../common/forge/types/knowledgeGraphTypes.js';
 
 export const WorkspaceHealthDashboard: React.FC<{ health: WorkspaceHealthStats | null }> = ({ health }) => {
 	if (!health) {

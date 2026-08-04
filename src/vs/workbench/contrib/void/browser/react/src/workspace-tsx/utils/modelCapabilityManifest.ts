@@ -3,7 +3,8 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import { ProviderName } from '../../../../common/voidSettingsTypes.js';
+// These bundles run from react/out/, where four levels reaches the Void common layer.
+import { ProviderName, OverridesOfModel } from '../../../../common/voidSettingsTypes.js';
 import { getModelCapabilities } from '../../../../common/modelCapabilities.js';
 import { VoidSettingsState } from '../../../../common/voidSettingsService.js';
 
@@ -31,35 +32,19 @@ export interface CapabilityManifest {
   lastUpdated: number;
 }
 
-const DEFAULT_CAPABILITIES: ModelCapability = {
-  canReason: false,
-  canEdit: false,
-  canUseTools: false,
-  canAcceptAttachments: false,
-  canUseVoice: false,
-  canUseImages: false,
-  canUseArt: false,
-  canUseCodeExecution: false,
-  maxContextTokens: null,
-  supportsStreaming: true,
-  supportsMultiAgent: false,
-  supportsTaskMode: false,
-  reasoningBudgetSlider: null,
-  reasoningEffortOptions: null,
-};
-
 export function getCapabilityManifest(
   providerName: ProviderName,
   modelName: string,
-  overridesOfModel: Record<string, any> | undefined,
+  overridesOfModel: OverridesOfModel | undefined,
 ): ModelCapability {
   const { reasoningCapabilities } = getModelCapabilities(providerName, modelName, overridesOfModel);
 
   const canReason = !!reasoningCapabilities;
-  const hasSlider = reasoningCapabilities?.reasoningSlider?.type === 'budget_slider';
-  const hasEffort = reasoningCapabilities?.reasoningSlider?.type === 'effort_slider';
+  const rc = reasoningCapabilities as { reasoningSlider?: { type: string; values?: string[]; min?: number; max?: number; default?: number } } | undefined;
+  const hasSlider = !!rc && rc.reasoningSlider?.type === 'budget_slider';
+  const hasEffort = !!rc && rc.reasoningSlider?.type === 'effort_slider';
 
-  const capabilityOverrides = overridesOfModel?.[modelName]?.capabilities;
+  const capabilityOverrides = (overridesOfModel?.[providerName]?.[modelName] as any)?.capabilities;
 
   return {
     canReason,
@@ -74,8 +59,8 @@ export function getCapabilityManifest(
     supportsStreaming: true,
     supportsMultiAgent: capabilityOverrides?.supportsMultiAgent ?? false,
     supportsTaskMode: capabilityOverrides?.supportsTaskMode ?? false,
-    reasoningBudgetSlider: hasSlider ? reasoningCapabilities!.reasoningSlider : null,
-    reasoningEffortOptions: hasEffort ? (reasoningCapabilities!.reasoningSlider as any).values : null,
+    reasoningBudgetSlider: hasSlider ? { min: rc.reasoningSlider!.min!, max: rc.reasoningSlider!.max!, default: rc.reasoningSlider!.default! } : null,
+    reasoningEffortOptions: hasEffort ? rc.reasoningSlider!.values ?? null : null,
   };
 }
 

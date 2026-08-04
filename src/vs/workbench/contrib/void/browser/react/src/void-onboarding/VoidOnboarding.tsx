@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------*/
 
 import { useEffect, useRef, useState } from 'react';
-import { useAccessor, useIsDark, useSettingsState } from '../util/services.js';
+import { useAccessor, useIsDark, useSettingsState } from '../util/services.tsx';
 import { Brain, Check, ChevronRight, DollarSign, ExternalLink, Lock, X } from 'lucide-react';
 import { displayInfoOfProviderName, ProviderName, providerNames, localProviderNames, featureNames, FeatureName, isFeatureNameDisabled } from '../../../../common/voidSettingsTypes.js';
-import { ChatMarkdownRender } from '../markdown/ChatMarkdownRender.js';
-import { OllamaSetupInstructions, OneClickSwitchButton, SettingsForProvider, ModelDump } from '../void-settings-tsx/Settings.js';
+import { ChatMarkdownRender } from '../markdown/ChatMarkdownRender.tsx';
+import { OllamaSetupInstructions, OneClickSwitchButton, SettingsForProvider, ModelDump } from '../void-settings-tsx/Settings.tsx';
 import { ColorScheme } from '../../../../../../../platform/theme/common/theme.js';
-import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.js';
+import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.tsx';
 import { isLinux } from '../../../../../../../base/common/platform.js';
 
 const OVERRIDE_VALUE = false

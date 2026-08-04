@@ -9,7 +9,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 /**
  * A skill definition parsed from a .md file in .agents/skills/
@@ -175,7 +174,6 @@ class SkillsService extends Disposable implements ISkillsService {
 	_serviceBrand: undefined;
 
 	private _skills: SkillDef[] = [];
-	private _loaded = false;
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -246,7 +244,6 @@ class SkillsService extends Disposable implements ISkillsService {
 		} catch { /* ignore workspace errors */ }
 
 		this._skills = skills;
-		this._loaded = true;
 	}
 }
 

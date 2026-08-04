@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { ForgeEvent } from '../../../../../common/forge/events/forgeEvents';
+import { ForgeEvent } from '../../../../common/forge/events/forgeEvents.js';
 
 export const LogsView: React.FC<{ events: ForgeEvent[] }> = ({ events }) => {
 	return (

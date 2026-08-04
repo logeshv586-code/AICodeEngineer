@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { useSettingsState } from '../util/services.js';
+import { useSettingsState } from '../util/services.tsx';
 import { errorDetails } from '../../../../common/sendLLMMessageTypes.js';
 
 

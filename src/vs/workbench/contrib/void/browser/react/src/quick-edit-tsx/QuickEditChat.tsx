@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSettingsState, useAccessor, useCtrlKZoneStreamingState } from '../util/services.js';
-import { TextAreaFns, VoidInputBox2 } from '../util/inputs.js';
+import { useSettingsState, useAccessor, useCtrlKZoneStreamingState } from '../util/services.tsx';
+import { TextAreaFns, VoidInputBox2 } from '../util/inputs.tsx';
 import { QuickEditPropsType } from '../../../quickEditActions.js';
-import { ButtonStop, ButtonSubmit, IconX, VoidChatArea } from '../sidebar-tsx/SidebarChat.js';
+import { ButtonStop, ButtonSubmit, IconX, VoidChatArea } from '../sidebar-tsx/SidebarChat.tsx';
 import { VOID_CTRL_K_ACTION_ID } from '../../../actionIDs.js';
-import { useRefState } from '../util/helpers.js';
+import { useRefState } from '../util/helpers.tsx';
 import { isFeatureNameDisabled } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
 
 

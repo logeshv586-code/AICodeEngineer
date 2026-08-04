@@ -64,15 +64,14 @@ const slashCommands: SlashCommand[] = [
     category: 'Input',
     execute: (args, accessor) => {
       const chatThreadService = accessor.get('IChatThreadService');
-      const workspaceContextService = accessor.get('IWorkspaceContextService');
       const fileDialogService = accessor.get('IFileDialogService');
       fileDialogService.showOpenDialog({
         canSelectMany: true,
         openLabel: 'Attach',
-      }).then(result => {
+      }).then((result: any) => {
         if (!result || !result.result) return;
         const uris = result.result;
-        uris.forEach(uri => {
+        uris.forEach((uri: any) => {
           chatThreadService.addNewStagingSelection({
             type: 'File',
             uri,
@@ -116,7 +115,7 @@ const slashCommands: SlashCommand[] = [
       const chatThreadService = accessor.get('IChatThreadService');
       const thread = chatThreadService.getCurrentThread();
       if (!thread) return;
-      const lastUserMessage = thread.messages.filter(m => m.role === 'user').pop();
+      const lastUserMessage = thread.messages.filter((m: any) => m.role === 'user').pop();
       if (!lastUserMessage) return;
       chatThreadService.generatePlan(lastUserMessage.content || '');
     },
@@ -145,7 +144,7 @@ const slashCommands: SlashCommand[] = [
         canSelectMany: false,
         openLabel: 'Attach Image',
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
-      }).then(result => {
+      }).then((result: any) => {
         if (!result || !result.result || result.result.length === 0) return;
         const uri = result.result[0];
         const reader = new FileReader();

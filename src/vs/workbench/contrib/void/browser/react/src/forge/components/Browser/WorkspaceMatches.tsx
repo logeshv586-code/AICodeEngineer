@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { WorkspaceMatch } from '../../../../../common/forge/types/browserTypes';
+import { WorkspaceMatch } from '../../../../common/forge/types/browserTypes.js';
 
 export const WorkspaceMatches: React.FC<{ matches: WorkspaceMatch[] }> = ({ matches }) => {
 	return (

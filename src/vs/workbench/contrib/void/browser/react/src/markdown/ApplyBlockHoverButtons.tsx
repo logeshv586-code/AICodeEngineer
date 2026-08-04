@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------*/
 
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useCommandBarState, useCommandBarURIListener, useSettingsState } from '../util/services.js'
-import { usePromise, useRefState } from '../util/helpers.js'
+import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useCommandBarState, useCommandBarURIListener, useSettingsState } from '../util/services.tsx'
+import { usePromise, useRefState } from '../util/helpers.tsx'
 import { isFeatureNameDisabled } from '../../../../common/voidSettingsTypes.js'
 import { URI } from '../../../../../../../base/common/uri.js'
 import { FileSymlink, LucideIcon, RotateCw, Terminal } from 'lucide-react'
 import { Check, X, Square, Copy, Play, } from 'lucide-react'
-import { getBasename, ListableToolItem, voidOpenFileFn, ToolChildrenWrapper } from '../sidebar-tsx/SidebarChat.js'
+import { getBasename, ListableToolItem, voidOpenFileFn, ToolChildrenWrapper } from '../sidebar-tsx/SidebarChat.tsx'
 import { PlacesType, VariantType } from 'react-tooltip'
 
 enum CopyButtonText {
