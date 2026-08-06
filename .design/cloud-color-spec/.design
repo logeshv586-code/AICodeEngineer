@@ -1,0 +1,38 @@
+{
+  "data": [
+    {
+      "id": "page-index",
+      "type": "page",
+      "title": "Cerulean Cloud — CocoIndex Color Spec",
+      "version": 1,
+      "createdAt": 1722758400,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 1702,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-0e44a06a",
+          "measuredAt": 1785847980206
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/index.html"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "designLibrary": {
+      "name": "Motion Fit",
+      "id": "dl_builtin_motion_fit",
+      "version": null,
+      "versionSource": null,
+      "scope": "built-in-global",
+      "path": "c:\\Users\\e629\\.trae\\design_libraries\\dl_builtin_motion_fit"
+    }
+  }
+}

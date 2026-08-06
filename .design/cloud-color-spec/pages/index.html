@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cerulean Cloud — CocoIndex Color Spec</title>
+    <style id="theme-vars">
+/* Extended from Motion Fit Design Library + semantic radius aliases */
+/* Source: dl_builtin_motion_fit/colors_and_type.css */
+
+:root {
+  /* bg */
+  --background: #292929;
+  --card: #030303;
+  --popover: #030303;
+  --muted: #030303;
+
+  /* text */
+  --foreground: #e2e8f0;
+  --card-foreground: #e2e8f0;
+  --popover-foreground: #e2e8f0;
+  --primary-foreground: #000000;
+  --secondary-foreground: #ffffff;
+  --muted-foreground: #a1a1aa;
+  --accent-foreground: #000000;
+  --destructive-foreground: #ffffff;
+
+  /* accent */
+  --primary: #ff4000;
+  --secondary: #ff3f02;
+  --accent: #737373;
+  --input: #27272a;
+  --ring: #ff4000;
+
+  /* border */
+  --border: #292929;
+
+  /* status */
+  --destructive: #ef4444;
+
+  /* chart */
+  --chart-1: #d6ff0a;
+  --chart-2: #6200ff;
+  --chart-3: #ff3f02;
+  --chart-4: #00ff1e;
+  --chart-5: #ff3def;
+
+  /* sidebar */
+  --sidebar: #030303;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #ff3f02;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #292929;
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #ff3f02;
+
+  /* font */
+  --font-sans: Orbitron;
+  --font-serif: serif;
+  --font-mono: monospace;
+
+  /* radius */
+  --radius: 0rem;
+  --radius-sm: 0rem;
+  --radius-md: 0rem;
+  --radius-lg: 0rem;
+
+  /* shadow */
+  --shadow-x: 2px;
+  --shadow-y: 2px;
+  --shadow-blur: 0.5rem;
+  --shadow-spread: 0.1rem;
+  --shadow-opacity: 0;
+  --shadow-color: #000000;
+  --shadow-2xs: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0);
+  --shadow-xs: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0);
+  --shadow-sm: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 1px 2px -0.9px rgba(0, 0, 0, 0);
+  --shadow: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 1px 2px -0.9px rgba(0, 0, 0, 0);
+  --shadow-md: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 2px 4px -0.9px rgba(0, 0, 0, 0);
+  --shadow-lg: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 4px 6px -0.9px rgba(0, 0, 0, 0);
+  --shadow-xl: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 8px 10px -0.9px rgba(0, 0, 0, 0);
+  --shadow-2xl: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0);
+
+  /* tracking */
+  --tracking-normal: -0.05em;
+
+  /* spacing */
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --card: #161616;
+  --popover: #161616;
+  --muted: #27272a;
+  --foreground: #e2e8f0;
+  --card-foreground: #e2e8f0;
+  --popover-foreground: #e2e8f0;
+  --primary-foreground: #0a0a0a;
+  --secondary-foreground: #ffffff;
+  --muted-foreground: #a1a1aa;
+  --accent-foreground: #e2e8f0;
+  --destructive-foreground: #ffffff;
+  --primary: #00ff85;
+  --secondary: #8a42ff;
+  --accent: #27272a;
+  --input: #27272a;
+  --ring: #00ff85;
+  --border: #27272a;
+  --destructive: #ef4444;
+  --chart-1: #00ff85;
+  --chart-2: #8a42ff;
+  --chart-3: #ffa500;
+  --chart-4: #3b82f6;
+  --chart-5: #f472b6;
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #00ff85;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #161616;
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #00ff85;
+  --radius: 0rem;
+  --radius-sm: 0rem;
+  --radius-md: 0rem;
+  --radius-lg: 0rem;
+  --shadow-2xs: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0);
+  --shadow-xs: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0);
+  --shadow-sm: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 1px 2px -0.9px rgba(0, 0, 0, 0);
+  --shadow: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 1px 2px -0.9px rgba(0, 0, 0, 0);
+  --shadow-md: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 2px 4px -0.9px rgba(0, 0, 0, 0);
+  --shadow-lg: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 4px 6px -0.9px rgba(0, 0, 0, 0);
+  --shadow-xl: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0), 2px 8px 10px -0.9px rgba(0, 0, 0, 0);
+  --shadow-2xl: 2px 2px 0.5rem 0.1rem rgba(0, 0, 0, 0);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+  }
+  @layer base {
+    body { background: var(--background); color: var(--foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--background); }
+      .text-background { color: var(--background); }
+      .border-background { border-color: var(--background); }
+      .ring-background { --tw-ring-color: var(--background); }
+      .bg-foreground { background-color: var(--foreground); }
+      .text-foreground { color: var(--foreground); }
+      .border-foreground { border-color: var(--foreground); }
+      .ring-foreground { --tw-ring-color: var(--foreground); }
+      .bg-card { background-color: var(--card); }
+      .text-card { color: var(--card); }
+      .border-card { border-color: var(--card); }
+      .ring-card { --tw-ring-color: var(--card); }
+      .bg-card-foreground { background-color: var(--card-foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .border-card-foreground { border-color: var(--card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--card-foreground); }
+      .bg-popover { background-color: var(--popover); }
+      .text-popover { color: var(--popover); }
+      .border-popover { border-color: var(--popover); }
+      .ring-popover { --tw-ring-color: var(--popover); }
+      .bg-popover-foreground { background-color: var(--popover-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .border-popover-foreground { border-color: var(--popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--popover-foreground); }
+      .bg-primary { background-color: var(--primary); }
+      .text-primary { color: var(--primary); }
+      .border-primary { border-color: var(--primary); }
+      .ring-primary { --tw-ring-color: var(--primary); }
+      .bg-primary-foreground { background-color: var(--primary-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .border-primary-foreground { border-color: var(--primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--primary-foreground); }
+      .bg-secondary { background-color: var(--secondary); }
+      .text-secondary { color: var(--secondary); }
+      .border-secondary { border-color: var(--secondary); }
+      .ring-secondary { --tw-ring-color: var(--secondary); }
+      .bg-secondary-foreground { background-color: var(--secondary-foreground); }
+      .text-secondary-foreground { color: var(--secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--secondary-foreground); }
+      .bg-muted { background-color: var(--muted); }
+      .text-muted { color: var(--muted); }
+      .border-muted { border-color: var(--muted); }
+      .ring-muted { --tw-ring-color: var(--muted); }
+      .bg-muted-foreground { background-color: var(--muted-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .border-muted-foreground { border-color: var(--muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--muted-foreground); }
+      .bg-accent { background-color: var(--accent); }
+      .text-accent { color: var(--accent); }
+      .border-accent { border-color: var(--accent); }
+      .ring-accent { --tw-ring-color: var(--accent); }
+      .bg-accent-foreground { background-color: var(--accent-foreground); }
+      .text-accent-foreground { color: var(--accent-foreground); }
+      .border-accent-foreground { border-color: var(--accent-foreground); }
+      .ring-accent-foreground { --tw-ring-color: var(--accent-foreground); }
+      .bg-destructive { background-color: var(--destructive); }
+      .text-destructive { color: var(--destructive); }
+      .border-destructive { border-color: var(--destructive); }
+      .ring-destructive { --tw-ring-color: var(--destructive); }
+      .bg-destructive-foreground { background-color: var(--destructive-foreground); }
+      .text-destructive-foreground { color: var(--destructive-foreground); }
+      .border-destructive-foreground { border-color: var(--destructive-foreground); }
+      .ring-destructive-foreground { --tw-ring-color: var(--destructive-foreground); }
+      .bg-border { background-color: var(--border); }
+      .text-border { color: var(--border); }
+      .border-border { border-color: var(--border); }
+      .ring-border { --tw-ring-color: var(--border); }
+      .bg-input { background-color: var(--input); }
+      .text-input { color: var(--input); }
+      .border-input { border-color: var(--input); }
+      .ring-input { --tw-ring-color: var(--input); }
+      .bg-ring { background-color: var(--ring); }
+      .text-ring { color: var(--ring); }
+      .border-ring { border-color: var(--ring); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .bg-chart-1 { background-color: var(--chart-1); }
+      .text-chart-1 { color: var(--chart-1); }
+      .border-chart-1 { border-color: var(--chart-1); }
+      .ring-chart-1 { --tw-ring-color: var(--chart-1); }
+      .bg-chart-2 { background-color: var(--chart-2); }
+      .text-chart-2 { color: var(--chart-2); }
+      .border-chart-2 { border-color: var(--chart-2); }
+      .ring-chart-2 { --tw-ring-color: var(--chart-2); }
+      .bg-chart-3 { background-color: var(--chart-3); }
+      .text-chart-3 { color: var(--chart-3); }
+      .border-chart-3 { border-color: var(--chart-3); }
+      .ring-chart-3 { --tw-ring-color: var(--chart-3); }
+      .bg-chart-4 { background-color: var(--chart-4); }
+      .text-chart-4 { color: var(--chart-4); }
+      .border-chart-4 { border-color: var(--chart-4); }
+      .ring-chart-4 { --tw-ring-color: var(--chart-4); }
+      .bg-chart-5 { background-color: var(--chart-5); }
+      .text-chart-5 { color: var(--chart-5); }
+      .border-chart-5 { border-color: var(--chart-5); }
+      .ring-chart-5 { --tw-ring-color: var(--chart-5); }
+      .bg-sidebar { background-color: var(--sidebar); }
+      .text-sidebar { color: var(--sidebar); }
+      .border-sidebar { border-color: var(--sidebar); }
+      .ring-sidebar { --tw-ring-color: var(--sidebar); }
+      .bg-sidebar-foreground { background-color: var(--sidebar-foreground); }
+      .text-sidebar-foreground { color: var(--sidebar-foreground); }
+      .border-sidebar-foreground { border-color: var(--sidebar-foreground); }
+      .ring-sidebar-foreground { --tw-ring-color: var(--sidebar-foreground); }
+      .bg-sidebar-primary { background-color: var(--sidebar-primary); }
+      .text-sidebar-primary { color: var(--sidebar-primary); }
+      .border-sidebar-primary { border-color: var(--sidebar-primary); }
+      .ring-sidebar-primary { --tw-ring-color: var(--sidebar-primary); }
+      .bg-sidebar-primary-foreground { background-color: var(--sidebar-primary-foreground); }
+      .text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+      .border-sidebar-primary-foreground { border-color: var(--sidebar-primary-foreground); }
+      .ring-sidebar-primary-foreground { --tw-ring-color: var(--sidebar-primary-foreground); }
+      .bg-sidebar-accent { background-color: var(--sidebar-accent); }
+      .text-sidebar-accent { color: var(--sidebar-accent); }
+      .border-sidebar-accent { border-color: var(--sidebar-accent); }
+      .ring-sidebar-accent { --tw-ring-color: var(--sidebar-accent); }
+      .bg-sidebar-accent-foreground { background-color: var(--sidebar-accent-foreground); }
+      .text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+      .border-sidebar-accent-foreground { border-color: var(--sidebar-accent-foreground); }
+      .ring-sidebar-accent-foreground { --tw-ring-color: var(--sidebar-accent-foreground); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased" style="background:#0f0f12; color:#e2e8f0;">
+    <main class="max-w-4xl mx-auto px-6 py-12">
+        <!-- Header -->
+        <header class="mb-12">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-3 h-3" style="background:#8ecae6;"></div>
+                <span class="text-xs tracking-widest uppercase" style="color:#8ecae6; font-family:Orbitron,sans-serif;">Color Specification</span>
+            </div>
+            <h1 class="text-4xl font-bold mb-3" style="font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Cerulean Cloud</h1>
+            <p class="text-base leading-relaxed max-w-2xl" style="color:#a1a1aa;">A soft sky-blue accent derived from the CocoIndex paper base (<code style="color:#fff8ea; background:rgba(255,248,234,0.08); padding:1px 6px; border-radius:3px;">#fff8ea</code>), shifted toward complementary blue to serve as a distinct &ldquo;Idea&rdquo; accent. Sits opposite terracotta on the color wheel, providing a cool, airy counterpoint to the warm CocoIndex palette.</p>
+        </header>
+
+        <!-- Section: CocoIndex Palette -->
+        <section class="mb-10">
+            <h2 class="text-xs tracking-widest uppercase mb-5 pb-2 border-b" style="font-family:Orbitron,sans-serif; letter-spacing:-0.05em; border-color:rgba(255,248,234,0.12);">Existing &mdash; CocoIndex Palette</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <div class="p-4" style="background:#2d0b1b; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-2" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Ink</div>
+                    <div class="text-sm" style="color:#fff8ea; font-family:monospace;">#2d0b1b</div>
+                </div>
+                <div class="p-4" style="background:#3a1424; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-2" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Panel</div>
+                    <div class="text-sm" style="color:#fff8ea; font-family:monospace;">#3a1424</div>
+                </div>
+                <div class="p-4" style="background:#4b1b2b; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-2" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Panel Raised</div>
+                    <div class="text-sm" style="color:#fff8ea; font-family:monospace;">#4b1b2b</div>
+                </div>
+                <div class="p-4" style="background:#fff8ea; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-2" style="color:#6b5e5a; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Paper</div>
+                    <div class="text-sm" style="color:#2d0b1b; font-family:monospace;">#fff8ea</div>
+                </div>
+                <div class="p-4" style="background:#bca7a1; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-2" style="color:#3a1424; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Muted</div>
+                    <div class="text-sm" style="color:#2d0b1b; font-family:monospace;">#bca7a1</div>
+                </div>
+                <div class="p-4 relative overflow-hidden" style="background:#c55232; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-2" style="color:rgba(255,255,255,0.7); font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Accent</div>
+                    <div class="text-sm" style="color:#fff8ea; font-family:monospace;">#c55232</div>
+                </div>
+                <div class="p-4" style="background:transparent; border:1px solid rgba(255,248,234,0.18);">
+                    <div class="text-xs mb-2" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Line</div>
+                    <div class="text-sm" style="color:#fff8ea; font-family:monospace;">rgba(255,248,234,0.18)</div>
+                </div>
+                <div class="p-4" style="background:transparent; border:1px solid rgba(197,82,50,0.45);">
+                    <div class="text-xs mb-2" style="color:#f1a184; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Accent Soft</div>
+                    <div class="text-sm" style="color:#fff8ea; font-family:monospace;">rgba(197,82,50,0.18)</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Cerulean Cloud -->
+        <section class="mb-10">
+            <h2 class="text-xs tracking-widest uppercase mb-5 pb-2 border-b" style="font-family:Orbitron,sans-serif; letter-spacing:-0.05em; border-color:rgba(142,202,230,0.2);">New &mdash; Cerulean Cloud</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                <div class="p-5" style="background:#8ecae6; border:1px solid rgba(142,202,230,0.4);">
+                    <div class="text-xs mb-2" style="color:rgba(0,0,0,0.5); font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Cloud Primary</div>
+                    <div class="text-lg font-bold mb-1" style="color:#0a1628; font-family:monospace;">#8ecae6</div>
+                    <div class="text-xs" style="color:rgba(0,0,0,0.45); font-family:monospace;">HSL 199&deg; 64% 73%</div>
+                </div>
+                <div class="p-5" style="background:#c4dff0; border:1px solid rgba(142,202,230,0.3);">
+                    <div class="text-xs mb-2" style="color:rgba(0,0,0,0.4); font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Cloud Light</div>
+                    <div class="text-lg font-bold mb-1" style="color:#0a1628; font-family:monospace;">#c4dff0</div>
+                    <div class="text-xs" style="color:rgba(0,0,0,0.4); font-family:monospace;">HSL 203&deg; 59% 85%</div>
+                </div>
+                <div class="p-5" style="background:rgba(142,202,230,0.15); border:1px solid rgba(142,202,230,0.3);">
+                    <div class="text-xs mb-2" style="color:rgba(142,202,230,0.6); font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Cloud Soft</div>
+                    <div class="text-lg font-bold mb-1" style="color:#8ecae6; font-family:monospace;">rgba(142,202,230,0.15)</div>
+                    <div class="text-xs" style="color:rgba(142,202,230,0.4);">Background / hover state</div>
+                </div>
+            </div>
+
+            <!-- Complementary contrast demo -->
+            <div class="p-5 mb-4" style="background:#2d0b1b; border:1px solid rgba(255,248,234,0.12);">
+                <div class="text-xs mb-4" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Complementary Contrast Demo</div>
+                <div class="flex gap-4 flex-wrap">
+                    <div class="flex items-center gap-2 px-3 py-2" style="background:rgba(197,82,50,0.18); border:1px solid rgba(197,82,50,0.4);">
+                        <div class="w-3 h-3" style="background:#c55232;"></div>
+                        <span class="text-xs" style="color:#f1a184; font-family:monospace;">Terracotta #c55232</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-2" style="background:rgba(142,202,230,0.15); border:1px solid rgba(142,202,230,0.4);">
+                        <div class="w-3 h-3" style="background:#8ecae6;"></div>
+                        <span class="text-xs" style="color:#8ecae6; font-family:monospace;">Cloud #8ecae6</span>
+                    </div>
+                </div>
+                <div class="text-xs mt-3" style="color:#a1a1aa;">Color-wheel opposites: warm terracotta (action) vs. cool cloud (idea/creativity)</div>
+            </div>
+
+            <!-- Derivation -->
+            <div class="p-5" style="background:rgba(142,202,230,0.06); border:1px solid rgba(142,202,230,0.15);">
+                <div class="text-xs mb-3" style="color:#8ecae6; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Derivation</div>
+                <div class="flex items-center gap-3 text-sm" style="font-family:monospace;">
+                    <span class="px-3 py-1.5" style="background:#fff8ea; color:#2d0b1b;">#fff8ea</span>
+                    <span style="color:#a1a1aa;">Paper &rarr;</span>
+                    <span style="color:#a1a1aa;">Shift hue +200&deg;, reduce warmth &rarr;</span>
+                    <span class="px-3 py-1.5" style="background:#8ecae6; color:#0a1628;">#8ecae6</span>
+                </div>
+                <div class="text-xs mt-3" style="color:#a1a1aa;">Starting from CocoIndex paper (warm cream), the hue is rotated approximately 200&deg; toward cerulean blue while preserving similar luminance. This creates a natural complementary relationship with the terracotta accent while maintaining the soft, luminous quality of the paper base.</div>
+            </div>
+        </section>
+
+        <!-- Section: CSS Implementation -->
+        <section class="mb-10">
+            <h2 class="text-xs tracking-widest uppercase mb-5 pb-2 border-b" style="font-family:Orbitron,sans-serif; letter-spacing:-0.05em; border-color:rgba(255,248,234,0.12);">CSS Implementation</h2>
+            <div class="p-5 overflow-x-auto" style="background:#030303; border:1px solid rgba(255,248,234,0.12);">
+                <pre class="text-sm leading-relaxed" style="color:#e2e8f0; font-family:monospace;"><span style="color:#bca7a1;">/* Add to .forge-coco-shell in styles.css */</span>
+<span style="color:#d6ff0a;">--forge-coco-cloud</span>:       <span style="color:#8ecae6;">#8ecae6</span>;
+<span style="color:#d6ff0a;">--forge-coco-cloud-light</span>:  <span style="color:#c4dff0;">#c4dff0</span>;
+<span style="color:#d6ff0a;">--forge-coco-cloud-soft</span>:   <span style="color:#8ecae6;">rgba(142, 202, 230, 0.15)</span>;</pre>
+            </div>
+            <div class="text-xs mt-3" style="color:#a1a1aa;">Add these three lines inside the <code style="color:#fff8ea; background:rgba(255,248,234,0.08); padding:1px 4px;">.forge-coco-shell</code> rule block in <code style="color:#fff8ea; background:rgba(255,248,234,0.08); padding:1px 4px;">src/vs/workbench/contrib/void/browser/react/src/styles.css</code> (around line 228, after <code style="color:#fff8ea; background:rgba(255,248,234,0.08); padding:1px 4px;">--forge-coco-accent-soft</code>).</div>
+        </section>
+
+        <!-- Section: Usage Examples -->
+        <section class="mb-10">
+            <h2 class="text-xs tracking-widest uppercase mb-5 pb-2 border-b" style="font-family:Orbitron,sans-serif; letter-spacing:-0.05em; border-color:rgba(142,202,230,0.2);">Usage Examples</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Idea badge -->
+                <div class="p-4" style="background:#2d0b1b; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-3" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Idea Badge / Tag</div>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs" style="background:rgba(142,202,230,0.15); border:1px solid rgba(142,202,230,0.4); color:#8ecae6; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">
+                        <i data-lucide="lightbulb" style="width:12px;height:12px;"></i> IDEA
+                    </span>
+                </div>
+                <!-- Idea button -->
+                <div class="p-4" style="background:#2d0b1b; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-3" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Idea Action Button</div>
+                    <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer" style="background:#8ecae6; color:#0a1628; border:0; font-family:Orbitron,sans-serif; font-weight:700; letter-spacing:-0.05em;">
+                        <i data-lucide="sparkles" style="width:12px;height:12px;"></i> GENERATE IDEA
+                    </button>
+                </div>
+                <!-- Idea card -->
+                <div class="p-4 sm:col-span-2" style="background:#2d0b1b; border:1px solid rgba(255,248,234,0.1);">
+                    <div class="text-xs mb-3" style="color:#bca7a1; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">Idea Panel / Card</div>
+                    <div class="p-4 flex items-start gap-3" style="background:rgba(142,202,230,0.08); border:1px solid rgba(142,202,230,0.25);">
+                        <div class="grid place-items-center p-2" style="background:rgba(142,202,230,0.18);">
+                            <i data-lucide="lightbulb" style="width:16px;height:16px; color:#8ecae6;"></i>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold mb-1" style="color:#8ecae6; font-family:Orbitron,sans-serif; letter-spacing:-0.05em;">CLOUD ARCHITECTURE</div>
+                            <div class="text-xs" style="color:#a1a1aa;">Serverless deployment with automatic scaling across regions. Estimated latency reduction: 40%.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer note -->
+        <footer class="pt-6 border-t" style="border-color:rgba(255,248,234,0.08);">
+            <div class="flex flex-wrap gap-6 text-xs" style="color:#a1a1aa; font-family:monospace;">
+                <span>Motion Fit DL: <code style="color:#fff8ea; background:rgba(255,248,234,0.08); padding:1px 4px;">dl_builtin_motion_fit</code></span>
+                <span>Role: <code style="color:#8ecae6; background:rgba(142,202,230,0.08); padding:1px 4px;">Idea accent</code></span>
+                <span>Target: <code style="color:#fff8ea; background:rgba(255,248,234,0.08); padding:1px 4px;">.forge-coco-shell</code></span>
+            </div>
+        </footer>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

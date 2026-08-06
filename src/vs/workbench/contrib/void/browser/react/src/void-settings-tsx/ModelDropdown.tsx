@@ -43,8 +43,13 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	const menuRef = useRef<HTMLDivElement>(null);
 	const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8, width: 280 });
 
-	const selection = voidSettingsService.state.modelSelectionOfFeature[featureName];
-	const currentModelName = selection?.modelName || 'Claude 3.5 Sonnet';
+	// Use the reactive settings snapshot for both the label and list state.  Reading
+	// the service directly here could leave the button on an older provider/model.
+	const selection = settingsState.modelSelectionOfFeature[featureName];
+	const currentModelName = selection?.modelName || 'Select a model';
+	const portalTarget = typeof document === 'undefined'
+		? null
+		: document.querySelector('.void-scope') ?? document.body;
 
 	const openSettings = () => {
 		commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID);
@@ -89,8 +94,18 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 
 	const toggleMenu = () => setIsOpen(open => !open);
 
-	const selectModel = (modelName: string, providerName: ProviderName) => {
-		voidSettingsService.setModelSelectionOfFeature(featureName, { modelName, providerName });
+	const selectModel = async (modelName: string, providerName: ProviderName) => {
+		const providerSettings = settingsState.settingsOfProvider[providerName];
+		const existing = providerSettings.models.find(model => model.modelName === modelName);
+		if (!existing || existing.isHidden) {
+			const models = existing
+				? providerSettings.models.map(model => model.modelName === modelName ? { ...model, isHidden: false } : model)
+				: [...providerSettings.models, { modelName, type: 'custom' as const, isHidden: false }];
+			await voidSettingsService.setSettingOfProvider(providerName, 'models', models);
+		}
+
+		await voidSettingsService.setModelSelectionOfFeature(featureName, { modelName, providerName });
+		setAutoMode(false);
 		setIsOpen(false);
 	};
 
@@ -132,8 +147,19 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			}
 		}
 
+		// Keep the active selection visible even when it is temporarily hidden in
+		// provider settings, so a stale label can always be corrected from here.
+		if (selection && !seen.has(`${selection.providerName}:${selection.modelName}`)) {
+			result.unshift({
+				modelName: selection.modelName,
+				providerName: selection.providerName,
+				tag: displayInfoOfProviderName(selection.providerName)?.title || selection.providerName,
+				isConfigured: true,
+			});
+		}
+
 		return result;
-	}, [settingsState.settingsOfProvider]);
+	}, [settingsState.settingsOfProvider, selection]);
 
 	return (
 		<div className="relative inline-block text-left shrink-0" ref={dropdownRef}>
@@ -150,24 +176,24 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			</button>
 
 			{/* Dropdown Panel matching Image 4 */}
-			{isOpen && typeof document !== 'undefined' && createPortal((
-				<div ref={menuRef} className="fixed rounded-xl bg-[#2d0b1b] border border-[#c55232]/50 shadow-2xl z-[9999] overflow-hidden text-[#fff8ea] animate-in fade-in zoom-in-95 duration-150" style={{ left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: 'calc(100vh - 16px)' }}>
+			{isOpen && portalTarget && createPortal((
+				<div ref={menuRef} className="fixed rounded-none bg-[#4a0000] border border-[#ff4000]/60 shadow-2xl z-[9999] overflow-hidden text-[#e2e8f0] animate-in fade-in zoom-in-95 duration-150" style={{ position: 'fixed', zIndex: 9999, left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: 'calc(100vh - 16px)', background: '#4a0000', border: '1px solid #ff4000', color: '#e2e8f0', overflow: 'hidden', boxShadow: '0 16px 40px rgba(0, 0, 0, .5)' }}>
 					{/* Header: Auto Mode Toggle */}
 					<div className="p-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
 						<div className="flex items-center gap-1.5">
-							<Sparkles size={14} className="text-[#e58b6d]" />
+							<Sparkles size={14} className="text-[#ff4000]" />
 							<span className="text-xs font-semibold text-zinc-200">Auto Mode</span>
 						</div>
 						<VoidSwitch size="xs" value={autoMode} onChange={setAutoMode} />
 					</div>
 
 					{/* Section Header */}
-					<div className="px-3 pt-2 pb-1 flex items-center justify-between text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-						<span>Available Models ({allAvailableModels.length})</span>
-						<Info size={11} className="text-zinc-500 cursor-help" />
-					</div>
+				<div className="px-3 pt-2 pb-1 flex items-center justify-between text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+					<span>Available Models ({allAvailableModels.length})</span>
+					<Info size={11} className="text-zinc-500 cursor-help" />
+				</div>
 
-					{/* Model Items List */}
+				{/* Model Items List */}
 					<div className="max-h-56 overflow-y-auto py-1">
 						{allAvailableModels.map((m) => {
 							const isSelected = selection?.modelName === m.modelName && selection?.providerName === m.providerName;
@@ -175,7 +201,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 								<button
 									key={`${m.providerName}:${m.modelName}`}
 									type="button"
-									onClick={() => selectModel(m.modelName, m.providerName)}
+							onClick={() => { void selectModel(m.modelName, m.providerName); }}
 									className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors ${
 										isSelected
 											? 'bg-zinc-800/80 text-white font-medium'
@@ -212,7 +238,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 						</button>
 					</div>
 				</div>
-			), document.body)}
+			), portalTarget)}
 		</div>
 	);
 };

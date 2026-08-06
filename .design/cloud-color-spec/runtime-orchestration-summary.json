@@ -1,0 +1,195 @@
+{
+  "project": {
+    "resolvedLane": "library_bound",
+    "operatingMode": "library-bound",
+    "designSource": {
+      "libraryIdentity": {
+        "name": "Motion Fit",
+        "id": "dl_builtin_motion_fit",
+        "version": null,
+        "scope": "built-in-global",
+        "path": "c:\\Users\\e629\\.trae\\design_libraries\\dl_builtin_motion_fit",
+        "versionSource": null
+      },
+      "actualTokenNameReference": [
+        "--background",
+        "--card",
+        "--popover",
+        "--muted",
+        "--foreground",
+        "--card-foreground",
+        "--popover-foreground",
+        "--primary-foreground",
+        "--secondary-foreground",
+        "--muted-foreground",
+        "--accent-foreground",
+        "--destructive-foreground",
+        "--primary",
+        "--secondary",
+        "--accent",
+        "--input",
+        "--ring",
+        "--border",
+        "--destructive",
+        "--chart-1",
+        "--chart-2",
+        "--chart-3",
+        "--chart-4",
+        "--chart-5",
+        "--sidebar",
+        "--sidebar-foreground",
+        "--sidebar-primary",
+        "--sidebar-primary-foreground",
+        "--sidebar-accent",
+        "--sidebar-accent-foreground",
+        "--sidebar-border",
+        "--sidebar-ring",
+        "--font-sans",
+        "--font-serif",
+        "--font-mono",
+        "--radius",
+        "--spacing",
+        "--shadow-2xs",
+        "--shadow-xs",
+        "--shadow-sm",
+        "--shadow",
+        "--shadow-md",
+        "--shadow-lg",
+        "--shadow-xl",
+        "--shadow-2xl",
+        "--tracking-normal"
+      ],
+      "componentPlan": [],
+      "tokenFidelity": "strict",
+      "designDecisionSummary": "Cerulean Cloud color specification — a soft sky-blue accent (#8ecae6) derived from CocoIndex paper (#fff8ea) shifted to complementary blue, bridging CocoIndex warm palette and Motion Fit athletic brand as a distinct 'Idea' accent.",
+      "supplementaryColors": {
+        "cocoIndex": {
+          "ink": "#2d0b1b",
+          "panel": "#3a1424",
+          "panelRaised": "#4b1b2b",
+          "paper": "#fff8ea",
+          "muted": "#bca7a1",
+          "accent": "#c55232",
+          "line": "rgba(255, 248, 234, 0.18)"
+        },
+        "ceruleanCloud": {
+          "primary": "#8ecae6",
+          "light": "#c4dff0",
+          "soft": "rgba(142, 202, 230, 0.15)",
+          "name": "Cerulean Cloud",
+          "role": "Idea accent / cloud color for light palette"
+        }
+      }
+    },
+    "contextRequirementsLoaded": [
+      {
+        "path": "shared-runtime/runtime-boundaries/lane-runtime-contracts.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "shared-runtime/agent-dispatch-runtime/lane-dispatch-index.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "delivery-quality/page-rendering-quality-gate.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "delivery-quality/design-artifact-validation.md",
+        "readStatus": "loaded",
+        "bodyRead": false
+      },
+      {
+        "path": "delivery-quality/delivery-evidence-contract.md",
+        "readStatus": "loaded",
+        "bodyRead": false
+      }
+    ],
+    "expectedDispatches": [],
+    "generationTree": null,
+    "sharedProjectShellContract": null,
+    "validationHistory": [
+      {
+        "reportPath": "validation-report.json",
+        "reportHash": "7210a161f32a94bfc61c2bd70f8e3a63b9de86e1be7f8c49f8da521ab130b4b6",
+        "checkedAt": "2026-08-04T12:51:33.532Z",
+        "success": false,
+        "exitCode": 1,
+        "renderBlockingErrorCount": 2,
+        "repairPlanHints": [
+          "hardcoded-color-in-body"
+        ],
+        "errorSignatures": [
+          {
+            "errorClass": "directory-structure",
+            "normalized": "[directory-structure] Missing required directory: assets/",
+            "signature": "c78e26a864205b3d5e2ce8a2a5ce7a295d7b1ae82a70af3e0bbf90d6fe191bc2"
+          },
+          {
+            "errorClass": "artifact-readiness",
+            "normalized": "[design-file] Validation failed for .design file batch: ======================================== [FAIL] Validation failed ---------------------------------------- Found 5 issues: 1. [root.config.designLibrary.versionSource] must exist; use null when unavailable 2. [data[0].version] must be a positive integer 3. [data[0].createdAt] must be a positive integer (timestamp) 4. [data[0].id] must match htmlSrc slug, expected \"page-index\" or \"page-index-<n>\", got \"page-color-spec\" 5. [data[0].canvasData] must be an object ========================================",
+            "signature": "1a400a6e4b717f290b35e3b01855b2d2a12e909b04ee6da3f610c527b04717b1"
+          }
+        ],
+        "terminalState": null
+      }
+    ],
+    "validationRepairLedger": [
+      {
+        "failedReportPath": "validation-report.json",
+        "failedReportHash": "7210a161f32a94bfc61c2bd70f8e3a63b9de86e1be7f8c49f8da521ab130b4b6",
+        "repairWorkflowReadPath": "intent-workflows/intent-project-mutation/main-agent-repair-workflow.md",
+        "repairStartedAt": "2026-08-04T12:52:06.336Z",
+        "repairEntryStatus": "started-awaiting-owner-batch-repair",
+        "ownerTriage": [
+          {
+            "owner": "sub-agent",
+            "errorClass": "hardcoded-color-in-body",
+            "affectedFiles": [
+              "index.html"
+            ],
+            "repairScope": "targeted-token-replace",
+            "strategy": "targeted_token_replace_once"
+          }
+        ],
+        "repairPlanHints": [
+          {
+            "errorClass": "hardcoded-color-in-body",
+            "owner": "sub-agent",
+            "repairScope": "targeted-token-replace",
+            "strategy": "targeted_token_replace_once",
+            "affectedFiles": [
+              "index.html"
+            ],
+            "repairReportPath": null,
+            "repairAlreadyAttempted": false,
+            "allowSourceRead": "no-full-html-read",
+            "maxValidationRuns": 2
+          }
+        ],
+        "repairActions": [],
+        "revalidationReportPath": null,
+        "revalidationReportHash": null,
+        "revalidationSuccess": null,
+        "blockedReason": null
+      }
+    ],
+    "repairEntryEvidence": [
+      {
+        "failedReportPath": "validation-report.json",
+        "failedReportHash": "7210a161f32a94bfc61c2bd70f8e3a63b9de86e1be7f8c49f8da521ab130b4b6",
+        "repairWorkflowReadPath": "intent-workflows/intent-project-mutation/main-agent-repair-workflow.md",
+        "repairStartedAt": "2026-08-04T12:52:06.336Z",
+        "ledgerIndex": 0,
+        "ownerTriageCount": 1,
+        "repairActionCount": 0,
+        "revalidationReportPath": null,
+        "revalidationReportHash": null,
+        "revalidationSuccess": null
+      }
+    ]
+  }
+}

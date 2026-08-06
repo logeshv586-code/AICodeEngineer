@@ -211,16 +211,19 @@
 	color: var(--void-fg-1);
 }
 
-/* CocoIndex-inspired Forge surface: warm paper, plum ink, and terracotta action. */
+/* Forge's app and AI surfaces share the project color contract. */
 .forge-coco-shell {
-	--forge-coco-ink: #2d0b1b;
-	--forge-coco-panel: #3a1424;
-	--forge-coco-panel-raised: #4b1b2b;
-	--forge-coco-paper: #fff8ea;
-	--forge-coco-muted: #bca7a1;
-	--forge-coco-line: rgba(255, 248, 234, 0.18);
-	--forge-coco-accent: #c55232;
-	--forge-coco-accent-soft: rgba(197, 82, 50, 0.18);
+	--forge-coco-ink: #4a0000;
+	--forge-coco-panel: #4a0000;
+	--forge-coco-panel-raised: #4a0000;
+	--forge-coco-paper: #e2e8f0;
+	--forge-coco-muted: #a1a1aa;
+	--forge-coco-line: #27272a;
+	--forge-coco-accent: #ff4000;
+	--forge-coco-accent-soft: rgba(255, 64, 0, 0.18);
+	--forge-coco-cloud: #8ecae6;
+	--forge-coco-cloud-light: #c4dff0;
+	--forge-coco-cloud-soft: rgba(142, 202, 230, 0.15);
 	background: var(--forge-coco-ink);
 	color: var(--forge-coco-paper);
 	min-width: 0;
@@ -228,10 +231,43 @@
 	isolation: isolate;
 }
 
+/* Do not let legacy Zinc utility backgrounds create a second black theme. */
+.forge-coco-shell [class*="void-bg-zinc"],
+.forge-coco-shell [class*="void-bg-void"],
+.forge-coco-shell .void-right-panel,
+.forge-coco-shell .void-left-toolbar {
+	background-color: #4a0000 !important;
+}
+
+.forge-coco-shell [class*="void-border-zinc"] {
+	border-color: rgba(255, 64, 0, 0.35) !important;
+}
+
 .forge-coco-shell > .flex,
 .forge-coco-shell .flex-1 {
 	min-width: 0;
 	min-height: 0;
+}
+
+/* Keep the host IDE and Forge AI in one coherent dark system. */
+.monaco-workbench {
+	--vscode-editor-background: #292929;
+	--vscode-sideBar-background: #030303;
+	--vscode-activityBar-background: #030303;
+	--vscode-titleBar-activeBackground: #030303;
+	--vscode-statusBar-background: #030303;
+	--vscode-panel-background: #161616;
+	--vscode-foreground: #e2e8f0;
+	--vscode-descriptionForeground: #a1a1aa;
+	--vscode-focusBorder: #ff4000;
+	--vscode-button-background: #ff4000;
+	--vscode-button-foreground: #000000;
+	--vscode-button-hoverBackground: #ff3f02;
+	--vscode-widget-border: #27272a;
+	--vscode-input-background: #27272a;
+	--vscode-input-foreground: #e2e8f0;
+	--vscode-list-activeSelectionBackground: #292929;
+	--vscode-list-hoverBackground: #27272a;
 }
 
 .void-right-panel {
@@ -266,7 +302,7 @@
 	padding: 9px 10px;
 	border: 1px solid var(--forge-coco-line);
 	border-radius: 10px;
-	background: linear-gradient(135deg, rgba(185, 242, 39, 0.08), rgba(255, 255, 255, 0.025));
+	background: var(--forge-coco-accent-soft);
 }
 
 .forge-coco-agent-mark {
@@ -363,15 +399,15 @@
 }
 
 .forge-coco-model-trigger {
-	background: rgba(255, 248, 234, 0.08) !important;
-	border: 1px solid rgba(255, 248, 234, 0.2) !important;
+	background: #27272a !important;
+	border: 1px solid #3f3f46 !important;
 	color: var(--forge-coco-paper) !important;
 	min-height: 26px;
 }
 
 .forge-coco-model-trigger:hover {
 	background: var(--forge-coco-accent-soft) !important;
-	border-color: rgba(197, 82, 50, 0.6) !important;
+	border-color: #ff4000 !important;
 }
 
 .forge-coco-attachment {
