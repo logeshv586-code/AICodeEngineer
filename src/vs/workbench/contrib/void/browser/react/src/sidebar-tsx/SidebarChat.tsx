@@ -20,6 +20,7 @@ import { VOID_CTRL_L_ACTION_ID } from '../../../actionIDs.js';
 import { VOID_OPEN_SETTINGS_ACTION_ID } from '../../../voidSettingsPane.js';
 import { ChatMode, displayInfoOfProviderName, FeatureName, isFeatureNameDisabled } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { SlashCommandContext } from '../workspace-tsx/utils/slashCommandRouter';
 import { WarningBox } from '../void-settings-tsx/WarningBox.tsx';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
 import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Bot, Sparkles, Mic, Image as ImageIcon, Hash, AtSign, ThumbsUp, ThumbsDown, GitFork, CheckCircle2 } from 'lucide-react';
@@ -37,7 +38,15 @@ import { AgentPlanPanel, RunStateBar } from './AgentPlanPanel.js';
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
 
-// Universal Agent Workspace imports
+// Conversation-First UI imports
+import { ChatView } from '../workspace-tsx/components/ChatView.tsx';
+import { SimpleSidebar, SimpleSidebarProps } from '../workspace-tsx/components/SimpleSidebar.tsx';
+import { ThreadItem, buildThreadList } from '../workspace-tsx/components/ThreadList.tsx';
+import { ComposerControlCenter, Attachment } from '../workspace-tsx/components/ComposerControlCenter.tsx';
+import { useStreamEvents, publishPlanCreated, publishToolStarted, publishToolFinished, publishRunCompleted } from '../workspace-tsx/utils/streamEvents';
+import { routeIntent } from '../workspace-tsx/utils/intentRouter';
+
+// Legacy workspace imports (kept for fallback mode)
 import { TopBar } from '../workspace-tsx/components/TopBar.tsx';
 import { LeftToolbar } from '../workspace-tsx/components/LeftToolbar.tsx';
 import { RightPanel } from '../workspace-tsx/components/RightPanel.tsx';
@@ -50,6 +59,7 @@ import { VoiceSupport } from '../workspace-tsx/components/VoiceSupport.tsx';
 import { ImageSupport } from '../workspace-tsx/components/ImageSupport.tsx';
 import { ArtSupport } from '../workspace-tsx/components/ArtSupport.tsx';
 import { CodeSupport } from '../workspace-tsx/components/CodeSupport.tsx';
+import { AgentWorkspace } from '../workspace-tsx/components/AgentWorkspace.tsx';
 
 const readableChatContent = (value: unknown) => readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')
 
@@ -3140,6 +3150,42 @@ export const SidebarChat = () => {
 
 	const capabilities = useModelCapabilities(settingsState)
 
+	// ── Conversation-First UI Mode ─────────────────────────────────────────
+	// When true, renders SimpleSidebar + ChatView instead of the legacy dashboard
+	const [conversationMode, setConversationMode] = useState(true)
+
+	// Build thread list for the sidebar
+	const threadItems = useMemo(() => {
+		if (!chatThreadsService) return [];
+		const threads = chatThreadsService.listThreads?.() ?? [];
+		return threads.map(thread => {
+			const msgs = chatThreadsService.getMessages?.(thread.id) ?? [];
+			const last = msgs[msgs.length - 1];
+			const preview = last
+				? (typeof last === 'string' ? last : last.content ?? '').slice(0, 80)
+				: '';
+			return {
+				id: thread.id,
+				title: thread.title || 'Untitled',
+				preview,
+				timestamp: thread.updatedAt ?? Date.now(),
+				isActive: thread.id === chatThreadsState.currentThreadId,
+			} as ThreadItem;
+		});
+	}, [chatThreadsService, chatThreadsState.currentThreadId])
+
+	// Convert internal messages to ChatView format
+	const chatViewMessages = useMemo((): ChatMessage[] => {
+		return previousMessages
+			.filter((m: any) => m.role === 'user' || m.role === 'assistant')
+			.map((m: any, i: number) => ({
+				id: m.id ?? `msg_${i}`,
+				role: m.role as 'user' | 'assistant',
+				content: m.displayContent ?? m.content ?? '',
+				timestamp: m.timestamp ?? Date.now(),
+			}));
+	}, [previousMessages])
+
 	useEffect(() => {
 		const handleForgeContext = (event: Event) => {
 			const detail = (event as CustomEvent<{ kind?: string; content?: string }>).detail;
@@ -3162,11 +3208,31 @@ export const SidebarChat = () => {
 		if (isRunning) return
 
 		const threadId = chatThreadsService.state.currentThreadId
-
-		// send message to LLM
-		const selectedAgent = agentProfiles.find(agent => agent.id === selectedAgentId) ?? agentProfiles[0]
 		const draft = _forceSubmit || draftText
-		const userMessage = `[Forge agent: ${selectedAgent?.name ?? 'Forge Agent'}]\n\n${draft || 'Inspect the attached context and apply the requested changes to the codebase.'}`
+
+		// In conversation mode, send plain text — no agent name prefix
+		const userMessage = conversationMode
+			? (draft || 'Inspect the attached context and apply the requested changes.')
+			: `[Forge agent: ${agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}]\n\n${draft || 'Inspect the attached context and apply the requested changes to the codebase.'}`
+
+		// In conversation mode, publish plan event for complex requests
+		if (conversationMode && draft) {
+			try {
+				const { ForgeEventBus } = await import('../forge/events/forgeEventBus')
+				ForgeEventBus.getInstance().publish('PLAN_CREATED', {
+					plan: {
+						steps: [
+							{ title: 'Analyze request', status: 'active' as const },
+							{ title: 'Search workspace', status: 'pending' as const },
+							{ title: 'Read relevant files', status: 'pending' as const },
+							{ title: 'Generate implementation', status: 'pending' as const },
+							{ title: 'Run tests', status: 'pending' as const },
+							{ title: 'Review changes', status: 'pending' as const },
+						]
+					}
+				})
+			} catch { /* non-critical */ }
+		}
 
 		try {
 			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, threadId })
@@ -3180,7 +3246,7 @@ export const SidebarChat = () => {
 		textAreaFnsRef.current?.setValue('')
 		textAreaFnsRef.current?.focus()
 
-	}, [chatThreadsService, isDisabled, isRunning, textAreaFnsRef, setSelections, settingsState, agentProfiles, selectedAgentId, draftText])
+	}, [chatThreadsService, isDisabled, isRunning, textAreaFnsRef, setSelections, settingsState, agentProfiles, selectedAgentId, draftText, conversationMode])
 
 	const onAddAttachment = useCallback((attachment: { uri: string; dataUrl: string; mimeType: string }) => {
 		setAttachments(previous => [...previous, attachment])
@@ -3201,6 +3267,36 @@ export const SidebarChat = () => {
 		const threadId = currentThread.id
 		await chatThreadsService.abortRunning(threadId)
 	}
+
+	// ── Conversation-First UI Handlers ─────────────────────────────────────
+
+	const handleNewThread = useCallback(() => {
+		chatThreadsService.createNewThread?.()
+	}, [chatThreadsService])
+
+	const handleSelectThread = useCallback((id: string) => {
+		chatThreadsService.setCurrentThread?.(id)
+	}, [chatThreadsService])
+
+	const handleDeleteThread = useCallback((id: string) => {
+		chatThreadsService.deleteThread?.(id)
+	}, [chatThreadsService])
+
+	// Slash command context — shared between SimpleSidebar and ChatView
+	const slashContextValue = useMemo(() => ({
+		accessor,
+		commandService,
+		chatThreadsService,
+		args: '',
+		onClose: () => {},
+		setActiveTool: (tool: string) => { setActiveTool(tool) },
+		sendMessage: (msg: string) => {
+			setDraftText(msg)
+			setInstructionsAreEmpty(false)
+			textAreaFnsRef.current?.setValue(msg)
+			onSubmit()
+		},
+	}), [accessor, commandService, chatThreadsService, onSubmit, setInstructionsAreEmpty])
 
 	const keybindingString = accessor.get('IKeybindingService').lookupKeybinding(VOID_CTRL_L_ACTION_ID)?.getLabel()
 
@@ -3487,73 +3583,99 @@ export const SidebarChat = () => {
 	// </div>
 	const threadPageContent = <div
 		ref={sidebarRef}
-		className='forge-coco-shell w-full h-full flex flex-col overflow-hidden'
+		className='forge-coco-shell w-full h-full flex overflow-hidden'
 	>
-		{/* Top Bar */}
-		<TopBar
-			providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? null}
-			modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
-			capabilities={capabilities}
-			isConnected={true}
-			isStreaming={!!isRunning}
-			activeFeature={activeFeature}
-			onFeatureChange={setActiveFeature}
-		/>
-
-		<div className="flex flex-1 overflow-hidden">
-			{/* Left Toolbar */}
-			<LeftToolbar
-				activeTool={activeTool}
-				onToolChange={tool => {
-					setActiveTool(tool)
-					if (tool === 'agents' || tool === 'knowledge') {
-						setRightPanelTab('forge')
-						setIsRightPanelOpen(true)
-					}
-				}}
-				hasActiveThread={previousMessages.length > 0}
-				threadCount={Object.keys(chatThreadsState.allThreads).length}
-				isRightPanelOpen={isRightPanelOpen}
-				onToggleRightPanel={() => setIsRightPanelOpen(v => !v)}
-			/>
-
-			{/* Main content area */}
-			<div className="flex-1 flex flex-col overflow-hidden">
-				<ErrorBoundary>
-					{messagesHTML}
-				</ErrorBoundary>
-
-				<ErrorBoundary>
-					{threadPageInput}
-				</ErrorBoundary>
-			</div>
-
-			{/* Right Panel */}
-			<RightPanel
-				isOpen={isRightPanelOpen}
-				activeTab={rightPanelTab}
-				onTabChange={setRightPanelTab}
-				onClose={() => setIsRightPanelOpen(false)}
-				 tasks={tasks}
-				agents={agents}
-				activeAgentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
-				providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? 'Auto'}
-				modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? 'Auto'}
-			/>
-		</div>
-
-		{/* Bottom Status Bar */}
-		<BottomStatusBar
-			contextTokens={0}
-			maxContextTokens={capabilities?.maxContextTokens ?? null}
-			gpuMemoryUsage={null}
-			gpuMemoryTotal={null}
-			cpuUsage={null}
-			latencyMs={null}
-			isRunning={!!isRunning}
-			activeTool={activeTool}
-			threadId={threadId}
-		/>
+		{conversationMode ? (
+			// ── Conversation-First Mode ───────────────────────────────────────
+			// The conversation IS the IDE. No panels. No dashboard.
+			<>
+				<SimpleSidebar
+					threads={threadItems}
+					activeThreadId={chatThreadsState.currentThreadId}
+					onSelectThread={handleSelectThread}
+					onNewThread={handleNewThread}
+					onDeleteThread={handleDeleteThread}
+					slashContext={slashContextValue}
+				/>
+				<ChatView
+					messages={chatViewMessages}
+					isStreaming={!!isRunning}
+					onSendMessage={onSubmit}
+					onNewThread={handleNewThread}
+					slashContext={slashContextValue}
+					workspaceReady={true}
+					selectedFiles={selections?.filter(s => s.type === 'File').map(s => s.uri.fsPath) ?? []}
+					providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? ''}
+					modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
+					onOpenSettings={() => commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID)}
+					attachments={attachments}
+					onRemoveAttachment={(i) => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+				/>
+			</>
+		) : (
+			// ── Legacy Dashboard Mode (fallback) ──────────────────────────────
+			<>
+				{activeTool === 'agents' || activeTool === 'workflows' || activeTool === 'plan' ? (
+					<ErrorBoundary>
+						<AgentWorkspace />
+					</ErrorBoundary>
+				) : (
+					<>
+						<TopBar
+							providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? null}
+							modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
+							capabilities={capabilities}
+							isConnected={true}
+							isStreaming={!!isRunning}
+							activeFeature={activeFeature}
+							onFeatureChange={setActiveFeature}
+						/>
+						<div className="flex flex-1 overflow-hidden">
+							<LeftToolbar
+								activeTool={activeTool}
+								onToolChange={tool => {
+									setActiveTool(tool)
+									if (tool === 'agents' || tool === 'knowledge') {
+										setRightPanelTab('forge')
+										setIsRightPanelOpen(true)
+									}
+								}}
+								hasActiveThread={previousMessages.length > 0}
+								threadCount={Object.keys(chatThreadsState.allThreads).length}
+								isRightPanelOpen={isRightPanelOpen}
+								onToggleRightPanel={() => setIsRightPanelOpen(v => !v)}
+							/>
+							<div className="flex-1 flex flex-col overflow-hidden">
+								<ErrorBoundary>{messagesHTML}</ErrorBoundary>
+								<ErrorBoundary>{threadPageInput}</ErrorBoundary>
+							</div>
+							<RightPanel
+								isOpen={isRightPanelOpen}
+								activeTab={rightPanelTab}
+								onTabChange={setRightPanelTab}
+								onClose={() => setIsRightPanelOpen(false)}
+								tasks={tasks}
+								agents={agents}
+								activeAgentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
+								providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? 'Auto'}
+								modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? 'Auto'}
+							/>
+						</div>
+						<BottomStatusBar
+							contextTokens={0}
+							maxContextTokens={capabilities?.maxContextTokens ?? null}
+							gpuMemoryUsage={null}
+							gpuMemoryTotal={null}
+							cpuUsage={null}
+							latencyMs={null}
+							isRunning={!!isRunning}
+							activeTool={activeTool}
+							threadId={threadId}
+						/>
+					</>
+				)}
+			</>
+		)}
 	</div>
 
 

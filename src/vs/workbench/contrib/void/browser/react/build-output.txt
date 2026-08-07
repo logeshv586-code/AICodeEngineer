@@ -1,0 +1,57 @@
+﻿node.exe : npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See 
+`npm help npmrc` for supported config options.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\e629\AppData\Roaming\n ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help 
+npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help 
+npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help 
+npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm 
+help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help 
+npmrc` for supported config options.
+CLI Building entry: src2/diff/index.tsx, src2/quick-edit-tsx/index.tsx, src2/sidebar-tsx/index.tsx, src2/void-editor-widgets-tsx/index.tsx, src2/void-settings-tsx/index.tsx, src2/void-onboarding/index.tsx, src2/void-tooltip/index.tsx
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.4.0
+CLI Using tsup config: D:\AIcodeEngineer\src\vs\workbench\contrib\void\browser\react\tsup.config.js
+CLI Target: esnext
+ESM Build start
+X [ERROR] Could not resolve "../../../forge/events/forgeEventBus"
+
+    src2/workspace-tsx/hooks/useForgeBridge.ts:7:30:
+      7 │ import { ForgeEventBus } from '../../../forge/events/forgeEventBus';
+        ╵                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+X [ERROR] Could not resolve "../forge/events/forgeEventBus"
+
+    src2/workspace-tsx/utils/streamEvents.tsx:7:30:
+      7 │ import { ForgeEventBus } from '../forge/events/forgeEventBus';
+        ╵                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+X [ERROR] Could not resolve "../../../forge/events/forgeEventBus"
+
+    src2/workspace-tsx/utils/slashCommandRouter.tsx:41:30:
+      41 │ import { ForgeEventBus } from '../../../forge/events/forgeEventBus';
+         ╵                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ESM Build failed
+Error: Build failed with 3 errors:
+src2/workspace-tsx/hooks/useForgeBridge.ts:7:30: ERROR: Could not resolve "../../../forge/events/forgeEventBus"
+src2/workspace-tsx/utils/slashCommandRouter.tsx:41:30: ERROR: Could not resolve "../../../forge/events/forgeEventBus"
+src2/workspace-tsx/utils/streamEvents.tsx:7:30: ERROR: Could not resolve "../forge/events/forgeEventBus"
+    at failureErrorWithLog (D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:1477:15)
+    at D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:946:25
+    at runOnEndCallbacks (D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:1317:45)
+    at buildResponseToResult (D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:944:7)
+    at D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:971:16
+    at responseCallbacks.<computed> (D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:623:9)
+    at handleIncomingPacket (D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:678:12)
+    at Socket.readFromStdout (D:\AIcodeEngineer\node_modules\esbuild\lib\main.js:601:7)
+    at Socket.emit (node:events:509:20)
+    at addChunk (node:internal/streams/readable:564:12)

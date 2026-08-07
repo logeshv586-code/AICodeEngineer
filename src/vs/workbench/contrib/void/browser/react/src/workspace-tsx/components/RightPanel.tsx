@@ -25,8 +25,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AgentPanel } from '../../forge/AgentPanel/AgentPanel';
+import { ForgeAgentInfo, ForgeWorkflowInfo } from '../hooks/useForgeBridge';
+import { AgentsView } from './AgentsView';
+import { WorkflowsView } from './WorkflowsView';
+import { PlanViewInWorkspace } from './PlanViewInWorkspace';
 
 type RightPanelTab = 'tasks' | 'artifacts' | 'context' | 'memory' | 'agents' | 'code' | 'search' | 'forge';
+type ForgeSubTab = 'agents' | 'workflows' | 'plan';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -70,12 +75,50 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   modelName = 'Auto',
   disabled = false,
 }) => {
+  const [forgeSubTab, setForgeSubTab] = useState<ForgeSubTab>('agents');
+
   if (!isOpen) return null;
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'forge':
-        return <AgentPanel />;
+        return <div className='flex flex-col h-full'>
+          {/* Forge sub-tab navigation */}
+          <div className='flex items-center gap-0.5 px-2 py-1.5 border-b border-zinc-700/40 bg-zinc-900/30 shrink-0'>
+            {(['agents', 'workflows', 'plan'] as const).map(sub => (
+              <button
+                key={sub}
+                type='button'
+                onClick={() => setForgeSubTab(sub)}
+                className={`
+                  px-2 py-0.5 text-[10px] font-medium rounded transition-colors cursor-pointer capitalize
+                  ${forgeSubTab === sub
+                    ? 'bg-zinc-700 text-zinc-200 border border-zinc-600'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 border border-transparent'
+                  }
+                `}
+              >
+                {sub}
+              </button>
+            ))}
+          </div>
+          {/* Forge sub-tab content */}
+          <div className='flex-1 overflow-hidden'>
+            {forgeSubTab === 'agents' && <AgentPanel />}
+            {forgeSubTab === 'workflows' && (
+              <div className='flex flex-col items-center justify-center h-full text-zinc-600 p-4'>
+                <span className='text-xs'>Workflows</span>
+                <span className='text-[10px] mt-1 text-zinc-700'>Switch to Agents tab for full workflow management</span>
+              </div>
+            )}
+            {forgeSubTab === 'plan' && (
+              <div className='flex flex-col items-center justify-center h-full text-zinc-600 p-4'>
+                <span className='text-xs'>Plan</span>
+                <span className='text-[10px] mt-1 text-zinc-700'>Plan appears when a workflow is active</span>
+              </div>
+            )}
+          </div>
+        </div>;
       case 'tasks':
         return (
           <div className="flex flex-col gap-2 p-3">

@@ -26,6 +26,7 @@ interface LeftToolbarProps {
   isRightPanelOpen: boolean;
   onToggleRightPanel: () => void;
   disabled?: boolean;
+  forgeTools?: string[];
 }
 
 const tools = [
@@ -46,6 +47,7 @@ export const LeftToolbar: React.FC<LeftToolbarProps> = ({
   isRightPanelOpen,
   onToggleRightPanel,
   disabled = false,
+  forgeTools = [],
 }) => {
   return (
     <div className="void-left-toolbar flex flex-col items-center py-2 px-1 gap-0.5 border-r border-zinc-700/60 bg-zinc-900/40 shrink-0">
@@ -60,6 +62,7 @@ export const LeftToolbar: React.FC<LeftToolbarProps> = ({
       {tools.map(tool => {
         const Icon = tool.icon;
         const isActive = activeTool === tool.id;
+        const isForgeTool = forgeTools.includes(tool.id);
         return (
           <button
             key={tool.id}
@@ -68,16 +71,25 @@ export const LeftToolbar: React.FC<LeftToolbarProps> = ({
             disabled={disabled}
             className={`relative w-8 h-8 flex items-center justify-center rounded-md transition-colors cursor-pointer group ${
               isActive
-                ? 'bg-zinc-700 text-zinc-200'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                ? isForgeTool
+                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-zinc-700 text-zinc-200'
+                : isForgeTool
+                  ? 'text-emerald-400/70 hover:text-emerald-300 hover:bg-emerald-500/10'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
             } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
-            title={`${tool.label} (${tool.shortcut})`}
+            title={`${tool.label} (${tool.shortcut})${isForgeTool ? ' — Forge' : ''}`}
           >
             <Icon size={16} />
+            {/* Forge indicator dot */}
+            {isForgeTool && (
+              <span className='absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse' />
+            )}
             {/* Tooltip */}
             <div className="absolute left-full ml-2 px-2 py-1 bg-zinc-800 border border-zinc-700/60 rounded text-[10px] text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
               {tool.label}
               <span className="ml-1 text-zinc-500">{tool.shortcut}</span>
+              {isForgeTool && <span className='ml-1 text-emerald-400'>Forge</span>}
             </div>
           </button>
         );
