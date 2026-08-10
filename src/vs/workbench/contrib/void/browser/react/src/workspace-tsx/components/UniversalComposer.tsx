@@ -11,6 +11,7 @@ import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
 import { ModelCapability } from '../utils/modelCapabilityManifest.js';
 import { ModelDropdown } from '../../void-settings-tsx/ModelDropdown.tsx';
 import { FeatureName } from '../../../../common/voidSettingsTypes.js';
+import { useAccessor } from '../../util/services.tsx';
 
 interface UniversalComposerProps {
   value: string;
@@ -71,6 +72,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
   codeEnabled = false,
   onCodeToggle,
 }) => {
+	const accessor = useAccessor();
   const [isSlashOpen, setIsSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -89,10 +91,10 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
     : slashCommands;
 
   const handleSlashSelect = useCallback((command: SlashCommand) => {
-    command.execute('', { get: (key: string) => null });
+    command.execute('', accessor);
     setIsSlashOpen(false);
     setSlashQuery('');
-  }, []);
+  }, [accessor]);
 
   const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === '/' && !value && !isSlashOpen) {

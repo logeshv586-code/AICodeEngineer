@@ -21,20 +21,20 @@ export const Sidebar = ({ className }: { className: string }) => {
 		const workbench = document.querySelector<HTMLElement>('.monaco-workbench');
 		if (!workbench) return;
 		const tokens: Record<string, string> = {
-			'--vscode-editor-background': '#111b2e',
-			'--vscode-sideBar-background': '#0f172a',
-			'--vscode-activityBar-background': '#0b1324',
-			'--vscode-titleBar-activeBackground': '#0b1324',
-			'--vscode-statusBar-background': '#172554',
-			'--vscode-panel-background': '#162238',
+			'--vscode-editor-background': '#062b5d',
+			'--vscode-sideBar-background': '#0e1422',
+			'--vscode-activityBar-background': '#062b5d',
+			'--vscode-titleBar-activeBackground': '#001d42',
+			'--vscode-statusBar-background': '#681878',
+			'--vscode-panel-background': '#0e1422',
 			'--vscode-foreground': '#edf4ff',
 			'--vscode-descriptionForeground': '#9aabc4',
 			'--vscode-focusBorder': '#7c83ff',
 			'--vscode-button-background': '#7c83ff',
 			'--vscode-button-foreground': '#0f172a',
 			'--vscode-button-hoverBackground': '#9297ff',
-			'--vscode-widget-border': '#344766',
-			'--vscode-input-background': '#162238',
+			'--vscode-widget-border': '#29466d',
+			'--vscode-input-background': '#111a2b',
 			'--vscode-input-foreground': '#edf4ff',
 		};
 		for (const [name, value] of Object.entries(tokens)) workbench.style.setProperty(name, value);

@@ -15,6 +15,98 @@ export interface SlashCommand {
 }
 
 const slashCommands: SlashCommand[] = [
+	{
+		name: 'code',
+		label: 'Code Agent',
+		description: 'Implement the requested code changes in the workspace',
+		category: 'Agents',
+		execute: (args, accessor) => sendAgentTask(accessor, `Act as the coding agent. Inspect the workspace, implement the requested code changes, run verification, and fix failures. ${args}`),
+	},
+	{
+		name: 'review',
+		label: 'Review Code',
+		description: 'Review the current workspace or selected files for bugs and improvements',
+		category: 'Agents',
+		execute: (args, accessor) => sendAgentTask(accessor, `Review the current workspace and selected files for correctness, security, performance, and maintainability. Report and fix actionable issues. ${args}`),
+	},
+	{
+		name: 'bug',
+		label: 'Fix Bug',
+		description: 'Trace an error to its root cause and implement a verified fix',
+		category: 'Agents',
+		execute: (args, accessor) => sendAgentTask(accessor, `Debug and fix the reported bug. Read the relevant code and stack trace, reproduce where possible, implement the root-cause fix, and run tests. ${args}`),
+	},
+	{
+		name: 'test',
+		label: 'Run Tests',
+		description: 'Run the relevant test suite and fix failures',
+		category: 'Agents',
+		execute: (args, accessor) => sendAgentTask(accessor, `Run the relevant tests for this workspace, diagnose failures, fix the code or tests as appropriate, and verify again. ${args}`),
+	},
+	{
+		name: 'skills',
+		label: 'List Skills',
+		description: 'Show bundled and workspace skills available to agents',
+		category: 'Skills',
+		execute: (_args, accessor) => {
+			const skills = accessor.get('ISkillsService').getAllSkills();
+			accessor.get('INotificationService').info(skills.length
+				? `Available skills: ${skills.map((skill: { name: string }) => skill.name).join(', ')}`
+				: 'No skills loaded. Add Markdown skills under .agents/skills/.');
+		},
+	},
+	{
+		name: 'skill',
+		label: 'Use Skill',
+		description: 'Ask the agent to apply the relevant workspace skill',
+		category: 'Skills',
+		execute: (args, accessor) => sendAgentTask(accessor, `Use the most relevant loaded workspace skill for this task and follow it precisely. ${args}`),
+	},
+	{
+		name: 'skill-add',
+		label: 'Add Skill',
+		description: 'Open the workspace location for custom .agents/skills Markdown files',
+		category: 'Skills',
+		execute: (_args, accessor) => {
+			accessor.get('INotificationService').info('Add a Markdown skill at <workspace>/.agents/skills/<name>.md with name, description, triggerKeywords, and the skill instructions.');
+		},
+	},
+	{
+		name: 'mcp',
+		label: 'MCP Tools',
+		description: 'Show connected MCP servers and tools available to the agent',
+		category: 'MCP',
+		execute: (_args, accessor) => {
+			const mcp = accessor.get('IMCPService');
+			const servers = Object.keys(mcp.state.mcpServerOfName || {});
+			const tools = (mcp.getMCPTools() || []).map((tool: { name: string }) => tool.name);
+			accessor.get('INotificationService').info(`MCP servers: ${servers.join(', ') || 'none'} · tools: ${tools.join(', ') || 'none'}`);
+		},
+	},
+	{
+		name: 'mcp-config',
+		label: 'Configure MCP',
+		description: 'Open the MCP configuration file for external tools and servers',
+		category: 'MCP',
+		execute: (_args, accessor) => { void accessor.get('IMCPService').revealMCPConfigFile(); },
+	},
+	{
+		name: 'settings',
+		label: 'Open Settings',
+		description: 'Open provider, model, skill, and MCP settings',
+		category: 'System',
+		execute: (_args, accessor) => accessor.get('ICommandService').executeCommand('workbench.action.openVoidSettings'),
+	},
+	{
+		name: 'auto',
+		label: 'Toggle Auto Model',
+		description: 'Let Forge select a configured model for each task or keep the selected model',
+		category: 'Model',
+		execute: (_args, accessor) => {
+			const settings = accessor.get('IVoidSettingsService');
+			void settings.setGlobalSetting('autoModelSelection', !settings.state.globalSettings.autoModelSelection);
+		},
+	},
   {
     name: 'clear',
     label: 'Clear Context',
@@ -182,6 +274,16 @@ const slashCommands: SlashCommand[] = [
     },
   },
 ];
+
+function sendAgentTask(accessor: any, prompt: string): void {
+	const chatThreadService = accessor.get('IChatThreadService');
+	const threadId = chatThreadService.state.currentThreadId;
+	if (!threadId) {
+		accessor.get('INotificationService').warn('Create a chat before running an agent command.');
+		return;
+	}
+	void chatThreadService.addUserMessageAndStreamResponse({ userMessage: prompt.trim(), threadId });
+}
 
 export function getSlashCommands(): SlashCommand[] {
   return slashCommands;

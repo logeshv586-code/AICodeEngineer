@@ -457,6 +457,7 @@ export type GlobalSettings = {
 	syncSCMToChat: boolean;
 	enableFastApply: boolean;
 	chatMode: ChatMode;
+	autoModelSelection: boolean;
 	autoApprove: { [approvalType in ToolApprovalType]?: boolean };
 	showInlineSuggestions: boolean;
 	includeToolLintErrors: boolean;
@@ -473,6 +474,7 @@ export const defaultGlobalSettings: GlobalSettings = {
 	syncSCMToChat: true,
 	enableFastApply: true,
 	chatMode: 'agent',
+	autoModelSelection: true,
 	autoApprove: {},
 	showInlineSuggestions: true,
 	includeToolLintErrors: true,

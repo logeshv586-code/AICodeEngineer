@@ -37,7 +37,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	const commandService = accessor.get('ICommandService');
 
 	const [isOpen, setIsOpen] = useState(false);
-	const [autoMode, setAutoMode] = useState(true);
+	const autoMode = settingsState.globalSettings.autoModelSelection;
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const menuRef = useRef<HTMLDivElement>(null);
@@ -113,7 +113,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 		}
 
 		await voidSettingsService.setModelSelectionOfFeature(featureName, { modelName, providerName });
-		setAutoMode(false);
+		await voidSettingsService.setGlobalSetting('autoModelSelection', false);
 		setIsOpen(false);
 	};
 
@@ -192,7 +192,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 							<Sparkles size={14} className="text-[#7c83ff]" />
 							<span className="text-xs font-semibold text-zinc-200">Auto Mode</span>
 						</div>
-						<VoidSwitch size="xs" value={autoMode} onChange={setAutoMode} />
+						<VoidSwitch size="xs" value={autoMode} onChange={(enabled) => { void voidSettingsService.setGlobalSetting('autoModelSelection', enabled); }} />
 					</div>
 
 					{/* Section Header */}

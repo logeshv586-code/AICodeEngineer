@@ -39,6 +39,7 @@ import { IDirectoryStrService } from '../common/directoryStrService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IMCPService } from '../common/mcpService.js';
 import { RawMCPToolCall } from '../common/mcpServiceTypes.js';
+import { getModelCapabilities } from '../common/modelCapabilities.js';
 
 
 // related to retrying when LLM message has error
@@ -1217,6 +1218,40 @@ We only need to do it for files that were edited since `from`, ie files between 
 		this._setThreadState(threadId, { currCheckpointIdx: toIdx })
 	}
 
+	private async _selectAutoModelForPrompt(prompt: string): Promise<void> {
+		if (!this._settingsService.state.globalSettings.autoModelSelection) return
+
+		const options = this._settingsService.state._modelOptions;
+		if (options.length === 0) return;
+
+		const task = prompt.toLowerCase();
+		const isComplex = /architect|architecture|refactor|debug|bug|security|migrate|implement|build|write|edit|test|review|multi.?file|mcp|tool/.test(task);
+		const isQuick = /summarize|explain|rename|format|simple|quick|translate|short answer/.test(task);
+
+		const ranked = options.map(option => {
+			const name = option.selection.modelName.toLowerCase();
+			const capabilities = getModelCapabilities(option.selection.providerName, option.selection.modelName, this._settingsService.state.overridesOfModel);
+			let score = 0;
+			if (isComplex) {
+				if (capabilities.reasoningCapabilities !== false) score += 4;
+				if (capabilities.contextWindow >= 100_000) score += 3;
+				if (/pro|opus|sonnet|reason|think|large|max|70b|72b|405b/.test(name)) score += 3;
+			}
+			if (isQuick) {
+				if (/flash|mini|small|haiku|8b|fast|turbo/.test(name)) score += 3;
+				if (capabilities.reasoningCapabilities === false) score += 1;
+			}
+			if (/image|screenshot|diagram|vision|visual/.test(task) && /vision|gemini|gpt-4o|claude-3/.test(name)) score += 5;
+			if (option.selection.providerName === this._settingsService.state.modelSelectionOfFeature.Chat?.providerName) score += 0.25;
+			return { option, score };
+		}).sort((a, b) => b.score - a.score);
+
+		const best = ranked[0]?.option.selection;
+		const current = this._settingsService.state.modelSelectionOfFeature.Chat;
+		if (!best || (current && current.providerName === best.providerName && current.modelName === best.modelName)) return;
+		await this._settingsService.setModelSelectionOfFeature('Chat', best);
+	}
+
 	/** Restore files and trim the conversation to the checkpoint before a message. */
 	revertToMessage({ threadId, messageIdx }: { threadId: string, messageIdx: number }): void {
 		const thread = this.state.allThreads[threadId]
@@ -1327,6 +1362,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 	async addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
 		const thread = this.state.allThreads[threadId];
 		if (!thread) return
+		await this._selectAutoModelForPrompt(userMessage)
 
 		// if there's a current checkpoint, delete all messages after it
 		if (thread.state.currCheckpointIdx !== null) {
