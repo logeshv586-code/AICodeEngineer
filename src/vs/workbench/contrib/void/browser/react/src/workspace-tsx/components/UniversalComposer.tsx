@@ -290,7 +290,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
         {/* Trae-style agent header: one source of truth for the active agent. */}
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-800/80">
           <label className="flex min-w-0 items-center gap-1 text-xs text-zinc-300">
-            <AtSign size={13} className="text-[#e58b6d]" />
+            <AtSign size={13} className="text-[var(--forge-coco-cloud)]" />
             <span className="text-zinc-500">Agent</span>
             {agentOptions.length > 0 ? (
               <select value={selectedAgentId ?? agentOptions[0].id} onChange={event => onAgentChange?.(event.target.value)} className="max-w-[150px] truncate bg-transparent font-medium text-zinc-200 outline-none">
@@ -298,7 +298,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
               </select>
             ) : <span className="truncate font-medium">{agentName}</span>}
           </label>
-          <span className="shrink-0 text-[10px] text-zinc-500">Auto <span className="text-[#e58b6d]">✦</span></span>
+          <span className="shrink-0 text-[10px] text-zinc-500">Auto <span className="text-[var(--forge-coco-accent)]">✦</span></span>
         </div>
 
         {/* Legacy optional tools stay implemented but are hidden from the primary chat surface. */}
@@ -450,7 +450,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
                 onClick={onSubmit}
                 data-action="submit"
                 disabled={isDisabled || !value.trim()}
-                className="flex items-center gap-1 px-3 py-1 text-xs bg-[#c55232] hover:bg-[#df6844] text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1 text-xs bg-[var(--forge-coco-accent)] hover:bg-[#9297ff] text-slate-950 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Send size={12} />
                 Send

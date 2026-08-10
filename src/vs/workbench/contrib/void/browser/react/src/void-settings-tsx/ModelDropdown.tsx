@@ -12,7 +12,7 @@ import { VOID_OPEN_SETTINGS_ACTION_ID } from '../../../voidSettingsPane.js';
 import { modelFilterOfFeatureName, ModelOption } from '../../../../../../../workbench/contrib/void/common/voidSettingsService.js';
 import { WarningBox } from './WarningBox.js';
 import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.tsx';
-import { Check, ChevronDown, ChevronUp, Info, Plus, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Info, Lock, Plus, Sparkles } from 'lucide-react';
 
 const builtInModelPresets: { modelName: string; providerName: ProviderName; tag?: string }[] = [
 	{ modelName: 'GPT-5.4', providerName: 'openAI', tag: 'Beta' },
@@ -46,7 +46,11 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	// Use the reactive settings snapshot for both the label and list state.  Reading
 	// the service directly here could leave the button on an older provider/model.
 	const selection = settingsState.modelSelectionOfFeature[featureName];
-	const currentModelName = selection?.modelName || 'Select a model';
+	const configuredProviderNames = useMemo(
+		() => providerNames.filter(providerName => !!settingsState.settingsOfProvider[providerName]?._didFillInProviderSettings),
+		[settingsState.settingsOfProvider]
+	);
+	const currentModelName = selection?.modelName || (configuredProviderNames.length === 0 ? 'Connect API in Settings' : 'Select a model');
 	const portalTarget = typeof document === 'undefined'
 		? null
 		: document.querySelector('.void-scope') ?? document.body;
@@ -96,6 +100,10 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 
 	const selectModel = async (modelName: string, providerName: ProviderName) => {
 		const providerSettings = settingsState.settingsOfProvider[providerName];
+		if (!providerSettings?._didFillInProviderSettings) {
+			openSettings();
+			return;
+		}
 		const existing = providerSettings.models.find(model => model.modelName === modelName);
 		if (!existing || existing.isHidden) {
 			const models = existing
@@ -128,7 +136,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 							modelName: m.modelName,
 							providerName: pName,
 							tag: providerTitle,
-							isConfigured: true,
+										isConfigured: !!providerSettings._didFillInProviderSettings,
 						});
 					}
 				}
@@ -154,7 +162,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 				modelName: selection.modelName,
 				providerName: selection.providerName,
 				tag: displayInfoOfProviderName(selection.providerName)?.title || selection.providerName,
-				isConfigured: true,
+				isConfigured: !!settingsState.settingsOfProvider[selection.providerName]?._didFillInProviderSettings,
 			});
 		}
 
@@ -177,11 +185,11 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 
 			{/* Dropdown Panel matching Image 4 */}
 			{isOpen && portalTarget && createPortal((
-				<div ref={menuRef} className="fixed rounded-none bg-[#4a0000] border border-[#ff4000]/60 shadow-2xl z-[9999] overflow-hidden text-[#e2e8f0] animate-in fade-in zoom-in-95 duration-150" style={{ position: 'fixed', zIndex: 9999, left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: 'calc(100vh - 16px)', background: '#4a0000', border: '1px solid #ff4000', color: '#e2e8f0', overflow: 'hidden', boxShadow: '0 16px 40px rgba(0, 0, 0, .5)' }}>
+				<div ref={menuRef} className="fixed rounded-none bg-[#162238] border border-[#7c83ff]/60 shadow-2xl z-[9999] overflow-hidden text-[#edf4ff] animate-in fade-in zoom-in-95 duration-150" style={{ position: 'fixed', zIndex: 9999, left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: 'calc(100vh - 16px)', background: '#162238', border: '1px solid #7c83ff', color: '#edf4ff', overflow: 'hidden', boxShadow: '0 16px 40px rgba(0, 0, 0, .5)' }}>
 					{/* Header: Auto Mode Toggle */}
 					<div className="p-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
 						<div className="flex items-center gap-1.5">
-							<Sparkles size={14} className="text-[#ff4000]" />
+							<Sparkles size={14} className="text-[#7c83ff]" />
 							<span className="text-xs font-semibold text-zinc-200">Auto Mode</span>
 						</div>
 						<VoidSwitch size="xs" value={autoMode} onChange={setAutoMode} />
@@ -201,12 +209,14 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 								<button
 									key={`${m.providerName}:${m.modelName}`}
 									type="button"
-							onClick={() => { void selectModel(m.modelName, m.providerName); }}
+								disabled={!m.isConfigured}
+								onClick={() => { void selectModel(m.modelName, m.providerName); }}
 									className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors ${
 										isSelected
 											? 'bg-zinc-800/80 text-white font-medium'
-											: 'hover:bg-zinc-800/40 text-zinc-300'
+											: m.isConfigured ? 'hover:bg-zinc-800/40 text-zinc-300' : 'text-zinc-600 cursor-not-allowed'
 									}`}
+									title={m.isConfigured ? `Use ${m.modelName}` : 'Add this provider API key in Settings first'}
 								>
 									<div className="flex items-center gap-1.5 min-w-0 pr-1">
 										<span className="truncate">{m.modelName}</span>
@@ -220,7 +230,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 											</span>
 										)}
 									</div>
-									{isSelected && <Check size={13} className="text-emerald-400 shrink-0" />}
+									{isSelected ? <Check size={13} className="text-emerald-400 shrink-0" /> : !m.isConfigured ? <Lock size={11} className="text-zinc-600 shrink-0" /> : null}
 								</button>
 							);
 						})}

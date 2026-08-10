@@ -1075,6 +1075,8 @@ export const Settings = () => {
 		{ tab: 'appearance', label: 'Appearance' },
 		{ tab: 'notifications', label: 'Notifications' },
 		{ tab: 'models', label: 'Models' },
+		{ tab: 'providers', label: 'Provider API Keys' },
+		{ tab: 'localProviders', label: 'Local Providers' },
 		{ tab: 'customizations', label: 'Customizations' },
 		{ tab: 'browser', label: 'Browser' },
 		{ tab: 'tab', label: 'Tab' },

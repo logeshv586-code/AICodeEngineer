@@ -213,17 +213,17 @@
 
 /* Forge's app and AI surfaces share the project color contract. */
 .forge-coco-shell {
-	--forge-coco-ink: #4a0000;
-	--forge-coco-panel: #4a0000;
-	--forge-coco-panel-raised: #4a0000;
-	--forge-coco-paper: #e2e8f0;
-	--forge-coco-muted: #a1a1aa;
-	--forge-coco-line: #27272a;
-	--forge-coco-accent: #ff4000;
-	--forge-coco-accent-soft: rgba(255, 64, 0, 0.18);
-	--forge-coco-cloud: #8ecae6;
-	--forge-coco-cloud-light: #c4dff0;
-	--forge-coco-cloud-soft: rgba(142, 202, 230, 0.15);
+	--forge-coco-ink: #0f172a;
+	--forge-coco-panel: #162238;
+	--forge-coco-panel-raised: #1e2d47;
+	--forge-coco-paper: #edf4ff;
+	--forge-coco-muted: #9aabc4;
+	--forge-coco-line: #344766;
+	--forge-coco-accent: #7c83ff;
+	--forge-coco-accent-soft: rgba(124, 131, 255, 0.18);
+	--forge-coco-cloud: #67e8f9;
+	--forge-coco-cloud-light: #b8f3fb;
+	--forge-coco-cloud-soft: rgba(103, 232, 249, 0.15);
 	background: var(--forge-coco-ink);
 	color: var(--forge-coco-paper);
 	min-width: 0;
@@ -236,11 +236,11 @@
 .forge-coco-shell [class*="void-bg-void"],
 .forge-coco-shell .void-right-panel,
 .forge-coco-shell .void-left-toolbar {
-	background-color: #4a0000 !important;
+	background-color: var(--forge-coco-panel) !important;
 }
 
 .forge-coco-shell [class*="void-border-zinc"] {
-	border-color: rgba(255, 64, 0, 0.35) !important;
+	border-color: rgba(124, 131, 255, 0.35) !important;
 }
 
 .forge-coco-shell > .flex,
@@ -251,23 +251,23 @@
 
 /* Keep the host IDE and Forge AI in one coherent dark system. */
 .monaco-workbench {
-	--vscode-editor-background: #292929;
-	--vscode-sideBar-background: #030303;
-	--vscode-activityBar-background: #030303;
-	--vscode-titleBar-activeBackground: #030303;
-	--vscode-statusBar-background: #030303;
-	--vscode-panel-background: #161616;
-	--vscode-foreground: #e2e8f0;
-	--vscode-descriptionForeground: #a1a1aa;
-	--vscode-focusBorder: #ff4000;
-	--vscode-button-background: #ff4000;
-	--vscode-button-foreground: #000000;
-	--vscode-button-hoverBackground: #ff3f02;
-	--vscode-widget-border: #27272a;
-	--vscode-input-background: #27272a;
-	--vscode-input-foreground: #e2e8f0;
-	--vscode-list-activeSelectionBackground: #292929;
-	--vscode-list-hoverBackground: #27272a;
+	--vscode-editor-background: #111b2e;
+	--vscode-sideBar-background: #0f172a;
+	--vscode-activityBar-background: #0b1324;
+	--vscode-titleBar-activeBackground: #0b1324;
+	--vscode-statusBar-background: #172554;
+	--vscode-panel-background: #162238;
+	--vscode-foreground: #edf4ff;
+	--vscode-descriptionForeground: #9aabc4;
+	--vscode-focusBorder: #7c83ff;
+	--vscode-button-background: #7c83ff;
+	--vscode-button-foreground: #0f172a;
+	--vscode-button-hoverBackground: #9297ff;
+	--vscode-widget-border: #344766;
+	--vscode-input-background: #162238;
+	--vscode-input-foreground: #edf4ff;
+	--vscode-list-activeSelectionBackground: #26385a;
+	--vscode-list-hoverBackground: #1e2d47;
 }
 
 .void-right-panel {
@@ -342,15 +342,15 @@
 	align-items: center;
 	gap: 5px;
 	padding: 5px 7px;
-	border: 1px solid rgba(197, 82, 50, 0.45);
+	border: 1px solid rgba(124, 131, 255, 0.45);
 	border-radius: 6px;
 	background: var(--forge-coco-accent-soft);
-	color: #f1a184;
+	color: var(--forge-coco-cloud-light);
 	font-size: 10px;
 	cursor: pointer;
 }
 
-.forge-coco-create-agent:hover { background: rgba(197, 82, 50, 0.3); }
+.forge-coco-create-agent:hover { background: rgba(124, 131, 255, 0.3); }
 
 .forge-coco-agent-create-row {
 	display: flex;
@@ -399,24 +399,24 @@
 }
 
 .forge-coco-model-trigger {
-	background: #27272a !important;
-	border: 1px solid #3f3f46 !important;
+	background: var(--forge-coco-panel-raised) !important;
+	border: 1px solid var(--forge-coco-line) !important;
 	color: var(--forge-coco-paper) !important;
 	min-height: 26px;
 }
 
 .forge-coco-model-trigger:hover {
 	background: var(--forge-coco-accent-soft) !important;
-	border-color: #ff4000 !important;
+	border-color: var(--forge-coco-accent) !important;
 }
 
 .forge-coco-attachment {
 	background: var(--forge-coco-accent-soft);
-	border: 1px solid rgba(197, 82, 50, 0.35);
+	border: 1px solid rgba(124, 131, 255, 0.35);
 	color: var(--forge-coco-paper);
 }
 
-.forge-coco-remove:hover { color: #f1a184; }
+.forge-coco-remove:hover { color: var(--forge-coco-cloud-light); }
 
 /* Placeholder styling */
 ::placeholder {

@@ -21,21 +21,21 @@ export const Sidebar = ({ className }: { className: string }) => {
 		const workbench = document.querySelector<HTMLElement>('.monaco-workbench');
 		if (!workbench) return;
 		const tokens: Record<string, string> = {
-			'--vscode-editor-background': '#4a0000',
-			'--vscode-sideBar-background': '#4a0000',
-			'--vscode-activityBar-background': '#4a0000',
-			'--vscode-titleBar-activeBackground': '#4a0000',
-			'--vscode-statusBar-background': '#4a0000',
-			'--vscode-panel-background': '#4a0000',
-			'--vscode-foreground': '#e2e8f0',
-			'--vscode-descriptionForeground': '#a1a1aa',
-			'--vscode-focusBorder': '#ff4000',
-			'--vscode-button-background': '#ff4000',
-			'--vscode-button-foreground': '#000000',
-			'--vscode-button-hoverBackground': '#ff3f02',
-			'--vscode-widget-border': '#27272a',
-			'--vscode-input-background': '#27272a',
-			'--vscode-input-foreground': '#e2e8f0',
+			'--vscode-editor-background': '#111b2e',
+			'--vscode-sideBar-background': '#0f172a',
+			'--vscode-activityBar-background': '#0b1324',
+			'--vscode-titleBar-activeBackground': '#0b1324',
+			'--vscode-statusBar-background': '#172554',
+			'--vscode-panel-background': '#162238',
+			'--vscode-foreground': '#edf4ff',
+			'--vscode-descriptionForeground': '#9aabc4',
+			'--vscode-focusBorder': '#7c83ff',
+			'--vscode-button-background': '#7c83ff',
+			'--vscode-button-foreground': '#0f172a',
+			'--vscode-button-hoverBackground': '#9297ff',
+			'--vscode-widget-border': '#344766',
+			'--vscode-input-background': '#162238',
+			'--vscode-input-foreground': '#edf4ff',
 		};
 		for (const [name, value] of Object.entries(tokens)) workbench.style.setProperty(name, value);
 	}, []);

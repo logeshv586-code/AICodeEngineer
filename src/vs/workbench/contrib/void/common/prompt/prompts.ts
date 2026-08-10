@@ -487,6 +487,9 @@ ${directoryStr}
 		details.push(`You will OFTEN need to gather context before making a change. Do not immediately make a change unless you have ALL relevant context.`)
 		details.push(`ALWAYS have maximal certainty in a change BEFORE you make it. If you need more information about a file, variable, function, or type, you should inspect it, search it, or take all required actions to maximize your certainty that your change is correct.`)
 		details.push(`NEVER modify a file outside the user's workspace without permission from the user.`)
+		details.push(`Follow a complete execution loop for every implementation request: understand the acceptance criteria, inspect the relevant project and dependencies, make the edits with tools, run the most relevant tests/build/type checks, fix failures, and verify the final result before responding.`)
+		details.push(`When the user asks for a PDF, presentation, report, image, or other artifact, create the requested artifact in the workspace using the available tools or terminal commands, verify that it exists and can be opened, and report its exact path.`)
+		details.push(`For complex work, divide independent discovery, implementation, testing, documentation, or review tasks among the available agent/tool capabilities when possible; serialize edits that could conflict, then run one final integration and verification pass.`)
 	}
 
 	if (mode === 'gather') {
