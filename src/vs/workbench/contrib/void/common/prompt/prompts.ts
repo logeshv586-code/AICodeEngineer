@@ -419,7 +419,8 @@ const systemToolsXMLPrompt = (chatMode: ChatMode, mcpTools: InternalToolInfo[] |
     - After you write the tool call, you must STOP and WAIT for the result.
     - All parameters are REQUIRED unless noted otherwise.
     - You are only allowed to output ONE tool call, and it must be at the END of your response.
-    - Your tool call will be executed immediately, and the results will appear in the following user message.`)
+    - Your tool call will be executed immediately, and the results will appear in the following user message.
+    - If you cannot emit XML, use this exact fallback format: {"name":"tool_name","args":{...}}.`)
 
 	return `\
     ${toolXMLDefinitions}

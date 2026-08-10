@@ -17,7 +17,7 @@ import { os } from '../../../../common/helpers/systemInfo.js'
 import { IconLoading } from '../sidebar-tsx/SidebarChat.tsx'
 import { ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js'
 import Severity from '../../../../../../../base/common/severity.js'
-import { getModelCapabilities, modelOverrideKeys, ModelOverrides } from '../../../../common/modelCapabilities.js';
+import { getModelCapabilities, modelOverrideKeys, ModelOverrides, defaultProviderSettings } from '../../../../common/modelCapabilities.js';
 import { TransferEditorType, TransferFilesInfo } from '../../../extensionTransferTypes.js';
 import { MCPServer } from '../../../../common/mcpServiceTypes.js';
 import { useMCPServiceState } from '../util/services.tsx';
@@ -212,17 +212,15 @@ const ConfirmButton = ({ children, onConfirm, className }: { children: React.Rea
 
 
 // This new dialog replaces the verbose UI with a single JSON override box.
-const SimpleModelSettingsDialog = ({
+const SimpleModelSettingsDialogContent = ({
 	isOpen,
 	onClose,
 	modelInfo,
 }: {
 	isOpen: boolean;
 	onClose: () => void;
-	modelInfo: { modelName: string; providerName: ProviderName; type: 'autodetected' | 'custom' | 'default' } | null;
+	modelInfo: { modelName: string; providerName: ProviderName; type: 'autodetected' | 'custom' | 'default' };
 }) => {
-	if (!isOpen || !modelInfo) return null;
-
 	const { modelName, providerName, type } = modelInfo;
 	const accessor = useAccessor()
 	const settingsState = useSettingsState()
@@ -402,12 +400,21 @@ const SimpleModelSettingsDialog = ({
 	);
 };
 
+const SimpleModelSettingsDialog = (props: {
+	isOpen: boolean;
+	onClose: () => void;
+	modelInfo: { modelName: string; providerName: ProviderName; type: 'autodetected' | 'custom' | 'default' } | null;
+}) => props.isOpen && props.modelInfo
+	? <SimpleModelSettingsDialogContent isOpen={props.isOpen} onClose={props.onClose} modelInfo={props.modelInfo} />
+	: null;
+
 
 
 
 export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderName[] }) => {
 	const accessor = useAccessor()
 	const settingsStateService = accessor.get('IVoidSettingsService')
+	const llmMessageService = accessor.get('ILLMMessageService')
 	const settingsState = useSettingsState()
 
 	// State to track which model's settings dialog is open
@@ -424,7 +431,12 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 	const [modelName, setModelName] = useState<string>('');
 	const [newModelConnectionSettings, setNewModelConnectionSettings] = useState<ModelConnectionSettings>({});
 	const [errorString, setErrorString] = useState('');
+	const [isTestingConnection, setIsTestingConnection] = useState(false);
+	const [connectionTestPassed, setConnectionTestPassed] = useState(false);
 	const addModelRef = useRef<HTMLDivElement>(null);
+	const requiredConnectionSettings = userChosenProviderName
+		? (Object.keys(defaultProviderSettings[userChosenProviderName]) as string[]).filter(name => !defaultProviderSettings[userChosenProviderName][name as keyof typeof defaultProviderSettings[typeof userChosenProviderName]])
+		: [];
 
 	useEffect(() => {
 		if (isAddModelOpen) addModelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -457,6 +469,15 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 			setErrorString('Please enter a model name.');
 			return;
 		}
+		const missingSetting = requiredConnectionSettings.find(name => !newModelConnectionSettings[name as keyof ModelConnectionSettings]?.trim());
+		if (missingSetting) {
+			setErrorString(`${displayInfoOfSettingName(userChosenProviderName, missingSetting as any).title} is required.`);
+			return;
+		}
+		if (!connectionTestPassed) {
+			setErrorString('Test the API connection successfully before adding this model.');
+			return;
+		}
 
 		// Check if model already exists
 		if (settingsState.settingsOfProvider[userChosenProviderName].models.find(m => m.modelName === modelName)) {
@@ -474,6 +495,30 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 			setNewModelConnectionSettings({});
 		}, 1500);
 		setErrorString('');
+	};
+
+	const handleTestConnection = async () => {
+		if (!userChosenProviderName || !modelName.trim()) {
+			setErrorString('Select a provider and enter a model name first.');
+			return;
+		}
+		const missingSetting = requiredConnectionSettings.find(name => !newModelConnectionSettings[name as keyof ModelConnectionSettings]?.trim());
+		if (missingSetting) {
+			setErrorString(`${displayInfoOfSettingName(userChosenProviderName, missingSetting as any).title} is required.`);
+			return;
+		}
+		setIsTestingConnection(true);
+		setConnectionTestPassed(false);
+		setErrorString('');
+		try {
+			const result = await llmMessageService.testConnection({ providerName: userChosenProviderName, modelName: modelName.trim(), connectionSettings: newModelConnectionSettings as Record<string, string> });
+			if (result.ok) setConnectionTestPassed(true);
+			else setErrorString(result.error ?? 'The API connection failed.');
+		} catch (error) {
+			setErrorString(error instanceof Error ? error.message : String(error));
+		} finally {
+			setIsTestingConnection(false);
+		}
 	};
 
 	return <div className=''>
@@ -585,7 +630,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 						<VoidCustomDropdownBox
 							options={providersToShow}
 							selectedOption={userChosenProviderName}
-							onChangeOption={(pn) => setUserChosenProviderName(pn)}
+							onChangeOption={(pn) => { setUserChosenProviderName(pn); setNewModelConnectionSettings({}); setConnectionTestPassed(false); setErrorString(''); }}
 							getOptionDisplayName={(pn) => pn ? displayInfoOfProviderName(pn).title : 'Provider Name'}
 							getOptionDropdownName={(pn) => pn ? displayInfoOfProviderName(pn).title : 'Provider Name'}
 							getOptionsEqual={(a, b) => a === b}
@@ -599,7 +644,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 						<VoidSimpleInputBox
 							value={modelName}
 							compact={true}
-							onChangeValue={setModelName}
+							onChangeValue={(value) => { setModelName(value); setConnectionTestPassed(false); }}
 							placeholder='Model Name'
 							className='max-w-32'
 						/>
@@ -610,19 +655,23 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 						return <VoidSimpleInputBox
 							key={settingName}
 							value={newModelConnectionSettings[settingName as keyof ModelConnectionSettings] ?? ''}
-							onChangeValue={(newValue) => setNewModelConnectionSettings(current => ({ ...current, [settingName]: newValue }))}
-							placeholder={`${info.title} (optional)`}
+							onChangeValue={(newValue) => { setNewModelConnectionSettings(current => ({ ...current, [settingName]: newValue })); setConnectionTestPassed(false); }}
+							placeholder={`${info.title}${requiredConnectionSettings.includes(settingName) ? ' (required)' : ' (optional)'}`}
 							passwordBlur={info.isPasswordField}
 							compact={true}
 							className='max-w-40'
 						/>;
 					})}
 
+					<button type='button' onClick={handleTestConnection} disabled={isTestingConnection || !modelName || !userChosenProviderName} className='px-2 py-1 rounded bg-void-bg-2 border border-void-border-2 text-xs text-void-fg-1 disabled:opacity-50'>
+						{isTestingConnection ? 'Testing…' : connectionTestPassed ? 'API works' : 'Test API'}
+					</button>
+
 					{/* Add button */}
 					<ErrorBoundary>
 						<AddButton
 							type='button'
-							disabled={!modelName || !userChosenProviderName}
+						disabled={!modelName || !userChosenProviderName || !connectionTestPassed}
 							onClick={handleAddModel}
 						/>
 					</ErrorBoundary>

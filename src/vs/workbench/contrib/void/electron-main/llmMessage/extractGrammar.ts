@@ -347,16 +347,62 @@ export const extractXMLToolsWrapper = (
 		newOnText({ ...params })
 
 		fullText = fullText.trimEnd()
-		const toolCall = latestToolCall
+		let toolCall = latestToolCall
+		let finalText = fullText
+
+		// Some OpenAI-compatible/reasoning models ignore the XML instructions and
+		// return a JSON tool call instead. Recover it here so it still goes through
+		// the normal validation, approval, and execution pipeline.
+		if (!toolCall) {
+			const jsonToolCall = parseJSONToolCall(trueFullText || params.fullText, tools)
+			if (jsonToolCall) {
+				toolCall = jsonToolCall.toolCall
+				finalText = (trueFullText || params.fullText).slice(0, jsonToolCall.start).trimEnd()
+			}
+		}
 
 		// console.log('final message!!!', trueFullText)
 		// console.log('----- returning ----\n', fullText)
 		// console.log('----- tools ----\n', JSON.stringify(firstToolCallRef.current, null, 2))
 		// console.log('----- toolCall ----\n', JSON.stringify(toolCall, null, 2))
 
-		onFinalMessage({ ...params, fullText, toolCall: toolCall })
+		onFinalMessage({ ...params, fullText: finalText, toolCall: toolCall })
 	}
 	return { newOnText, newOnFinalMessage };
+}
+
+const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: number, toolCall: RawToolCallObj } | null => {
+	const nameMatch = /"name"\s*:/g
+	let start = -1
+	for (const match of text.matchAll(nameMatch)) {
+		const brace = text.lastIndexOf('{', match.index ?? -1)
+		if (brace >= 0) start = brace
+	}
+	if (start < 0) return null
+	const end = text.lastIndexOf('}')
+	if (end <= start) return null
+
+	try {
+		const parsed = JSON.parse(text.slice(start, end + 1)) as { name?: unknown, args?: unknown, arguments?: unknown }
+		if (typeof parsed.name !== 'string' || !tools.some(tool => tool.name === parsed.name)) return null
+
+		let rawArgs: unknown = parsed.args ?? parsed.arguments ?? {}
+		if (typeof rawArgs === 'string') rawArgs = rawArgs.trim() ? JSON.parse(rawArgs) : {}
+		if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) return null
+		const rawParams = rawArgs as RawToolParamsObj
+		return {
+			start,
+			toolCall: {
+				name: parsed.name as ToolName,
+				rawParams,
+				doneParams: Object.keys(rawParams) as ToolParamName<ToolName>[],
+				id: generateUuid(),
+				isDone: true,
+			},
+		}
+	} catch {
+		return null
+	}
 }
 
 

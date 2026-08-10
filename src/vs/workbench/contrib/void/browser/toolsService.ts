@@ -175,7 +175,13 @@ export class ToolsService implements IToolsService {
 			ls_dir: (params: RawToolParamsObj) => {
 				const { uri: uriStr, page_number: pageNumberUnknown } = params
 
-				const uri = validateURI(uriStr)
+				// Models occasionally omit the directory when asking for an initial
+				// listing. Use the opened workspace root so an empty repository can
+				// still proceed; with no folder open, return an actionable error.
+				const uri = isFalsy(uriStr)
+					? workspaceContextService.getWorkspace().folders[0]?.uri
+					: validateURI(uriStr)
+				if (!uri) throw new Error('No workspace folder is open. Open the project folder before asking Forge to create or edit files.')
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				return { uri, pageNumber }
 			},

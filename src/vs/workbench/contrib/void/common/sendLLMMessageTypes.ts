@@ -232,6 +232,17 @@ export type MainModelListParams<modelResponse> = Omit<ModelListParams<modelRespo
 export type EventModelListOnSuccessParams<modelResponse> = Parameters<ModelListParams<modelResponse>['onSuccess']>[0] & { requestId: string }
 export type EventModelListOnErrorParams<modelResponse> = Parameters<ModelListParams<modelResponse>['onError']>[0] & { requestId: string }
 
+export type TestModelConnectionParams = {
+	providerName: ProviderName;
+	modelName: string;
+	settingsOfProvider: SettingsOfProvider;
+}
+
+export type TestModelConnectionResult = {
+	ok: boolean;
+	error?: string;
+}
+
 
 
 

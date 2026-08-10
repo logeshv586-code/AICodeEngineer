@@ -944,6 +944,39 @@ export const sendLLMMessageToProviderImplementation = {
 
 } satisfies CallFnOfProvider
 
+/** Make a small real request to verify a model connection before saving it. */
+export const testLLMConnection = async ({ providerName, modelName, settingsOfProvider }: {
+	providerName: ProviderName;
+	modelName: string;
+	settingsOfProvider: SettingsOfProvider;
+}): Promise<{ ok: boolean; error?: string }> => {
+	try {
+		if (providerName === 'anthropic') {
+			const client = new Anthropic({ apiKey: settingsOfProvider.anthropic.apiKey });
+			await client.messages.create({ model: modelName, max_tokens: 1, messages: [{ role: 'user', content: 'Reply OK.' }] });
+		}
+		else if (providerName === 'gemini') {
+			const client = new GoogleGenAI({ apiKey: settingsOfProvider.gemini.apiKey });
+			await client.models.generateContent({ model: modelName, contents: 'Reply OK.', config: { maxOutputTokens: 1 } });
+		}
+		else {
+			const client = await newOpenAICompatibleSDK({ providerName, settingsOfProvider });
+			if (providerName === 'microsoftAzure') (client as AzureOpenAI).deploymentName = modelName;
+			await client.chat.completions.create({
+				model: modelName,
+				messages: [{ role: 'user', content: 'Reply OK.' }],
+				max_tokens: 1,
+				stream: false,
+			} as any);
+		}
+		return { ok: true };
+	}
+	catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return { ok: false, error: message || `Unable to connect to ${displayInfoOfProviderName(providerName).title}.` };
+	}
+}
+
 
 
 

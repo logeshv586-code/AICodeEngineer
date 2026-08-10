@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import { EventLLMMessageOnTextParams, EventLLMMessageOnErrorParams, EventLLMMessageOnFinalMessageParams, ServiceSendLLMMessageParams, MainSendLLMMessageParams, MainLLMMessageAbortParams, ServiceModelListParams, EventModelListOnSuccessParams, EventModelListOnErrorParams, MainModelListParams, OllamaModelResponse, OpenaiCompatibleModelResponse, } from './sendLLMMessageTypes.js';
+import { EventLLMMessageOnTextParams, EventLLMMessageOnErrorParams, EventLLMMessageOnFinalMessageParams, ServiceSendLLMMessageParams, MainSendLLMMessageParams, MainLLMMessageAbortParams, ServiceModelListParams, EventModelListOnSuccessParams, EventModelListOnErrorParams, MainModelListParams, OllamaModelResponse, OpenaiCompatibleModelResponse, TestModelConnectionParams, TestModelConnectionResult, } from './sendLLMMessageTypes.js';
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,6 +24,7 @@ export interface ILLMMessageService {
 	abort: (requestId: string) => void;
 	ollamaList: (params: ServiceModelListParams<OllamaModelResponse>) => void;
 	openAICompatibleList: (params: ServiceModelListParams<OpenaiCompatibleModelResponse>) => void;
+	testConnection: (params: Omit<TestModelConnectionParams, 'settingsOfProvider'> & { connectionSettings?: Record<string, string> }) => Promise<TestModelConnectionResult>;
 }
 
 
@@ -190,6 +191,19 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 			settingsOfProvider,
 			requestId: requestId_,
 		} satisfies MainModelListParams<OpenaiCompatibleModelResponse>)
+	}
+
+	testConnection = async (params: Omit<TestModelConnectionParams, 'settingsOfProvider'> & { connectionSettings?: Record<string, string> }) => {
+		const { settingsOfProvider } = this.voidSettingsService.state
+		const providerSettings = settingsOfProvider[params.providerName]
+		const effectiveSettingsOfProvider = params.connectionSettings
+			? { ...settingsOfProvider, [params.providerName]: { ...providerSettings, ...params.connectionSettings } }
+			: settingsOfProvider
+		return await this.channel.call<TestModelConnectionResult>('testConnection', {
+			providerName: params.providerName,
+			modelName: params.modelName,
+			settingsOfProvider: effectiveSettingsOfProvider,
+		} satisfies TestModelConnectionParams)
 	}
 
 	private _clearChannelHooks(requestId: string) {
