@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Sparkles, Command } from 'lucide-react';
+import { Sparkles, Command, RotateCcw } from 'lucide-react';
 import { SlashCommandPalette, SlashCommandContext } from '../utils/slashCommandRouter';
 import { StreamRenderer } from './StreamRenderer';
 import { ComposerControlCenter, Attachment } from './ComposerControlCenter';
@@ -17,6 +17,7 @@ export interface ChatViewMessage {
 	readonly role: 'user' | 'assistant';
 	readonly content: string;
 	readonly timestamp: number;
+	readonly messageIndex?: number;
 }
 
 export interface ChatViewProps {
@@ -38,6 +39,7 @@ export interface ChatViewProps {
 	maxTokens?: number;
 	attachments?: Attachment[];
 	onRemoveAttachment?: (index: number) => void;
+	onRevertMessage?: (messageIndex: number) => void;
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
@@ -110,8 +112,18 @@ const EmptyState: React.FC<{
 
 // ─── User Message ─────────────────────────────────────────────────────────────
 
-const UserMessage: React.FC<{ message: ChatViewMessage }> = ({ message }) => (
-	<div className='group flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
+const MessageActions: React.FC<{ onRevert?: () => void }> = ({ onRevert }) => onRevert ? (
+	<div className='absolute right-3 top-2 hidden group-hover:flex items-center'>
+		<button type='button' onClick={onRevert} title='Revert to here' aria-label='Revert to here'
+			className='w-6 h-6 flex items-center justify-center rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/80 transition-colors'>
+			<RotateCcw size={11} />
+		</button>
+	</div>
+) : null;
+
+const UserMessage: React.FC<{ message: ChatViewMessage; onRevert?: () => void }> = ({ message, onRevert }) => (
+	<div className='group relative flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
+		<MessageActions onRevert={onRevert} />
 		{/* Avatar */}
 		<div className='w-7 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center shrink-0 mt-0.5'>
 			<span className='text-[10px] font-bold text-zinc-500'>U</span>
@@ -146,7 +158,8 @@ const AssistantMessage: React.FC<{
 	message: ChatViewMessage;
 	streamEvents: StreamEvent[];
 	isStreaming: boolean;
-}> = ({ message, streamEvents, isStreaming }) => {
+	onRevert?: () => void;
+	}> = ({ message, streamEvents, isStreaming, onRevert }) => {
 	const timeStr = new Date(message.timestamp).toLocaleTimeString(undefined, {
 		hour: '2-digit',
 		minute: '2-digit',
@@ -167,7 +180,8 @@ const AssistantMessage: React.FC<{
 	const hasActiveWork = displayEvents.some(e => e.status === 'active');
 
 	return (
-		<div className='group flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
+		<div className='group relative flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
+			<MessageActions onRevert={onRevert} />
 			{/* Avatar */}
 			<div className='w-7 h-7 rounded-lg bg-emerald-600/10 border border-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5'>
 				<Sparkles size={14} className='text-emerald-400' />
@@ -235,6 +249,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	maxTokens,
 	attachments = [],
 	onRemoveAttachment,
+	onRevertMessage,
 }) => {
 	const [isSlashOpen, setIsSlashOpen] = useState(false);
 	const [slashAnchor, setSlashAnchor] = useState<DOMRect | null>(null);
@@ -243,11 +258,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	// Stream events — scoped to this conversation
+	// NOTE: clearEvents cannot be passed as onRunStart in the same destructuring
+	// call that declares it — that is a temporal dead zone. Instead we use a
+	// stable ref so the hook always calls the latest version of clearEvents.
+	const clearEventsRef = useRef<(() => void) | null>(null);
 	const { state: streamState, clearEvents } = useStreamEvents({
 		maxEvents: 150,
 		resetOnRunStart: true,
-		onRunStart: clearEvents,
+		onRunStart: () => clearEventsRef.current?.(),
 	});
+	// Keep ref up-to-date after every render so the callback above is always current.
+	clearEventsRef.current = clearEvents;
 
 	// Auto-scroll on new messages or stream events
 	useEffect(() => {
@@ -294,7 +315,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			setIsSlashOpen(true);
 			return;
 		}
-		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
 			handleSend();
 		}
@@ -319,7 +340,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		: [];
 
 	return (
-		<div className={`flex flex-col h-full bg-void-bg-1 ${className}`}>
+		<div className={`flex flex-1 min-w-0 min-h-0 flex-col h-full bg-void-bg-1 ${className}`}>
 			{/* Slash command palette */}
 			{slashContext && (
 				<SlashCommandPalette
@@ -342,7 +363,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					<>
 						{messages.map((message, index) => {
 							if (message.role === 'user') {
-								return <UserMessage key={message.id} message={message} />;
+								return <UserMessage key={message.id} message={message}
+									onRevert={message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!)} />;
 							}
 
 							// Associate stream events with the assistant message that follows the user's
@@ -355,6 +377,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 									message={message}
 									streamEvents={events}
 									isStreaming={isStreaming && isLastAssistant}
+									onRevert={message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!)}
 								/>
 							);
 						})}
@@ -396,6 +419,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				attachments={attachments}
 				onRemoveAttachment={onRemoveAttachment}
 				placeholder='How can I help?'
+				onKeyDown={handleKeyDown}
 				textareaRef={textareaRef}
 			/>
 		</div>

@@ -50,6 +50,8 @@ export interface ComposerControlCenterProps {
 	canUseVoice?: boolean;
 	isListening?: boolean;
 	onVoiceToggle?: () => void;
+	/** Optional owner-level keyboard handling (for example the slash-command palette). */
+	onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
 
 	placeholder?: string;
 	textareaRef?: React.Ref<HTMLTextAreaElement>;
@@ -77,11 +79,12 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 	canUseVoice = false,
 	isListening = false,
 	onVoiceToggle,
+	onKeyDown: onComposerKeyDown,
 	placeholder = 'How can I help?',
 	textareaRef,
 }) => {
 	const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
 			if (!isStreaming && value.trim()) {
 				onSubmit();
@@ -192,7 +195,7 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 					ref={textareaRef as any}
 					value={value}
 					onChange={handleTextareaChange}
-					onKeyDown={handleKeyDown}
+				onKeyDown={onComposerKeyDown ?? handleKeyDown}
 					placeholder={placeholder}
 					disabled={isDisabled}
 					rows={1}
@@ -238,7 +241,7 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 								: 'text-zinc-700 cursor-not-allowed'
 						}
 					`}
-					title={isStreaming ? 'Stop' : 'Send (Ctrl+Enter)'}
+				title={isStreaming ? 'Stop' : 'Send (Enter)'}
 				>
 					{isStreaming ? <Square size={14} /> : <Send size={14} />}
 				</button>
@@ -247,7 +250,7 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 			{/* Bottom hint */}
 			<div className='flex items-center justify-between px-3 pb-1.5'>
 				<span className='text-[9px] text-zinc-700'>
-					{isStreaming ? 'Press stop to cancel' : 'Ctrl+Enter to send · / for commands'}
+					{isStreaming ? 'Press stop to cancel' : 'Enter to send · Shift+Enter for a new line · / for commands'}
 				</span>
 				{onOpenSettings && (
 					<button

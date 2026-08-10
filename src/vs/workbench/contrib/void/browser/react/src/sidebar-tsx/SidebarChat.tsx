@@ -40,6 +40,7 @@ import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
 
 // Conversation-First UI imports
 import { ChatView } from '../workspace-tsx/components/ChatView.tsx';
+import { ForgeContextPanel } from '../workspace-tsx/components/ForgeContextPanel.tsx';
 import { SimpleSidebar, SimpleSidebarProps } from '../workspace-tsx/components/SimpleSidebar.tsx';
 import { ThreadItem, buildThreadList } from '../workspace-tsx/components/ThreadList.tsx';
 import { ComposerControlCenter, Attachment } from '../workspace-tsx/components/ComposerControlCenter.tsx';
@@ -3177,13 +3178,14 @@ export const SidebarChat = () => {
 	// Convert internal messages to ChatView format
 	const chatViewMessages = useMemo((): ChatMessage[] => {
 		return previousMessages
-			.filter((m: any) => m.role === 'user' || m.role === 'assistant')
 			.map((m: any, i: number) => ({
 				id: m.id ?? `msg_${i}`,
 				role: m.role as 'user' | 'assistant',
 				content: m.displayContent ?? m.content ?? '',
 				timestamp: m.timestamp ?? Date.now(),
-			}));
+				messageIndex: i,
+			}))
+			.filter((m: any) => m.role === 'user' || m.role === 'assistant');
 	}, [previousMessages])
 
 	useEffect(() => {
@@ -3208,7 +3210,10 @@ export const SidebarChat = () => {
 		if (isRunning) return
 
 		const threadId = chatThreadsService.state.currentThreadId
-		const draft = _forceSubmit || draftText
+		// Button click handlers pass a MouseEvent as the first argument. Never let
+		// that DOM object become the persisted chat message (it contains React
+		// fibers and therefore cannot be JSON serialized).
+		const draft = typeof _forceSubmit === 'string' ? _forceSubmit : draftText
 
 		// In conversation mode, send plain text — no agent name prefix
 		const userMessage = conversationMode
@@ -3218,7 +3223,7 @@ export const SidebarChat = () => {
 		// In conversation mode, publish plan event for complex requests
 		if (conversationMode && draft) {
 			try {
-				const { ForgeEventBus } = await import('../forge/events/forgeEventBus')
+				const { ForgeEventBus } = await import('../../../forge/events/forgeEventBus.js')
 				ForgeEventBus.getInstance().publish('PLAN_CREATED', {
 					plan: {
 						steps: [
@@ -3271,15 +3276,22 @@ export const SidebarChat = () => {
 	// ── Conversation-First UI Handlers ─────────────────────────────────────
 
 	const handleNewThread = useCallback(() => {
-		chatThreadsService.createNewThread?.()
+		chatThreadsService.createNewThread()
 	}, [chatThreadsService])
 
 	const handleSelectThread = useCallback((id: string) => {
-		chatThreadsService.setCurrentThread?.(id)
+		chatThreadsService.switchToThread(id)
 	}, [chatThreadsService])
 
 	const handleDeleteThread = useCallback((id: string) => {
 		chatThreadsService.deleteThread?.(id)
+	}, [chatThreadsService])
+
+	const handleRevertMessage = useCallback((messageIndex: number) => {
+		chatThreadsService.revertToMessage?.({
+			threadId: chatThreadsService.state.currentThreadId,
+			messageIdx: messageIndex,
+		})
 	}, [chatThreadsService])
 
 	// Slash command context — shared between SimpleSidebar and ChatView
@@ -3294,7 +3306,7 @@ export const SidebarChat = () => {
 			setDraftText(msg)
 			setInstructionsAreEmpty(false)
 			textAreaFnsRef.current?.setValue(msg)
-			onSubmit()
+			void onSubmit(msg)
 		},
 	}), [accessor, commandService, chatThreadsService, onSubmit, setInstructionsAreEmpty])
 
@@ -3605,11 +3617,18 @@ export const SidebarChat = () => {
 					slashContext={slashContextValue}
 					workspaceReady={true}
 					selectedFiles={selections?.filter(s => s.type === 'File').map(s => s.uri.fsPath) ?? []}
+					onRevertMessage={handleRevertMessage}
 					providerName={settingsState.modelSelectionOfFeature['Chat']?.providerName ?? ''}
 					modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
 					onOpenSettings={() => commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID)}
 					attachments={attachments}
 					onRemoveAttachment={(i) => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+				/>
+				<ForgeContextPanel
+					files={selections.map(selection => selection.uri.fsPath)}
+					images={attachments.filter(attachment => attachment.mimeType.startsWith('image/')).map(attachment => attachment.uri.split(/[\\/]/).pop() ?? attachment.uri)}
+					workspaceReady={true}
+					onSendMessage={onSubmit}
 				/>
 			</>
 		) : (
@@ -3679,12 +3698,18 @@ export const SidebarChat = () => {
 	</div>
 
 
-	return (
-		<Fragment key={threadId} // force rerender when change thread
-		>
-			{isLandingPage ?
-				landingPageContent
-				: threadPageContent}
-		</Fragment>
-	)
+	// Keep the compact Forge composer stable before and after the first message.
+	// The composer still uses ChatThreadService, staging selections and the real
+	// streaming/tool pipeline; only the presentation is intentionally compact.
+	const compactPageContent = <div
+		ref={sidebarRef}
+		className='forge-coco-shell w-full h-full flex flex-col overflow-hidden'
+	>
+		<div className='flex-1 min-h-0 overflow-hidden'>
+			<ErrorBoundary>{messagesHTML}</ErrorBoundary>
+		</div>
+		<ErrorBoundary>{threadPageInput}</ErrorBoundary>
+	</div>
+
+	return <Fragment key={threadId}>{compactPageContent}</Fragment>
 }

@@ -248,6 +248,7 @@ export interface IChatThreadService {
 
 	getCurrentThread(): ThreadType;
 	openNewThread(): void;
+	createNewThread(): string;
 	switchToThread(threadId: string): void;
 
 	// thread selector
@@ -298,6 +299,7 @@ export interface IChatThreadService {
 
 	// jump to history
 	jumpToCheckpointBeforeMessageIdx(opts: { threadId: string, messageIdx: number, jumpToUserModified: boolean }): void;
+	revertToMessage(opts: { threadId: string, messageIdx: number }): void;
 
 	focusCurrentChat: () => Promise<void>
 	blurCurrentChat: () => Promise<void>
@@ -423,7 +425,21 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 	}
 
 	private _storeAllThreads(threads: ChatThreads) {
-		const serializedThreads = JSON.stringify(threads);
+		// Strip non-serializable runtime-only fields before persisting.
+		// • mountedInfo  — holds Promise, resolver function, and React refs that
+		//   eventually point back to DOM nodes (causes "Converting circular structure
+		//   to JSON" when a React fiber's stateNode is an HTMLButtonElement).
+		// • filesWithUserChanges — a Set, which JSON.stringify silently emits as {}.
+		const serializableThreads: ChatThreads = {};
+		for (const [id, thread] of Object.entries(threads)) {
+			if (!thread) { serializableThreads[id] = thread; continue; }
+			const { mountedInfo: _mountedInfo, filesWithUserChanges: _files, ...restState } = thread.state as any;
+			serializableThreads[id] = {
+				...thread,
+				state: restState,
+			} as ThreadType;
+		}
+		const serializedThreads = JSON.stringify(serializableThreads);
 		this._storageService.store(
 			THREAD_STORAGE_KEY,
 			serializedThreads,
@@ -1201,6 +1217,29 @@ We only need to do it for files that were edited since `from`, ie files between 
 		this._setThreadState(threadId, { currCheckpointIdx: toIdx })
 	}
 
+	/** Restore files and trim the conversation to the checkpoint before a message. */
+	revertToMessage({ threadId, messageIdx }: { threadId: string, messageIdx: number }): void {
+		const thread = this.state.allThreads[threadId]
+		if (!thread || this.streamState[threadId]?.isRunning) return
+
+		this.jumpToCheckpointBeforeMessageIdx({ threadId, messageIdx, jumpToUserModified: true })
+
+		const updatedThread = this.state.allThreads[threadId]
+		const checkpointIdx = updatedThread?.state.currCheckpointIdx
+		if (!updatedThread || checkpointIdx === null || checkpointIdx === undefined) return
+
+		const newThreads = {
+			...this.state.allThreads,
+			[threadId]: {
+				...updatedThread,
+				lastModified: new Date().toISOString(),
+				messages: updatedThread.messages.slice(0, checkpointIdx + 1),
+			}
+		}
+		this._storeAllThreads(newThreads)
+		this._setState({ allThreads: newThreads })
+	}
+
 
 	private _wrapRunAgentToNotify(p: Promise<void>, threadId: string) {
 		const notify = ({ error }: { error: string | null }) => {
@@ -1638,6 +1677,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 	}
 
 	switchToThread(threadId: string) {
+		if (!this.state.allThreads[threadId]) return
 		this._setState({ currentThreadId: threadId })
 	}
 
@@ -1653,6 +1693,11 @@ We only need to do it for files that were edited since `from`, ie files between 
 			}
 		}
 		// otherwise, start a new thread
+		this.createNewThread()
+	}
+
+	createNewThread(): string {
+		const { allThreads: currentThreads } = this.state
 		const newThread = newThreadObject()
 
 		// update state
@@ -1662,6 +1707,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 		}
 		this._storeAllThreads(newThreads)
 		this._setState({ allThreads: newThreads, currentThreadId: newThread.id })
+		return newThread.id
 	}
 
 

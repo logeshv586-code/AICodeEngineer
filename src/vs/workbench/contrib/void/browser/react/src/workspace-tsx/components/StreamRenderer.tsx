@@ -24,6 +24,7 @@ import {
 	GitBranch,
 	Brain,
 	ExternalLink,
+	Clock,
 } from 'lucide-react';
 import { StreamEvent, StreamEventKind } from '../utils/streamEvents';
 

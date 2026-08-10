@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useMemo, useCallback } from 'react';
+import React from 'react';
 
 // ─── Intent Router ────────────────────────────────────────────────────────────
 //
@@ -158,11 +158,11 @@ export function routeIntent(message: string): IntentResult {
 // ─── Context Builder ─────────────────────────────────────────────────────────
 
 export interface ConversationContext {
-	readonly workspaceFiles?: string[];
-	readonly selectedFile?: string;
-	readonly recentErrors?: string[];
-	readonly gitStatus?: string;
-	readonly memoryEntries?: string[];
+	workspaceFiles?: string[];
+	selectedFile?: string;
+	recentErrors?: string[];
+	gitStatus?: string;
+	memoryEntries?: string[];
 }
 
 export async function buildConversationContext(
@@ -261,8 +261,7 @@ export class ConversationOrchestrator {
 		onStream({ type: 'plan_started', label: 'Planning...' });
 
 		// Publish to ForgeEventBus — the UI picks this up via useStreamEvents
-		const { ForgeEventBus } = await import('../../forge/events/forgeEventBus');
-		const { publishPlanCreated, publishAgentStarted, publishToolStarted, publishToolFinished, publishRunCompleted } = await import('./streamEvents');
+		const { ForgeEventBus } = await import('../../../../forge/events/forgeEventBus.js');
 
 		// Simulate plan steps (in real impl, the PlannerService generates these)
 		const steps = [
@@ -274,7 +273,6 @@ export class ConversationOrchestrator {
 			{ title: 'Review changes', status: 'pending' as const },
 		];
 
-		publishPlanCreated({ steps });
 		ForgeEventBus.getInstance().publish('PLAN_CREATED', { plan: { steps } });
 
 		// Each step would be driven by actual backend execution
@@ -290,7 +288,7 @@ export class ConversationOrchestrator {
 		onStream: (e: { type: string; label: string; detail?: string }) => void,
 	): Promise<string> {
 		onStream({ type: 'search_started', label: 'Searching...', detail: message });
-		const { ForgeEventBus } = await import('../../forge/events/forgeEventBus');
+		const { ForgeEventBus } = await import('../../../../forge/events/forgeEventBus.js');
 		ForgeEventBus.getInstance().publish('SEARCH_STARTED', { query: message });
 		// Actual search handled by backend
 		return message;
@@ -302,9 +300,7 @@ export class ConversationOrchestrator {
 		onStream: (e: { type: string; label: string; detail?: string }) => void,
 	): Promise<string> {
 		onStream({ type: 'agent_started', label: 'Reviewing code...' });
-		const { ForgeEventBus } = await import('../../forge/events/forgeEventBus');
-		const { publishAgentStarted } = await import('./streamEvents');
-		publishAgentStarted('Reviewer', 'review');
+		const { ForgeEventBus } = await import('../../../../forge/events/forgeEventBus.js');
 		ForgeEventBus.getInstance().publish('AGENT_STARTED', { agentRole: 'Reviewer', taskId: 'review' });
 		return message;
 	}
@@ -315,7 +311,7 @@ export class ConversationOrchestrator {
 		onStream: (e: { type: string; label: string; detail?: string }) => void,
 	): Promise<string> {
 		onStream({ type: 'tool_started', label: 'Running tests...' });
-		const { ForgeEventBus } = await import('../../forge/events/forgeEventBus');
+		const { ForgeEventBus } = await import('../../../../forge/events/forgeEventBus.js');
 		ForgeEventBus.getInstance().publish('TOOL_STARTED', { toolName: 'run_tests', params: {} });
 		return message;
 	}
@@ -335,7 +331,7 @@ export class ConversationOrchestrator {
 		onStream: (e: { type: string; label: string; detail?: string }) => void,
 	): Promise<string> {
 		onStream({ type: 'tool_started', label: 'Editing code...' });
-		const { ForgeEventBus } = await import('../../forge/events/forgeEventBus');
+		const { ForgeEventBus } = await import('../../../../forge/events/forgeEventBus.js');
 		ForgeEventBus.getInstance().publish('TOOL_STARTED', { toolName: 'edit_file', params: {} });
 		return message;
 	}

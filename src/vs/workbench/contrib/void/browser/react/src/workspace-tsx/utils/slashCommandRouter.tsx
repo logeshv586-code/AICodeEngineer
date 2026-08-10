@@ -38,7 +38,7 @@ import {
 import { ServicesAccessor } from '../../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IChatThreadService } from '../../../chatThreadService.js';
-import { ForgeEventBus } from '../../../../../forge/events/forgeEventBus.js';
+import { ForgeEventBus } from '../../../../forge/events/forgeEventBus.js';
 import { ForgeEventType } from '../../../../../common/forge/events/forgeEvents.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +93,16 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 			description: 'Enable agent mode for code edits',
 			icon: <Code2 size={14} />,
 			execute() { commandService.executeCommand('void.setChatMode', 'agent'); },
+		},
+		{
+			name: '/agent,parallel',
+			label: 'Parallel Agents',
+			category: 'Agent',
+			description: 'Split independent work across agents and coordinate the result',
+			icon: <Bot size={14} />,
+			execute() {
+				sendMessage('Use parallel agents for independent parts of this task. Coordinate their results, avoid conflicting edits, then verify the combined change.');
+			},
 		},
 		{
 			name: '/agent,review',

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------*/
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ForgeEventBus } from '../../../forge/events/forgeEventBus.js';
-import { ForgeEventType, ForgeEvent } from '../../../common/forge/events/forgeEvents.js';
-import { PlannerOutput, PlanStep } from '../../../common/forge/planner/planSchema.js';
-import { AgentRole, AgentState, AgentCapability, ForgeWorkerConfig } from '../../../common/forge/types/brainTypes.js';
-import { TaskDependencyNode } from '../../../common/forge/types/schedulerTypes.js';
+import { ForgeEventBus } from '../../../../forge/events/forgeEventBus.js';
+import type { ForgeEvent } from '../../../../../common/forge/events/forgeEvents.js';
+import type { PlannerOutput, PlanStep } from '../../../../../common/forge/planner/planSchema.js';
+import type { AgentRole, AgentState, AgentCapability } from '../../../../../common/forge/types/brainTypes.js';
 
 // ─── Event types for the bridge ───────────────────────────────────────────────
 
@@ -95,7 +94,7 @@ export function forgeReducer(state: ForgeState, action: ForgeAction): ForgeState
 				name: action.name,
 				role: action.role ?? 'CodeEngineer',
 				state: 'idle',
-				capabilities: ['read_file', 'edit_file', 'rewrite_file', 'search_in_file', 'run_command'],
+				capabilities: ['read_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal'],
 				progress: 0,
 				createdAt: Date.now(),
 			};
@@ -190,7 +189,7 @@ export function useForgeBridge() {
 				name: 'Forge Agent',
 				role: 'CodeEngineer',
 				state: 'idle',
-				capabilities: ['read_file', 'edit_file', 'rewrite_file', 'search_in_file', 'run_command', 'semantic_search'],
+				capabilities: ['read_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal'],
 				progress: 0,
 				createdAt: Date.now(),
 			},
@@ -199,7 +198,7 @@ export function useForgeBridge() {
 				name: 'Review Agent',
 				role: 'ReviewAgent',
 				state: 'idle',
-				capabilities: ['read_file', 'search_in_file', 'read_lint_errors', 'run_tests'],
+				capabilities: ['read_file', 'read_lint_errors', 'run_tests'],
 				progress: 0,
 				createdAt: Date.now(),
 			},
@@ -232,7 +231,7 @@ export function useForgeBridge() {
 					planMode = 'running';
 					isBrainActive = true;
 				} else if (evt.type === 'PLAN_STEP_UPDATED' && plan) {
-					const updatedSteps = plan.steps.map(s =>
+					const updatedSteps = plan.steps.map((s: PlanStep) =>
 						s.id === (evt.payload as any).stepId ? (evt.payload as any).step : s
 					);
 					plan = { ...plan, steps: updatedSteps };
@@ -254,7 +253,7 @@ export function useForgeBridge() {
 				const workflows = prev.workflows.map(w => {
 					if (evt.type === 'PLAN_CREATED' && w.status === 'planning') {
 						const newPlan = evt.payload.plan as PlannerOutput;
-						const steps: WorkflowStepInfo[] = newPlan.steps.map(s => ({
+						const steps: WorkflowStepInfo[] = newPlan.steps.map((s: PlanStep) => ({
 							id: s.id,
 							title: s.title,
 							description: s.description,

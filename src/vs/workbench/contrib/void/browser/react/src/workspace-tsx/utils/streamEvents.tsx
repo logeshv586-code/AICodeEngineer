@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ForgeEventBus } from '../../../../forge/events/forgeEventBus.js';
 import { ForgeEventType, ForgeEvent } from '../../../../common/forge/events/forgeEvents.js';
 import { PlanStep } from '../../../../common/forge/planner/planSchema.js';
@@ -471,8 +471,6 @@ export interface UseStreamEventsResult {
 export function useStreamEvents(options: UseStreamEventsOptions = {}): UseStreamEventsResult {
 	const { maxEvents = 200, resetOnRunStart = true, onRunStart, onRunComplete } = options;
 	const [state, setState] = useState<StreamState>({ events: [], isRunning: false });
-	const disposeRef = useRef<(() => void) | null>(null);
-
 	useEffect(() => {
 		const bus = ForgeEventBus.getInstance();
 		const listener = (event: ForgeEvent) => {
@@ -521,8 +519,8 @@ export function useStreamEvents(options: UseStreamEventsOptions = {}): UseStream
 			});
 		};
 
-		disposeRef.current = bus.onEvent(listener);
-		return () => { disposeRef.current?.(); };
+		const subscription = bus.onEvent(listener);
+		return () => { subscription.dispose(); };
 	}, [maxEvents, resetOnRunStart, onRunStart, onRunComplete]);
 
 	const clearEvents = useCallback(() => {

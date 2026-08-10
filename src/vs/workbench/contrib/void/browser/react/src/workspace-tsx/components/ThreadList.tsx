@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback } from 'react';
-import { MessageSquare, Plus, Trash2, Clock, ChevronRight } from 'lucide-react';
+import { MessageSquare, Trash2, Clock, ChevronRight } from 'lucide-react';
 import { IChatThreadService } from '../../chatThreadService.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -51,25 +51,6 @@ export const ThreadList: React.FC<ThreadListProps> = ({
 
 	return (
 		<div className={`flex flex-col h-full ${className}`}>
-			{/* Header */}
-			<div className='px-3 py-2 border-b border-zinc-800/60 shrink-0'>
-				<button
-					type='button'
-					onClick={onNewThread}
-					className='
-						w-full flex items-center justify-center gap-1.5
-						px-2.5 py-1.5 rounded-md
-						bg-zinc-800/60 hover:bg-zinc-700/60
-						border border-zinc-700/40
-						text-[11px] text-zinc-300 font-medium
-						transition-colors cursor-pointer
-					'
-				>
-					<Plus size={12} />
-					New Chat
-				</button>
-			</div>
-
 			{/* Thread list */}
 			<div className='flex-1 overflow-y-auto py-1 px-1.5'>
 				{threads.length === 0 ? (

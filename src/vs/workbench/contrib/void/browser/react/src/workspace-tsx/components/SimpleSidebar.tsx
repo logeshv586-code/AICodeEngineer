@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback } from 'react';
-import { MessageSquare, Plus, ChevronDown, Settings, HelpCircle, Sparkles } from 'lucide-react';
+import { Plus, ChevronDown, Sparkles } from 'lucide-react';
 import { ThreadList, ThreadItem } from './ThreadList';
-import { SlashCommandPalette, SlashCommandContext, SlashCommand } from '../utils/slashCommandRouter';
+import type { SlashCommandContext } from '../utils/slashCommandRouter';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,39 +29,12 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 	onSelectThread,
 	onNewThread,
 	onDeleteThread,
-	onSettingsClick,
 	className = '',
-	slashContext,
 }) => {
 	const [isCollapsed, setIsCollapsed] = useState(false);
-	const [isSlashOpen, setIsSlashOpen] = useState(false);
-	const [slashAnchor, setSlashAnchor] = useState<DOMRect | null>(null);
-
 	const handleNewThread = useCallback(() => {
 		onNewThread();
 	}, [onNewThread]);
-
-	const handleOpenCommands = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-		const rect = e.currentTarget.getBoundingClientRect();
-		setSlashAnchor(rect);
-		setIsSlashOpen(true);
-	}, []);
-
-	const handleSlashSelect = useCallback((cmd: SlashCommand, args: string) => {
-		setIsSlashOpen(false);
-		setSlashAnchor(null);
-		if (slashContext) {
-			cmd.execute({ ...slashContext, args });
-		}
-	}, [slashContext]);
-
-	const handleSettings = useCallback(() => {
-		if (onSettingsClick) {
-			onSettingsClick();
-		} else if (slashContext) {
-			slashContext.commandService.executeCommand('void.openSettings');
-		}
-	}, [onSettingsClick, slashContext]);
 
 	if (isCollapsed) {
 		return (
@@ -115,17 +88,6 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 
 	return (
 		<div className={`w-56 bg-zinc-900/90 border-r border-zinc-800/60 flex flex-col shrink-0 ${className}`}>
-			{/* Slash command palette */}
-			{slashContext && (
-				<SlashCommandPalette
-					isOpen={isSlashOpen}
-					onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }}
-					onSelect={handleSlashSelect}
-					anchorRect={slashAnchor}
-					context={slashContext}
-				/>
-			)}
-
 			{/* Top section */}
 			<div className='px-2.5 py-2 border-b border-zinc-800/60 shrink-0'>
 				{/* Logo + title — single assistant */}
@@ -168,42 +130,8 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 				/>
 			</div>
 
-			{/* Bottom bar */}
-			<div className='px-2 py-2 border-t border-zinc-800/60 flex items-center gap-1 shrink-0'>
-				{/* Commands button */}
-				{slashContext && (
-					<button
-						type='button'
-						onClick={handleOpenCommands}
-						className='
-							flex-1 flex items-center justify-center gap-1.5
-							px-2 py-1.5 rounded-md
-							bg-zinc-800/40 hover:bg-zinc-700/40
-							border border-zinc-700/30
-							text-[10px] text-zinc-500 font-mono
-							transition-colors cursor-pointer
-						'
-						title='Commands (/)'
-					>
-						<span className='text-zinc-600'>/</span>
-						<span>Commands</span>
-					</button>
-				)}
-
-				{/* Settings */}
-				<button
-					type='button'
-					onClick={handleSettings}
-					className='
-						w-7 h-7 flex items-center justify-center rounded-md
-						text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800
-						transition-colors cursor-pointer
-					'
-					title='Settings'
-				>
-					<Settings size={13} />
-				</button>
-
+			{/* Minimal footer */}
+			<div className='px-2 py-2 border-t border-zinc-800/60 flex justify-end shrink-0'>
 				{/* Collapse */}
 				<button
 					type='button'
