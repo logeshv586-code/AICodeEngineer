@@ -781,6 +781,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		let nMessagesSent = 0
 		let shouldSendAnotherMessage = true
 		let isRunningWhenEnd: IsRunningType = undefined
+		let forceEmptyFileContinuation = false
 
 		// Auto-checkpoint: record the current state of files before the agent starts modifying anything.
 		// This allows users to revert to before the run using the checkpoint UI.
@@ -927,8 +928,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					}
 					if (awaitingUserApproval) { isRunningWhenEnd = 'awaiting_user' }
 					else { shouldSendAnotherMessage = true }
+					if (toolCall.name === 'create_file_or_folder' && !toolCall.rawParams.content && !String(toolCall.rawParams.uri ?? '').match(/[\\/]$/)) {
+						forceEmptyFileContinuation = true
+					}
 
 					this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed', agentRunStartedAt }) // just decorative, for clarity
+				}
+				else if (forceEmptyFileContinuation) {
+					shouldSendAnotherMessage = true
+					forceEmptyFileContinuation = false
 				}
 
 			} // end while (attempts)

@@ -271,9 +271,10 @@ export const builtinTools: {
 
 	create_file_or_folder: {
 		name: 'create_file_or_folder',
-		description: `Create a file or folder at the given path. To create a folder, the path MUST end with a trailing slash.`,
+		description: `Create a file or folder at the given path. To create a folder, the path MUST end with a trailing slash. For a source file, always include the complete initial file contents in content so the file is not empty.`,
 		params: {
 			...uriParam('file or folder'),
+			content: { description: 'Optional for folders. For files, the complete initial content to write.' },
 		},
 	},
 

@@ -20,6 +20,7 @@ import { MAX_CHILDREN_URIs_PAGE, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_BG_COMMAND_TI
 import { IVoidSettingsService } from '../common/voidSettingsService.js'
 import { generateUuid } from '../../../../base/common/uuid.js'
 import { ISemanticSearchService } from '../common/forge/contracts/ISemanticSearchService.js'
+import { VSBuffer } from '../../../../base/common/buffer.js'
 
 
 // tool use for AI
@@ -247,11 +248,12 @@ export class ToolsService implements IToolsService {
 			// ---
 
 			create_file_or_folder: (params: RawToolParamsObj) => {
-				const { uri: uriUnknown } = params
+				const { uri: uriUnknown, content: contentUnknown } = params
 				const uri = validateURI(uriUnknown)
 				const uriStr = validateStr('uri', uriUnknown)
 				const isFolder = checkIfIsFolder(uriStr)
-				return { uri, isFolder }
+				const content = isFolder ? undefined : validateOptionalStr('content', contentUnknown)
+				return { uri, isFolder, content: content ?? undefined }
 			},
 
 			delete_file_or_folder: (params: RawToolParamsObj) => {
@@ -424,11 +426,11 @@ export class ToolsService implements IToolsService {
 
 			// ---
 
-			create_file_or_folder: async ({ uri, isFolder }) => {
+			create_file_or_folder: async ({ uri, isFolder, content }) => {
 				if (isFolder)
 					await fileService.createFolder(uri)
 				else {
-					await fileService.createFile(uri)
+					await fileService.createFile(uri, content === undefined ? undefined : VSBuffer.fromString(content))
 				}
 				return { result: {} }
 			},
@@ -538,7 +540,7 @@ export class ToolsService implements IToolsService {
 			},
 			// ---
 			create_file_or_folder: (params, result) => {
-				return `URI ${params.uri.fsPath} successfully created.`
+				return `URI ${params.uri.fsPath} successfully created.${params.isFolder ? '' : params.content === undefined ? ' The file has no content yet; use rewrite_file immediately to write the requested implementation.' : ''}`
 			},
 			delete_file_or_folder: (params, result) => {
 				return `URI ${params.uri.fsPath} successfully deleted.`

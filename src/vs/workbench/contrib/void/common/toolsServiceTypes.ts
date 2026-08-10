@@ -54,7 +54,7 @@ export type BuiltinToolCallParams = {
 	// ---
 	'rewrite_file': { uri: URI, newContent: string },
 	'edit_file': { uri: URI, searchReplaceBlocks: string },
-	'create_file_or_folder': { uri: URI, isFolder: boolean },
+	'create_file_or_folder': { uri: URI, isFolder: boolean, content?: string },
 	'delete_file_or_folder': { uri: URI, isRecursive: boolean, isFolder: boolean },
 	// ---
 	'run_command': { command: string; cwd: string | null, terminalId: string },
