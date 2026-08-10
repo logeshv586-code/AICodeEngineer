@@ -21,10 +21,12 @@ import { IVoidSettingsService } from '../common/voidSettingsService.js'
 import { generateUuid } from '../../../../base/common/uuid.js'
 import { ISemanticSearchService } from '../common/forge/contracts/ISemanticSearchService.js'
 import { VSBuffer } from '../../../../base/common/buffer.js'
+import { IPathService } from '../../../services/path/common/pathService.js'
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js'
 
 
 // tool use for AI
-type ValidateBuiltinParams = { [T in BuiltinToolName]: (p: RawToolParamsObj) => BuiltinToolCallParams[T] }
+type ValidateBuiltinParams = { [T in BuiltinToolName]: (p: RawToolParamsObj) => BuiltinToolCallParams[T] | Promise<BuiltinToolCallParams[T]> }
 type CallBuiltinTool = { [T in BuiltinToolName]: (p: BuiltinToolCallParams[T]) => Promise<{ result: BuiltinToolResultType[T] | Promise<BuiltinToolResultType[T]>, interruptTool?: () => void }> }
 type BuiltinToolResultToString = { [T in BuiltinToolName]: (p: BuiltinToolCallParams[T], result: Awaited<BuiltinToolResultType[T]>) => string }
 
@@ -67,11 +69,6 @@ const validateURI = (uriStr: unknown) => {
 		const uri = URI.file(uriStr)
 		return uri
 	}
-}
-
-const validateOptionalURI = (uriStr: unknown) => {
-	if (isFalsy(uriStr)) return null
-	return validateURI(uriStr)
 }
 
 const validateOptionalStr = (argName: string, str: unknown) => {
@@ -156,13 +153,47 @@ export class ToolsService implements IToolsService {
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IVoidSettingsService private readonly voidSettingsService: IVoidSettingsService,
 		@ISemanticSearchService private readonly semanticSearchService: ISemanticSearchService,
+		@IPathService private readonly pathService: IPathService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 	) {
 		const queryBuilder = instantiationService.createInstance(QueryBuilder);
+		const ensureWorkspaceRoot = async (): Promise<URI> => {
+			const existingWorkspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri;
+			if (existingWorkspaceRoot) return existingWorkspaceRoot;
+
+			// An empty window has no safe relative-path target. Create one visible,
+			// user-owned project folder and add it to the untitled workspace so the
+			// agent can create its first project without writing to an arbitrary path.
+			const workspaceRoot = URI.joinPath(await this.pathService.userHome(), 'Forge AI Workspace');
+			if (!await fileService.exists(workspaceRoot)) await fileService.createFolder(workspaceRoot);
+			await this.workspaceEditingService.addFolders([{ uri: workspaceRoot }], true);
+			return workspaceRoot;
+		};
+		const resolveWorkspaceURI = async (uriStr: unknown): Promise<URI> => {
+			const rawPath = validateStr('uri', uriStr).trim();
+			const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri;
+
+			// Models commonly use /workspace as a placeholder. Map it to the
+			// actual workspace rather than creating a stray path on the machine.
+			if (rawPath === '/workspace' || rawPath.startsWith('/workspace/')) {
+				const root = workspaceRoot ?? await ensureWorkspaceRoot();
+				const relativePath = rawPath.slice('/workspace'.length).replace(/^[/\\]+/, '');
+				return relativePath ? URI.joinPath(root, ...relativePath.split(/[\\/]+/)) : root;
+			}
+
+			// A bare filename is also intended to be created in the active project.
+			if (!rawPath.includes('://') && !/^(?:[A-Za-z]:[\\/]|[\\/])/.test(rawPath)) {
+				const root = workspaceRoot ?? await ensureWorkspaceRoot();
+				return URI.joinPath(root, ...rawPath.split(/[\\/]+/));
+			}
+
+			return validateURI(rawPath);
+		};
 
 		this.validateParams = {
-			read_file: (params: RawToolParamsObj) => {
+			read_file: async (params: RawToolParamsObj) => {
 				const { uri: uriStr, start_line: startLineUnknown, end_line: endLineUnknown, page_number: pageNumberUnknown } = params
-				const uri = validateURI(uriStr)
+				const uri = await resolveWorkspaceURI(uriStr)
 				const pageNumber = validatePageNum(pageNumberUnknown)
 
 				let startLine = validateNumber(startLineUnknown, { default: null })
@@ -173,22 +204,19 @@ export class ToolsService implements IToolsService {
 
 				return { uri, startLine, endLine, pageNumber }
 			},
-			ls_dir: (params: RawToolParamsObj) => {
+			ls_dir: async (params: RawToolParamsObj) => {
 				const { uri: uriStr, page_number: pageNumberUnknown } = params
 
 				// Models occasionally omit the directory when asking for an initial
 				// listing. Use the opened workspace root so an empty repository can
 				// still proceed; with no folder open, return an actionable error.
-				const uri = isFalsy(uriStr)
-					? workspaceContextService.getWorkspace().folders[0]?.uri
-					: validateURI(uriStr)
-				if (!uri) throw new Error('No workspace folder is open. Open the project folder before asking Forge to create or edit files.')
+				const uri = isFalsy(uriStr) ? await ensureWorkspaceRoot() : await resolveWorkspaceURI(uriStr)
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				return { uri, pageNumber }
 			},
-			get_dir_tree: (params: RawToolParamsObj) => {
+			get_dir_tree: async (params: RawToolParamsObj) => {
 				const { uri: uriStr, } = params
-				const uri = validateURI(uriStr)
+				const uri = isFalsy(uriStr) ? await ensureWorkspaceRoot() : await resolveWorkspaceURI(uriStr)
 				return { uri }
 			},
 			search_pathnames_only: (params: RawToolParamsObj) => {
@@ -205,7 +233,7 @@ export class ToolsService implements IToolsService {
 				return { query: queryStr, includePattern, pageNumber }
 
 			},
-			search_for_files: (params: RawToolParamsObj) => {
+			search_for_files: async (params: RawToolParamsObj) => {
 				const {
 					query: queryUnknown,
 					search_in_folder: searchInFolderUnknown,
@@ -214,7 +242,7 @@ export class ToolsService implements IToolsService {
 				} = params
 				const queryStr = validateStr('query', queryUnknown)
 				const pageNumber = validatePageNum(pageNumberUnknown)
-				const searchInFolder = validateOptionalURI(searchInFolderUnknown)
+				const searchInFolder = isFalsy(searchInFolderUnknown) ? null : await resolveWorkspaceURI(searchInFolderUnknown)
 				const isRegex = validateBoolean(isRegexUnknown, { default: false })
 				return {
 					query: queryStr,
@@ -223,9 +251,9 @@ export class ToolsService implements IToolsService {
 					pageNumber
 				}
 			},
-			search_in_file: (params: RawToolParamsObj) => {
+			search_in_file: async (params: RawToolParamsObj) => {
 				const { uri: uriStr, query: queryUnknown, is_regex: isRegexUnknown } = params;
-				const uri = validateURI(uriStr);
+				const uri = await resolveWorkspaceURI(uriStr);
 				const query = validateStr('query', queryUnknown);
 				const isRegex = validateBoolean(isRegexUnknown, { default: false });
 				return { uri, query, isRegex };
@@ -237,44 +265,44 @@ export class ToolsService implements IToolsService {
 				return { query, topK };
 			},
 
-			read_lint_errors: (params: RawToolParamsObj) => {
+			read_lint_errors: async (params: RawToolParamsObj) => {
 				const {
 					uri: uriUnknown,
 				} = params
-				const uri = validateURI(uriUnknown)
+				const uri = await resolveWorkspaceURI(uriUnknown)
 				return { uri }
 			},
 
 			// ---
 
-			create_file_or_folder: (params: RawToolParamsObj) => {
+			create_file_or_folder: async (params: RawToolParamsObj) => {
 				const { uri: uriUnknown, content: contentUnknown } = params
-				const uri = validateURI(uriUnknown)
+				const uri = await resolveWorkspaceURI(uriUnknown)
 				const uriStr = validateStr('uri', uriUnknown)
 				const isFolder = checkIfIsFolder(uriStr)
 				const content = isFolder ? undefined : validateOptionalStr('content', contentUnknown)
 				return { uri, isFolder, content: content ?? undefined }
 			},
 
-			delete_file_or_folder: (params: RawToolParamsObj) => {
+			delete_file_or_folder: async (params: RawToolParamsObj) => {
 				const { uri: uriUnknown, is_recursive: isRecursiveUnknown } = params
-				const uri = validateURI(uriUnknown)
+				const uri = await resolveWorkspaceURI(uriUnknown)
 				const isRecursive = validateBoolean(isRecursiveUnknown, { default: false })
 				const uriStr = validateStr('uri', uriUnknown)
 				const isFolder = checkIfIsFolder(uriStr)
 				return { uri, isRecursive, isFolder }
 			},
 
-			rewrite_file: (params: RawToolParamsObj) => {
+			rewrite_file: async (params: RawToolParamsObj) => {
 				const { uri: uriStr, new_content: newContentUnknown } = params
-				const uri = validateURI(uriStr)
+				const uri = await resolveWorkspaceURI(uriStr)
 				const newContent = validateStr('newContent', newContentUnknown)
 				return { uri, newContent }
 			},
 
-			edit_file: (params: RawToolParamsObj) => {
+			edit_file: async (params: RawToolParamsObj) => {
 				const { uri: uriStr, search_replace_blocks: searchReplaceBlocksUnknown } = params
-				const uri = validateURI(uriStr)
+				const uri = await resolveWorkspaceURI(uriStr)
 				const searchReplaceBlocks = validateStr('searchReplaceBlocks', searchReplaceBlocksUnknown)
 				return { uri, searchReplaceBlocks }
 			},

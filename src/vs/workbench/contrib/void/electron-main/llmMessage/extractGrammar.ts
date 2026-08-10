@@ -372,7 +372,11 @@ export const extractXMLToolsWrapper = (
 }
 
 const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: number, toolCall: RawToolCallObj } | null => {
-	const nameMatch = /"name"\s*:/g
+	// Some OpenAI-compatible models emit a compact tool-call object, while
+	// others occasionally turn the descriptive phrase "name file or folder"
+	// into a malformed key. Accept that specific, unambiguous variant and
+	// normalize it to our canonical create tool before validation.
+	const nameMatch = /"(?:name|name_file_or_folder)"\s*(?::|,)/g
 	let start = -1
 	for (const match of text.matchAll(nameMatch)) {
 		const brace = text.lastIndexOf('{', match.index ?? -1)
@@ -383,8 +387,14 @@ const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: nu
 	if (end <= start) return null
 
 	try {
-		const parsed = JSON.parse(text.slice(start, end + 1)) as { name?: unknown, args?: unknown, arguments?: unknown }
-		if (typeof parsed.name !== 'string' || !tools.some(tool => tool.name === parsed.name)) return null
+		const candidate = text.slice(start, end + 1)
+		const repairedCandidate = candidate.replace(
+			/^\s*\{\s*"name_file_or_folder"\s*,\s*"args"\s*:\s*/,
+			'{"name":"create_file_or_folder","args":'
+		)
+		const parsed = JSON.parse(repairedCandidate) as { name?: unknown, args?: unknown, arguments?: unknown }
+		const toolName = parsed.name === 'name_file_or_folder' ? 'create_file_or_folder' : parsed.name
+		if (typeof toolName !== 'string' || !tools.some(tool => tool.name === toolName)) return null
 
 		let rawArgs: unknown = parsed.args ?? parsed.arguments ?? {}
 		if (typeof rawArgs === 'string') rawArgs = rawArgs.trim() ? JSON.parse(rawArgs) : {}
@@ -393,7 +403,7 @@ const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: nu
 		return {
 			start,
 			toolCall: {
-				name: parsed.name as ToolName,
+				name: toolName as ToolName,
 				rawParams,
 				doneParams: Object.keys(rawParams) as ToolParamName<ToolName>[],
 				id: generateUuid(),

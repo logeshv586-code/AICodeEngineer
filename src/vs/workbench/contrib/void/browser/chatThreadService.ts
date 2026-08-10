@@ -650,7 +650,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			// 1. validate tool params
 			try {
 				if (isBuiltInTool) {
-					const params = this._toolsService.validateParams[toolName](opts.unvalidatedToolParams)
+					const params = await this._toolsService.validateParams[toolName](opts.unvalidatedToolParams)
 					toolParams = params
 				}
 				else {

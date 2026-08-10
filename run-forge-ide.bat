@@ -12,5 +12,11 @@ if errorlevel 1 (
     popd
     exit /b 1
 )
-start "" "%~dp0node_modules\electron\dist\electron.exe" "%~dp0." %*
+rem When launched without a path, open this project as the workspace so the
+rem agent receives a real workspace root and can create files in it.
+if "%~1"=="" (
+    start "" "%~dp0node_modules\electron\dist\electron.exe" "%~dp0." "%~dp0"
+) else (
+    start "" "%~dp0node_modules\electron\dist\electron.exe" "%~dp0." %*
+)
 popd

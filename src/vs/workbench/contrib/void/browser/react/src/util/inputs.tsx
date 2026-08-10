@@ -927,11 +927,27 @@ export const VoidSimpleInputBox = ({ value, onChangeValue, placeholder, classNam
 		onChangeValue(e.target.value);
 	}, [onChangeValue]);
 
+	// The workbench registers global clipboard shortcuts. Handle paste on the
+	// field itself so API keys can always be pasted during onboarding.
+	const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+		const pastedText = e.clipboardData.getData('text/plain');
+		if (!pastedText) return;
+
+		e.preventDefault();
+		e.stopPropagation();
+		const input = e.currentTarget;
+		const start = input.selectionStart ?? input.value.length;
+		const end = input.selectionEnd ?? start;
+		const nextValue = input.value.slice(0, start) + pastedText + input.value.slice(end);
+		onChangeValue(nextValue);
+	}, [onChangeValue]);
+
 	return (
 		<input
 			ref={inputRef}
 			defaultValue={value} // Use defaultValue instead of value to avoid recreation
 			onChange={handleChange}
+			onPaste={handlePaste}
 			placeholder={placeholder}
 			disabled={disabled}
 			className={`w-full resize-none bg-void-bg-1 text-void-fg-1 placeholder:text-void-fg-3 border border-void-border-2 focus:border-void-border-1
