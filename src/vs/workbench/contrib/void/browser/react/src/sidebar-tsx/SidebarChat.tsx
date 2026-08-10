@@ -3099,6 +3099,7 @@ export const SidebarChat = () => {
 	const accessor = useAccessor()
 	const commandService = accessor.get('ICommandService')
 	const chatThreadsService = accessor.get('IChatThreadService')
+	const voidSettingsService = accessor.get('IVoidSettingsService')
 
 	const settingsState = useSettingsState()
 	// ----- HIGHER STATE -----
@@ -3139,11 +3140,16 @@ export const SidebarChat = () => {
 	const [activeTool, setActiveTool] = useState('chat')
 	const [activeFeature, setActiveFeature] = useState('Chat')
 	const [rightPanelTab, setRightPanelTab] = useState('tasks')
-	const [isListening, setIsListening] = useState(false)
-	const [artEnabled, setArtEnabled] = useState(false)
-	const [codeEnabled, setCodeEnabled] = useState(false)
-	const [taskModeEnabled, setTaskModeEnabled] = useState(false)
-	const [multiAgentEnabled, setMultiAgentEnabled] = useState(false)
+	const isListening = settingsState.globalSettings.voiceInputEnabled
+	const artEnabled = settingsState.globalSettings.artModeEnabled
+	const codeEnabled = settingsState.globalSettings.codeExecutionEnabled
+	const taskModeEnabled = settingsState.globalSettings.taskModeEnabled
+	const multiAgentEnabled = settingsState.globalSettings.multiAgentEnabled
+	const setIsListening = (enabled: boolean) => { void voidSettingsService.setGlobalSetting('voiceInputEnabled', enabled) }
+	const setArtEnabled = (enabled: boolean) => { void voidSettingsService.setGlobalSetting('artModeEnabled', enabled) }
+	const setCodeEnabled = (enabled: boolean) => { void voidSettingsService.setGlobalSetting('codeExecutionEnabled', enabled) }
+	const setTaskModeEnabled = (enabled: boolean) => { void voidSettingsService.setGlobalSetting('taskModeEnabled', enabled) }
+	const setMultiAgentEnabled = (enabled: boolean) => { void voidSettingsService.setGlobalSetting('multiAgentEnabled', enabled) }
 	const [tasks, setTasks] = useState<{ id: string; title: string; status: string }[]>([])
 	const [agents, setAgents] = useState<{ id: string; name: string; status: string }[]>([])
 	const [selectedAgentId, setSelectedAgentId] = useState('forge-agent')
@@ -3457,7 +3463,7 @@ export const SidebarChat = () => {
 				<TaskMode
 					enabled={taskModeEnabled}
 					tasks={tasks}
-					onToggle={() => setTaskModeEnabled(v => !v)}
+						onToggle={() => setTaskModeEnabled(!taskModeEnabled)}
 					onAddTask={(title) => {
 						setTasks(prev => [...prev, { id: `task-${Date.now()}`, title, status: 'pending' }])
 					}}
@@ -3480,7 +3486,7 @@ export const SidebarChat = () => {
 						agents: agents,
 						collaborationMode: 'sequential',
 					}}
-					onToggle={() => setMultiAgentEnabled(v => !v)}
+						onToggle={() => setMultiAgentEnabled(!multiAgentEnabled)}
 					onUpdateConfig={(config) => {
 						setMultiAgentEnabled(config.enabled)
 						setAgents(config.agents)
@@ -3516,11 +3522,11 @@ export const SidebarChat = () => {
 				slashCommandsEnabled={true}
 				voiceEnabled={capabilities?.canUseVoice ?? false}
 				isListening={isListening}
-				onVoiceToggle={() => setIsListening(v => !v)}
+					onVoiceToggle={() => setIsListening(!isListening)}
 				artEnabled={artEnabled}
-				onArtToggle={() => setArtEnabled(v => !v)}
+					onArtToggle={() => setArtEnabled(!artEnabled)}
 				codeEnabled={codeEnabled}
-				onCodeToggle={() => setCodeEnabled(v => !v)}
+					onCodeToggle={() => setCodeEnabled(!codeEnabled)}
 			/>
 		</div>
 	</div>
@@ -3553,11 +3559,11 @@ export const SidebarChat = () => {
 				slashCommandsEnabled={true}
 				voiceEnabled={capabilities?.canUseVoice ?? false}
 				isListening={isListening}
-				onVoiceToggle={() => setIsListening(v => !v)}
+					onVoiceToggle={() => setIsListening(!isListening)}
 				artEnabled={artEnabled}
-				onArtToggle={() => setArtEnabled(v => !v)}
+					onArtToggle={() => setArtEnabled(!artEnabled)}
 				codeEnabled={codeEnabled}
-				onCodeToggle={() => setCodeEnabled(v => !v)}
+					onCodeToggle={() => setCodeEnabled(!codeEnabled)}
 			/>
 		</div>
 	</div>

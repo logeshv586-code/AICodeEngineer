@@ -117,6 +117,16 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 		}
 
 		const { settingsOfProvider, } = this.voidSettingsService.state
+		const selectedModel = settingsOfProvider[modelSelection.providerName]?.models.find(model => model.modelName === modelSelection.modelName)
+		const effectiveSettingsOfProvider = selectedModel?.connectionSettings
+			? {
+				...settingsOfProvider,
+				[modelSelection.providerName]: {
+					...settingsOfProvider[modelSelection.providerName],
+					...selectedModel.connectionSettings,
+				},
+			}
+			: settingsOfProvider
 
 		const mcpTools = this.mcpService.getMCPTools()
 
@@ -131,7 +141,7 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 		this.channel.call('sendLLMMessage', {
 			...proxyParams,
 			requestId,
-			settingsOfProvider,
+			settingsOfProvider: effectiveSettingsOfProvider,
 			modelSelection,
 			mcpTools,
 		} satisfies MainSendLLMMessageParams);

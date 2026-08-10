@@ -11,7 +11,7 @@ import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
 import { ModelCapability } from '../utils/modelCapabilityManifest.js';
 import { ModelDropdown } from '../../void-settings-tsx/ModelDropdown.tsx';
 import { FeatureName } from '../../../../common/voidSettingsTypes.js';
-import { useAccessor } from '../../util/services.tsx';
+import { useAccessor, useSettingsState } from '../../util/services.tsx';
 
 interface UniversalComposerProps {
   value: string;
@@ -73,6 +73,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
   onCodeToggle,
 }) => {
 	const accessor = useAccessor();
+	const settingsState = useSettingsState();
   const [isSlashOpen, setIsSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -90,8 +91,12 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
       )
     : slashCommands;
 
-  const handleSlashSelect = useCallback((command: SlashCommand) => {
-    command.execute('', accessor);
+  const handleSlashSelect = useCallback(async (command: SlashCommand) => {
+    try {
+      await command.execute('', accessor);
+    } catch (error) {
+      accessor.get('INotificationService').error(`/${command.name} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
     setIsSlashOpen(false);
     setSlashQuery('');
   }, [accessor]);
@@ -300,7 +305,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
               </select>
             ) : <span className="truncate font-medium">{agentName}</span>}
           </label>
-          <span className="shrink-0 text-[10px] text-zinc-500">Auto <span className="text-[var(--forge-coco-accent)]">✦</span></span>
+          <span className="shrink-0 text-[10px] text-zinc-500">{settingsState.globalSettings.chatMode === 'normal' ? 'Chat' : settingsState.globalSettings.chatMode === 'gather' ? 'Gather' : 'Agent'} <span className="text-[var(--forge-coco-accent)]">✦</span></span>
         </div>
 
         {/* Legacy optional tools stay implemented but are hidden from the primary chat surface. */}

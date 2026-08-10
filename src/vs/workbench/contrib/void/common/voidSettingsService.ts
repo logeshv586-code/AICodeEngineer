@@ -13,7 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IMetricsService } from './metricsService.js';
 import { defaultProviderSettings, getModelCapabilities, ModelOverrides } from './modelCapabilities.js';
 import { VOID_SETTINGS_STORAGE_KEY } from './storageKeys.js';
-import { defaultSettingsOfProvider, FeatureName, ProviderName, ModelSelectionOfFeature, SettingsOfProvider, SettingName, providerNames, ModelSelection, modelSelectionsEqual, featureNames, VoidStatefulModelInfo, GlobalSettings, GlobalSettingName, defaultGlobalSettings, ModelSelectionOptions, OptionsOfModelSelection, ChatMode, OverridesOfModel, defaultOverridesOfModel, MCPUserStateOfName as MCPUserStateOfName, MCPUserState } from './voidSettingsTypes.js';
+import { defaultSettingsOfProvider, FeatureName, ProviderName, ModelSelectionOfFeature, SettingsOfProvider, SettingName, providerNames, ModelSelection, modelSelectionsEqual, featureNames, VoidStatefulModelInfo, GlobalSettings, GlobalSettingName, defaultGlobalSettings, ModelSelectionOptions, OptionsOfModelSelection, ChatMode, OverridesOfModel, defaultOverridesOfModel, MCPUserStateOfName as MCPUserStateOfName, MCPUserState, ModelConnectionSettings, isModelConfigured } from './voidSettingsTypes.js';
 
 
 // name is the name in the dropdown
@@ -73,8 +73,9 @@ export interface IVoidSettingsService {
 
 	setAutodetectedModels(providerName: ProviderName, modelNames: string[], logging: object): void;
 	toggleModelHidden(providerName: ProviderName, modelName: string): void;
-	addModel(providerName: ProviderName, modelName: string): void;
+	addModel(providerName: ProviderName, modelName: string, connectionSettings?: ModelConnectionSettings): void;
 	deleteModel(providerName: ProviderName, modelName: string): boolean;
+	setModelConnectionSettings(providerName: ProviderName, modelName: string, connectionSettings: ModelConnectionSettings | undefined): Promise<void>;
 
 	addMCPUserStateOfNames(userStateOfName: MCPUserStateOfName): Promise<void>;
 	removeMCPUserStateOfNames(serverNames: string[]): Promise<void>;
@@ -169,8 +170,10 @@ const _validatedModelState = (state: Omit<VoidSettingsState, '_modelOptions'>): 
 	for (const providerName of providerNames) {
 		const providerTitle = providerName // displayInfoOfProviderName(providerName).title.toLowerCase() // looks better lowercase, best practice to not use raw providerName
 		if (!newSettingsOfProvider[providerName]._didFillInProviderSettings) continue // if disabled, don't display model options
-		for (const { modelName, isHidden } of newSettingsOfProvider[providerName].models) {
+		for (const model of newSettingsOfProvider[providerName].models) {
+			const { modelName, isHidden } = model
 			if (isHidden) continue
+			if (!isModelConfigured(providerName, model, newSettingsOfProvider)) continue
 			newModelOptions.push({ name: `${modelName} (${providerTitle})`, selection: { providerName, modelName } })
 		}
 	}
@@ -532,13 +535,13 @@ class VoidSettingsService extends Disposable implements IVoidSettingsService {
 		this._metricsService.capture('Toggle Model Hidden', { providerName, modelName, newIsHidden })
 
 	}
-	addModel(providerName: ProviderName, modelName: string) {
+	addModel(providerName: ProviderName, modelName: string, connectionSettings?: ModelConnectionSettings) {
 		const { models } = this.state.settingsOfProvider[providerName]
 		const existingIdx = models.findIndex(m => m.modelName === modelName)
 		if (existingIdx !== -1) return // if exists, do nothing
 		const newModels = [
 			...models,
-			{ modelName, type: 'custom', isHidden: false } as const
+			{ modelName, type: 'custom', isHidden: false, connectionSettings } as const
 		]
 		this.setSettingOfProvider(providerName, 'models', newModels)
 
@@ -558,6 +561,13 @@ class VoidSettingsService extends Disposable implements IVoidSettingsService {
 		this._metricsService.capture('Delete Model', { providerName, modelName })
 
 		return true
+	}
+	setModelConnectionSettings = async (providerName: ProviderName, modelName: string, connectionSettings: ModelConnectionSettings | undefined) => {
+		const models = this.state.settingsOfProvider[providerName].models
+		const modelIdx = models.findIndex(model => model.modelName === modelName)
+		if (modelIdx === -1) return
+		const newModels = models.map((model, index) => index === modelIdx ? { ...model, connectionSettings } : model)
+		await this.setSettingOfProvider(providerName, 'models', newModels)
 	}
 
 	// MCP Server State

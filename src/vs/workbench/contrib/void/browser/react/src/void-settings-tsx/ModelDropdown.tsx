@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { displayInfoOfProviderName, FeatureName, featureNames, isFeatureNameDisabled, ModelSelection, modelSelectionsEqual, ProviderName, providerNames } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
+import { displayInfoOfProviderName, FeatureName, featureNames, isFeatureNameDisabled, ModelSelection, modelSelectionsEqual, ProviderName, providerNames, isModelConfigured } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
 import { useSettingsState, useRefreshModelState, useAccessor } from '../util/services.tsx';
 import { VoidSwitch } from '../util/inputs.tsx';
 import { VOID_OPEN_SETTINGS_ACTION_ID } from '../../../voidSettingsPane.js';
@@ -47,10 +47,12 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	// the service directly here could leave the button on an older provider/model.
 	const selection = settingsState.modelSelectionOfFeature[featureName];
 	const configuredProviderNames = useMemo(
-		() => providerNames.filter(providerName => !!settingsState.settingsOfProvider[providerName]?._didFillInProviderSettings),
+		() => providerNames.filter(providerName => settingsState.settingsOfProvider[providerName].models.some(model => isModelConfigured(providerName, model, settingsState.settingsOfProvider))),
 		[settingsState.settingsOfProvider]
 	);
-	const currentModelName = selection?.modelName || (configuredProviderNames.length === 0 ? 'Connect API in Settings' : 'Select a model');
+	const currentModelName = autoMode
+		? 'Auto'
+		: selection?.modelName || (configuredProviderNames.length === 0 ? 'Connect API in Settings' : 'Select a model');
 	const portalTarget = typeof document === 'undefined'
 		? null
 		: document.querySelector('.void-scope') ?? document.body;
@@ -100,11 +102,11 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 
 	const selectModel = async (modelName: string, providerName: ProviderName) => {
 		const providerSettings = settingsState.settingsOfProvider[providerName];
-		if (!providerSettings?._didFillInProviderSettings) {
+		const existing = providerSettings?.models.find(model => model.modelName === modelName);
+		if (!existing || !isModelConfigured(providerName, existing, settingsState.settingsOfProvider)) {
 			openSettings();
 			return;
 		}
-		const existing = providerSettings.models.find(model => model.modelName === modelName);
 		if (!existing || existing.isHidden) {
 			const models = existing
 				? providerSettings.models.map(model => model.modelName === modelName ? { ...model, isHidden: false } : model)
@@ -136,7 +138,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 							modelName: m.modelName,
 							providerName: pName,
 							tag: providerTitle,
-										isConfigured: !!providerSettings._didFillInProviderSettings,
+							isConfigured: isModelConfigured(pName, m, settingsState.settingsOfProvider),
 						});
 					}
 				}
@@ -162,7 +164,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 				modelName: selection.modelName,
 				providerName: selection.providerName,
 				tag: displayInfoOfProviderName(selection.providerName)?.title || selection.providerName,
-				isConfigured: !!settingsState.settingsOfProvider[selection.providerName]?._didFillInProviderSettings,
+				isConfigured: isModelConfigured(selection.providerName, settingsState.settingsOfProvider[selection.providerName].models.find(model => model.modelName === selection.modelName) ?? { modelName: selection.modelName, type: 'custom', isHidden: false }, settingsState.settingsOfProvider),
 			});
 		}
 
@@ -194,6 +196,11 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 						</div>
 						<VoidSwitch size="xs" value={autoMode} onChange={(enabled) => { void voidSettingsService.setGlobalSetting('autoModelSelection', enabled); }} />
 					</div>
+					{autoMode && (
+						<div className="px-3 py-1.5 border-b border-zinc-800 text-[10px] text-emerald-300">
+							Auto selects the best configured model for each task. Current: {selection?.modelName || 'waiting for a task'}
+						</div>
+					)}
 
 					{/* Section Header */}
 				<div className="px-3 pt-2 pb-1 flex items-center justify-between text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">

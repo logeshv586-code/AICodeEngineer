@@ -33,7 +33,18 @@ export type VoidStatefulModelInfo = { // <-- STATEFUL
 	modelName: string,
 	type: 'default' | 'autodetected' | 'custom';
 	isHidden: boolean, // whether or not the user is hiding it (switched off)
+	/** Optional per-model connection values. These override the provider defaults. */
+	connectionSettings?: ModelConnectionSettings,
 }
+
+export type ModelConnectionSettings = Partial<{
+	apiKey: string,
+	endpoint: string,
+	region: string,
+	project: string,
+	azureApiVersion: string,
+	headersJSON: string,
+}>
 
 
 
@@ -51,6 +62,12 @@ export type SettingsOfProvider = {
 
 
 export type SettingName = keyof SettingsAtProvider<ProviderName>
+
+export const isModelConfigured = (providerName: ProviderName, model: VoidStatefulModelInfo, settingsOfProvider: SettingsOfProvider) => {
+	const providerSettings = settingsOfProvider[providerName]
+	const effectiveSettings = { ...providerSettings, ...model.connectionSettings }
+	return Object.keys(defaultProviderSettings[providerName]).every(key => !!effectiveSettings[key as keyof typeof effectiveSettings])
+}
 
 type DisplayInfoForProviderName = {
 	title: string,
@@ -464,6 +481,11 @@ export type GlobalSettings = {
 	isOnboardingComplete: boolean;
 	disableSystemMessage: boolean;
 	autoAcceptLLMChanges: boolean;
+	taskModeEnabled: boolean;
+	multiAgentEnabled: boolean;
+	voiceInputEnabled: boolean;
+	artModeEnabled: boolean;
+	codeExecutionEnabled: boolean;
 }
 
 export const defaultGlobalSettings: GlobalSettings = {
@@ -481,6 +503,11 @@ export const defaultGlobalSettings: GlobalSettings = {
 	isOnboardingComplete: false,
 	disableSystemMessage: false,
 	autoAcceptLLMChanges: false,
+	taskModeEnabled: false,
+	multiAgentEnabled: false,
+	voiceInputEnabled: false,
+	artModeEnabled: false,
+	codeExecutionEnabled: false,
 }
 
 export type GlobalSettingName = keyof GlobalSettings

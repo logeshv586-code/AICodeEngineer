@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'; // Added useRef import just in case it was missed, though likely already present
-import { ProviderName, SettingName, displayInfoOfSettingName, providerNames, VoidStatefulModelInfo, customSettingNamesOfProvider, RefreshableProviderName, refreshableProviderNames, displayInfoOfProviderName, nonlocalProviderNames, localProviderNames, GlobalSettingName, featureNames, displayInfoOfFeatureName, isProviderNameDisabled, FeatureName, hasDownloadButtonsOnModelsProviderNames, subTextMdOfProviderName } from '../../../../common/voidSettingsTypes.js'
+import { ProviderName, SettingName, displayInfoOfSettingName, providerNames, VoidStatefulModelInfo, customSettingNamesOfProvider, RefreshableProviderName, refreshableProviderNames, displayInfoOfProviderName, GlobalSettingName, featureNames, displayInfoOfFeatureName, isProviderNameDisabled, FeatureName, hasDownloadButtonsOnModelsProviderNames, subTextMdOfProviderName, ModelConnectionSettings, isModelConfigured } from '../../../../common/voidSettingsTypes.js'
 import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.tsx'
 import { VoidButtonBgDarken, VoidCustomDropdownBox, VoidInputBox2, VoidSimpleInputBox, VoidSwitch } from '../util/inputs.tsx'
 import { useAccessor, useIsDark, useIsOptedOut, useRefreshModelListener, useRefreshModelState, useSettingsState } from '../util/services.tsx'
@@ -31,8 +31,6 @@ type Tab =
 	| 'appearance'
 	| 'notifications'
 	| 'models'
-	| 'localProviders'
-	| 'providers'
 	| 'featureOptions'
 	| 'customizations'
 	| 'browser'
@@ -40,7 +38,7 @@ type Tab =
 	| 'editor'
 	| 'ws_workspace'
 	| 'mcp'
-	| 'all';
+	;
 
 
 const ButtonLeftTextRightOption = ({ text, leftButton }: { text: string, leftButton?: React.ReactNode }) => {
@@ -244,6 +242,7 @@ const SimpleModelSettingsDialog = ({
 	const [overrideEnabled, setOverrideEnabled] = useState<boolean>(() => !!currentOverrides);
 
 	const [errorMsg, setErrorMsg] = useState<string | null>(null);
+	const [connectionSettings, setConnectionSettings] = useState<ModelConnectionSettings>({});
 
 	const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -253,9 +252,18 @@ const SimpleModelSettingsDialog = ({
 		const cur = settingsState.overridesOfModel?.[providerName]?.[modelName];
 		setOverrideEnabled(!!cur);
 		setErrorMsg(null);
+		const model = settingsState.settingsOfProvider[providerName].models.find(model => model.modelName === modelName);
+		setConnectionSettings(model?.connectionSettings ?? {});
 	}, [isOpen, providerName, modelName, settingsState.overridesOfModel, placeholder]);
 
 	const onSave = async () => {
+		const cleanedConnectionSettings: ModelConnectionSettings = {};
+		for (const settingName of customSettingNamesOfProvider(providerName)) {
+			const value = connectionSettings[settingName as keyof ModelConnectionSettings];
+			if (value) cleanedConnectionSettings[settingName as keyof ModelConnectionSettings] = value;
+		}
+		await settingsStateService.setModelConnectionSettings(providerName, modelName, cleanedConnectionSettings);
+
 		// if disabled override, reset overrides
 		if (!overrideEnabled) {
 			await settingsStateService.setOverridesOfModel(providerName, modelName, undefined);
@@ -336,6 +344,23 @@ const SimpleModelSettingsDialog = ({
 							: `Forge AI recognizes ${modelName} ("${recognizedModelName}").`}
 				</div>
 
+				<div className="border border-void-border-2 rounded-md p-3 mb-4">
+					<div className="text-sm font-medium mb-2">Connection for this model</div>
+					<div className="text-xs text-void-fg-3 mb-2">These values override the provider defaults, so one provider can use multiple API keys or endpoints.</div>
+					{customSettingNamesOfProvider(providerName).map(settingName => {
+						const info = displayInfoOfSettingName(providerName, settingName);
+						const value = connectionSettings[settingName as keyof ModelConnectionSettings] ?? '';
+						return <VoidSimpleInputBox
+							key={settingName}
+							value={value}
+							onChangeValue={(newValue) => setConnectionSettings(current => ({ ...current, [settingName]: newValue }))}
+							placeholder={`${info.title} (provider default)`}
+							passwordBlur={info.isPasswordField}
+							compact={true}
+						/>;
+					})}
+				</div>
+
 
 				{/* override toggle */}
 				<div className="flex items-center gap-2 mb-4">
@@ -397,7 +422,13 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 	const [showCheckmark, setShowCheckmark] = useState(false);
 	const [userChosenProviderName, setUserChosenProviderName] = useState<ProviderName | null>(null);
 	const [modelName, setModelName] = useState<string>('');
+	const [newModelConnectionSettings, setNewModelConnectionSettings] = useState<ModelConnectionSettings>({});
 	const [errorString, setErrorString] = useState('');
+	const addModelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (isAddModelOpen) addModelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	}, [isAddModelOpen]);
 
 	// a dump of all the enabled providers' models
 	const modelDump: (VoidStatefulModelInfo & { providerName: ProviderName, providerEnabled: boolean })[] = []
@@ -433,18 +464,28 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 			return;
 		}
 
-		settingsStateService.addModel(userChosenProviderName, modelName);
+		settingsStateService.addModel(userChosenProviderName, modelName, newModelConnectionSettings);
 		setShowCheckmark(true);
 		setTimeout(() => {
 			setShowCheckmark(false);
 			setIsAddModelOpen(false);
 			setUserChosenProviderName(null);
 			setModelName('');
+			setNewModelConnectionSettings({});
 		}, 1500);
 		setErrorString('');
 	};
 
 	return <div className=''>
+		<div className="flex items-center justify-between mb-4 p-3 rounded-md border border-void-border-2 bg-void-bg-2/40">
+			<div>
+				<div className="text-sm font-medium text-void-fg-1">Add a model and API connection</div>
+				<div className="text-xs text-void-fg-3">Choose a provider, model name, and its API key or endpoint.</div>
+			</div>
+			{!isAddModelOpen && <button type="button" onClick={() => setIsAddModelOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded bg-[#0e70c0] text-white text-xs hover:brightness-110">
+				<Plus size={14} /> Add model
+			</button>}
+		</div>
 		{modelDump.map((m, i) => {
 			const { isHidden, type, modelName, providerName, providerEnabled } = m
 
@@ -452,7 +493,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 
 			const providerTitle = displayInfoOfProviderName(providerName).title
 
-			const disabled = !providerEnabled
+			const disabled = !isModelConfigured(providerName, m, settingsState.settingsOfProvider)
 			const value = disabled ? false : !isHidden
 
 			const tooltipName = (
@@ -536,7 +577,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 				<AnimatedCheckmarkButton text='Added' className="bg-[#0e70c0] text-white px-3 py-1 rounded-sm" />
 			</div>
 		) : isAddModelOpen ? (
-			<div className="mt-4">
+			<div ref={addModelRef} className="mt-4">
 				<form className="flex items-center gap-2">
 
 					{/* Provider dropdown */}
@@ -564,6 +605,19 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 						/>
 					</ErrorBoundary>
 
+					{userChosenProviderName && customSettingNamesOfProvider(userChosenProviderName).map(settingName => {
+						const info = displayInfoOfSettingName(userChosenProviderName, settingName);
+						return <VoidSimpleInputBox
+							key={settingName}
+							value={newModelConnectionSettings[settingName as keyof ModelConnectionSettings] ?? ''}
+							onChangeValue={(newValue) => setNewModelConnectionSettings(current => ({ ...current, [settingName]: newValue }))}
+							placeholder={`${info.title} (optional)`}
+							passwordBlur={info.isPasswordField}
+							compact={true}
+							className='max-w-40'
+						/>;
+					})}
+
 					{/* Add button */}
 					<ErrorBoundary>
 						<AddButton
@@ -581,6 +635,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 							setErrorString('');
 							setModelName('');
 							setUserChosenProviderName(null);
+							setNewModelConnectionSettings({});
 						}}
 						className='text-void-fg-4'
 					>
@@ -651,7 +706,8 @@ const ProviderSetting = ({ providerName, settingName, subTextMd }: { providerNam
 				{subTextMd}
 			</div>}
 		</div>
-	</ErrorBoundary>
+					</ErrorBoundary>
+
 }
 
 // const OldSettingsForProvider = ({ providerName, showProviderTitle }: { providerName: ProviderName, showProviderTitle: boolean }) => {
@@ -1075,18 +1131,14 @@ export const Settings = () => {
 		{ tab: 'appearance', label: 'Appearance' },
 		{ tab: 'notifications', label: 'Notifications' },
 		{ tab: 'models', label: 'Models' },
-		{ tab: 'providers', label: 'Provider API Keys' },
-		{ tab: 'localProviders', label: 'Local Providers' },
 		{ tab: 'customizations', label: 'Customizations' },
 		{ tab: 'browser', label: 'Browser' },
 		{ tab: 'tab', label: 'Tab' },
 		{ tab: 'editor', label: 'Editor' },
 		...(workspaceNavItems.length > 0 ? [{ tab: 'ws_workspace' as Tab, label: 'Workspaces', isHeader: true }, ...workspaceNavItems.map(w => ({ tab: w.tab, label: w.label }))] : []),
 		{ tab: 'mcp', label: 'MCP' },
-		{ tab: 'all', label: 'All Settings' },
 	];
 	const shouldShowTab = (tab: Tab) => {
-		if (selectedSection === 'all') return true;
 		if (tab === selectedSection) return true;
 		if (tab.startsWith('ws_') && selectedSection.startsWith('ws_')) {
 			return tab === selectedSection;
@@ -1186,12 +1238,7 @@ export const Settings = () => {
 								<button
 									key={tab + '-' + idx}
 									onClick={() => {
-										if (tab === 'all') {
-											setSelectedSection('all');
-											window.scrollTo({ top: 0, behavior: 'smooth' });
-										} else {
-											setSelectedSection(tab);
-										}
+										setSelectedSection(tab);
 									}}
 									className={`
 										py-1.5 px-3 rounded-md text-left text-sm transition-all duration-150
@@ -1396,35 +1443,12 @@ export const Settings = () => {
 							{/* Models section (formerly FeaturesTab) */}
 							<div className={shouldShowTab('models') ? `` : 'hidden'}>
 								<ErrorBoundary>
-									<h2 className={`text-3xl mb-2`}>Models</h2>
+									<h2 className={`text-3xl mb-2`}>Models & API Connections</h2>
+									<p className="text-sm text-void-fg-3 mb-4">Add as many models as you need from each provider. Every model can have its own API key, endpoint, and connection settings. Select a model in the chat dropdown to use it.</p>
 									<ModelDump />
 									<div className='w-full h-[1px] my-4' />
 									<AutoDetectLocalModelsToggle />
 									<RefreshableModels />
-								</ErrorBoundary>
-							</div>
-
-							{/* Local Providers section */}
-							<div className={shouldShowTab('localProviders') ? `` : 'hidden'}>
-								<ErrorBoundary>
-									<h2 className={`text-3xl mb-2`}>Local Providers</h2>
-									<h3 className={`text-void-fg-3 mb-2`}>{`Void can access any model that you host locally. We automatically detect your local models by default.`}</h3>
-
-									<div className='opacity-80 mb-4'>
-										<OllamaSetupInstructions sayWeAutoDetect={true} />
-									</div>
-
-									<VoidProviderSettings providerNames={localProviderNames} />
-								</ErrorBoundary>
-							</div>
-
-							{/* Main Providers section */}
-							<div className={shouldShowTab('providers') ? `` : 'hidden'}>
-								<ErrorBoundary>
-									<h2 className={`text-3xl mb-2`}>Main Providers</h2>
-									<h3 className={`text-void-fg-3 mb-2`}>{`Void can access models from Anthropic, OpenAI, OpenRouter, and more.`}</h3>
-
-									<VoidProviderSettings providerNames={nonlocalProviderNames} />
 								</ErrorBoundary>
 							</div>
 

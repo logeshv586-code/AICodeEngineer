@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
+import { ChatMode } from '../../../../common/voidSettingsTypes.js';
 
 export interface SlashCommand {
   name: string;
@@ -11,7 +12,7 @@ export interface SlashCommand {
   description: string;
   icon?: React.ReactNode;
   category: string;
-  execute: (args: string, accessor: any) => void;
+  execute: (args: string, accessor: any) => void | Promise<void>;
 }
 
 const slashCommands: SlashCommand[] = [
@@ -114,7 +115,7 @@ const slashCommands: SlashCommand[] = [
     category: 'Chat',
     execute: (args, accessor) => {
       const chatThreadService = accessor.get('IChatThreadService');
-      chatThreadService.clearStagingSelections();
+      chatThreadService.setCurrentThreadState({ stagingSelections: [] });
     },
   },
   {
@@ -124,12 +125,35 @@ const slashCommands: SlashCommand[] = [
     category: 'Chat',
     execute: (args, accessor) => {
       const voidSettingsService = accessor.get('IVoidSettingsService');
-      const modes = ['normal', 'gather', 'agent'] as const;
+      const modes: ChatMode[] = ['normal', 'gather', 'agent'];
+      const requestedMode = args.trim().toLowerCase();
       const currentMode = voidSettingsService.state.globalSettings.chatMode || 'agent';
-      const idx = modes.indexOf(currentMode);
-      const nextMode = modes[(idx + 1) % modes.length];
-      voidSettingsService.setGlobalSetting('chatMode', nextMode);
+      const nextMode = modes.includes(requestedMode as ChatMode)
+        ? requestedMode as ChatMode
+        : modes[(modes.indexOf(currentMode) + 1) % modes.length];
+      void setChatMode(accessor, nextMode);
     },
+  },
+  {
+    name: 'chat',
+    label: 'Chat Mode',
+    description: 'Use normal chat without workspace tools',
+    category: 'Chat',
+    execute: (_args, accessor) => { void setChatMode(accessor, 'normal'); },
+  },
+  {
+    name: 'gather',
+    label: 'Gather Mode',
+    description: 'Read workspace context without editing files',
+    category: 'Chat',
+    execute: (_args, accessor) => { void setChatMode(accessor, 'gather'); },
+  },
+  {
+    name: 'agent-mode',
+    label: 'Agent Mode',
+    description: 'Use workspace tools and allow file edits',
+    category: 'Chat',
+    execute: (_args, accessor) => { void setChatMode(accessor, 'agent'); },
   },
   {
     name: 'reasoning',
@@ -143,7 +167,7 @@ const slashCommands: SlashCommand[] = [
       if (!modelSel) return;
       const { providerName, modelName } = modelSel;
       const overrides = settingsState.overridesOfModel;
-      const current = overrides?.[modelName]?.reasoningEnabled;
+      const current = overrides?.[providerName]?.[modelName]?.reasoningEnabled;
       voidSettingsService.setOptionsOfModelSelection('Chat', providerName, modelName, {
         reasoningEnabled: !current,
       });
@@ -208,8 +232,7 @@ const slashCommands: SlashCommand[] = [
       const thread = chatThreadService.getCurrentThread();
       if (!thread) return;
       const lastUserMessage = thread.messages.filter((m: any) => m.role === 'user').pop();
-      if (!lastUserMessage) return;
-      chatThreadService.generatePlan(lastUserMessage.content || '');
+      void sendAgentTask(accessor, `Create a concise implementation plan for this task before making changes. ${lastUserMessage?.content || 'the current workspace task'}`);
     },
   },
   {
@@ -264,7 +287,7 @@ const slashCommands: SlashCommand[] = [
     },
   },
   {
-    name: 'code',
+    name: 'code-mode',
     label: 'Code Mode',
     description: 'Switch to code execution mode',
     category: 'Model',
@@ -283,6 +306,12 @@ function sendAgentTask(accessor: any, prompt: string): void {
 		return;
 	}
 	void chatThreadService.addUserMessageAndStreamResponse({ userMessage: prompt.trim(), threadId });
+}
+
+async function setChatMode(accessor: any, mode: ChatMode): Promise<void> {
+	const settingsService = accessor.get('IVoidSettingsService');
+	await settingsService.setGlobalSetting('chatMode', mode);
+	accessor.get('INotificationService').info(`Chat mode: ${mode === 'normal' ? 'Chat' : mode === 'gather' ? 'Gather' : 'Agent'}`);
 }
 
 export function getSlashCommands(): SlashCommand[] {
