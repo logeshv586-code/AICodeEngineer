@@ -388,10 +388,17 @@ const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: nu
 
 	try {
 		const candidate = text.slice(start, end + 1)
-		const repairedCandidate = candidate.replace(
+		let repairedCandidate = candidate.replace(
 			/^\s*\{\s*"name_file_or_folder"\s*,\s*"args"\s*:\s*/,
 			'{"name":"create_file_or_folder","args":'
 		)
+		// A few providers produce `"uri>C:\\project"` rather than a JSON
+		// `"uri":"C:\\\\project"` pair. This is still unambiguous inside the
+		// args object, so repair it before parsing and escape Windows separators.
+		repairedCandidate = repairedCandidate.replace(/"uri\s*>\s*([^"\r\n]*)"/g, (_match, rawPath: string) => {
+			const escapedPath = rawPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+			return `"uri":"${escapedPath}"`
+		})
 		const parsed = JSON.parse(repairedCandidate) as { name?: unknown, args?: unknown, arguments?: unknown }
 		const toolName = parsed.name === 'name_file_or_folder' ? 'create_file_or_folder' : parsed.name
 		if (typeof toolName !== 'string' || !tools.some(tool => tool.name === toolName)) return null
