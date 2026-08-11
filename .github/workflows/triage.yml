@@ -10,6 +10,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check required secrets
+        id: secrets
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY is not set - skipping triage run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit
+          fi
+          if [ -z "${WIKI_TOKEN:-}" ]; then
+            echo "WIKI_TOKEN is not set - skipping triage run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
       # 1️⃣ Check out code (so the script and cache files are present)
       - name: Checkout code
         uses: actions/checkout@v3
@@ -18,22 +35,26 @@ jobs:
 
       # 2️⃣ Set up Python
       - name: Set up Python
+        if: steps.secrets.outputs.ready == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       # 3️⃣ Install dependencies
       - name: Install Python dependencies
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           pip install openai requests
 
       # 4️⃣ Clone your fork’s Wiki
       - name: Clone your fork's Wiki
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           git clone https://x-access-token:${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki
 
       # 5️⃣ (Optional) Show repo tree for debugging
       - name: Show repo tree (debug)
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           echo "PWD: $(pwd)"
           ls -al
@@ -42,6 +63,7 @@ jobs:
 
       # 6️⃣ Generate roadmap and push only if it changed
       - name: Generate roadmap directly into wiki
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           python .github/scripts/issue_triage.py > wiki/_new.md
           if ! cmp -s wiki/_new.md wiki/Issue-Categories.md ; then
