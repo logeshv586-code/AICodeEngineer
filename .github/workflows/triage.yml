@@ -50,7 +50,7 @@ jobs:
       - name: Clone your fork's Wiki
         if: steps.secrets.outputs.ready == 'true'
         run: |
-          git clone https://x-access-token:${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki
+          git clone "https://x-access-token:${{ secrets.WIKI_TOKEN }}@github.com/logeshv586-code/AICodeEngineer.wiki.git" wiki
 
       # 5️⃣ (Optional) Show repo tree for debugging
       - name: Show repo tree (debug)
