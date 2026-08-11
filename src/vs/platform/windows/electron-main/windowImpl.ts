@@ -584,6 +584,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
+				webviewTag: true,
 			});
 
 			// Create the browser window
