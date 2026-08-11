@@ -24,6 +24,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IChatThreadService } from './chatThreadService.js';
 import { VOID_VIEW_CONTAINER_ID } from './sidebarPane.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 type NativeWebview = HTMLElement & {
 	src: string;
@@ -50,6 +51,15 @@ type BrowserComponentSelection = {
 	attributes: Record<string, string>;
 	hierarchy: string[];
 	assets: string[];
+	page: {
+		title: string;
+		description: string;
+		viewport: { width: number; height: number };
+		headings: Array<{ level: number; text: string }>;
+		links: Array<{ text: string; href: string }>;
+		forms: Array<{ action: string; method: string; fields: string[] }>;
+		text: string;
+	};
 	bounds: { x: number; y: number; width: number; height: number };
 };
 
@@ -165,6 +175,15 @@ const INSPECTOR_SCRIPT = `
 			.map(asset => asset.getAttribute('src') || asset.getAttribute('href') || (typeof asset.currentSrc === 'string' ? asset.currentSrc : '') || (typeof asset.src === 'string' ? asset.src : ''))
 			.filter(Boolean)
 			.slice(0, 20);
+		const page = {
+			title: document.title || '',
+			description: document.querySelector('meta[name="description"]')?.getAttribute('content') || '',
+			viewport: { width: window.innerWidth, height: window.innerHeight },
+			headings: Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 30).map(heading => ({ level: Number(heading.tagName.slice(1)), text: (heading.innerText || heading.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 240) })).filter(heading => heading.text),
+			links: Array.from(document.links).slice(0, 50).map(link => ({ text: (link.innerText || link.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 160), href: link.href })).filter(link => link.href),
+			forms: Array.from(document.forms).slice(0, 10).map(form => ({ action: form.action || '', method: form.method || 'get', fields: Array.from(form.elements).slice(0, 30).map(field => field.name || field.id || field.type || field.tagName.toLowerCase()) })),
+			text: (document.body?.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 12000)
+		};
 		const result = {
 			name: componentName(element),
 			tagName: element.tagName.toLowerCase(),
@@ -178,6 +197,7 @@ const INSPECTOR_SCRIPT = `
 			attributes,
 			hierarchy,
 			assets,
+			page,
 			bounds: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
 		};
 		// executeJavaScript crosses an Electron IPC boundary: return only cloneable JSON primitives.
@@ -305,6 +325,8 @@ export class NativeBrowserInput extends EditorInput {
 
 class NativeBrowserPane extends EditorPane {
 	static readonly ID = 'workbench.pane.forgeNativeBrowser';
+	private toolbar!: HTMLElement;
+	private browserLayout!: HTMLElement;
 	private inputBox!: HTMLInputElement;
 	private webview!: NativeWebview;
 	private inspectButton!: HTMLButtonElement;
@@ -316,11 +338,15 @@ class NativeBrowserPane extends EditorPane {
 	private htmlPreview!: HTMLTextAreaElement;
 	private cssPreview!: HTMLTextAreaElement;
 	private addToChatButton!: HTMLButtonElement;
+	private scrapePageButton!: HTMLButtonElement;
+	private collectionLabel!: HTMLElement;
 	private inspectorTabs!: Record<'design' | 'css' | 'dom', { button: HTMLButtonElement; panel: HTMLElement }>;
 	private isWebviewReady = false;
 	private isInspecting = false;
 	private selectionPollVersion = 0;
 	private selectedComponent: BrowserComponentSelection | undefined;
+	private readonly addedComponentKeys = new Set<string>();
+	private addedComponentCount = 0;
 
 	constructor(
 		group: IEditorGroup,
@@ -330,13 +356,15 @@ class NativeBrowserPane extends EditorPane {
 		@IChatThreadService private readonly chatThreadService: IChatThreadService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(NativeBrowserPane.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		parent.style.cssText = 'height:100%;width:100%;display:flex;flex-direction:column;overflow:hidden;background:var(--vscode-editor-background);';
+		parent.style.cssText = 'height:100%;width:100%;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;background:var(--vscode-editor-background);box-sizing:border-box;';
 		const toolbar = document.createElement('form');
+		this.toolbar = toolbar;
 		toolbar.style.cssText = 'display:flex;align-items:center;gap:6px;padding:8px;border-bottom:1px solid var(--vscode-panel-border);flex:none;';
 		const button = (text: string, title: string) => {
 			const element = document.createElement('button');
@@ -357,21 +385,22 @@ class NativeBrowserPane extends EditorPane {
 		go.type = 'submit';
 		this.inspectButton = button('Select', nls.localize('nativeBrowserSelect', 'Select any component from the page (Escape to cancel)'));
 		const devTools = button('DevTools', nls.localize('nativeBrowserDevTools', 'Open browser DevTools'));
-		toolbar.append(back, forward, reload, this.inputBox, go, this.inspectButton, devTools);
+		const fullscreenBtn = button('⛶', nls.localize('nativeBrowserFullscreen', 'Toggle Fullscreen'));
+		toolbar.append(back, forward, reload, this.inputBox, go, this.inspectButton, devTools, fullscreenBtn);
 		parent.appendChild(toolbar);
 
-		const browserLayout = document.createElement('div');
-		browserLayout.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) auto;flex:1;min-height:0;overflow:hidden;';
-		parent.appendChild(browserLayout);
+		this.browserLayout = document.createElement('div');
+		this.browserLayout.style.cssText = 'display:flex;flex:1;min-height:0;min-width:0;overflow:hidden;';
+		parent.appendChild(this.browserLayout);
 
 		this.webview = document.createElement('webview') as NativeWebview;
 		this.webview.setAttribute('partition', 'persist:forge-browser');
 		this.webview.setAttribute('webpreferences', 'contextIsolation=yes, sandbox=yes, nodeIntegration=no');
 		this.webview.setAttribute('allowpopups', '');
-		this.webview.style.cssText = 'grid-column:1;display:block;min-width:0;width:100%;height:100%;border:0;background:white;';
-		browserLayout.appendChild(this.webview);
+		this.webview.style.cssText = 'flex:1;min-width:0;min-height:0;width:100%;height:100%;border:0;background:white;display:flex;';
+		this.browserLayout.appendChild(this.webview);
 
-		this.createInspectorPanel(browserLayout);
+		this.createInspectorPanel(this.browserLayout);
 
 		const navigate = () => {
 			const url = normalizeBrowserUrl(this.inputBox.value);
@@ -389,11 +418,14 @@ class NativeBrowserPane extends EditorPane {
 		this._register(addDisposableListener(this.webview, 'dom-ready', () => this.isWebviewReady = true));
 		this._register(addDisposableListener(this.webview, 'did-navigate', () => this.onNavigate()));
 		this._register(addDisposableListener(this.webview, 'did-navigate-in-page', () => this.inputBox.value = this.webview.getURL()));
+		this._register(addDisposableListener(fullscreenBtn, EventType.CLICK, () => {
+			this.commandService.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+		}));
 	}
 
 	private createInspectorPanel(parent: HTMLElement): void {
 		this.inspectorPanel = document.createElement('section');
-		this.inspectorPanel.style.cssText = 'grid-column:2;display:none;flex:0 0 380px;min-width:300px;height:100%;border-left:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);color:var(--vscode-sideBar-foreground);overflow:hidden;flex-direction:column;';
+		this.inspectorPanel.style.cssText = 'display:none;flex:0 0 380px;min-width:300px;height:100%;border-left:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);color:var(--vscode-sideBar-foreground);overflow:hidden;flex-direction:column;';
 
 		const header = document.createElement('div');
 		header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--vscode-panel-border);';
@@ -402,12 +434,61 @@ class NativeBrowserPane extends EditorPane {
 		this.inspectorTitle.style.cssText = 'font-size:12px;';
 		this.inspectorMeta = document.createElement('span');
 		this.inspectorMeta.style.cssText = 'min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground);font-size:12px;';
+		const addToChatContainer = document.createElement('div');
+		addToChatContainer.style.cssText = 'position:relative;display:flex;align-items:center;';
+
 		this.addToChatButton = document.createElement('button');
 		this.addToChatButton.type = 'button';
-		this.addToChatButton.textContent = nls.localize('nativeBrowserAddToChat', 'Add to Chat');
+		this.addToChatButton.textContent = nls.localize('nativeBrowserAddToChat', 'Add to Chat ▾');
 		this.addToChatButton.title = nls.localize('nativeBrowserAddToChatTitle', 'Add this reusable component to the Forge AI chat bar');
 		this.addToChatButton.style.cssText = 'background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:0;border-radius:3px;padding:5px 10px;cursor:pointer;';
-		header.append(this.inspectorTitle, this.inspectorMeta, this.addToChatButton);
+
+		const dropdownMenu = document.createElement('div');
+		dropdownMenu.style.cssText = 'display:none;position:absolute;right:0;top:100%;margin-top:4px;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);border-radius:3px;box-shadow:0 2px 8px var(--vscode-widget-shadow);z-index:100;min-width:160px;padding:4px 0;font-size:12px;';
+
+		const createMenuItem = (label: string, onClick: () => void) => {
+			const item = document.createElement('div');
+			item.textContent = label;
+			item.style.cssText = 'padding:6px 12px;cursor:pointer;color:var(--vscode-dropdown-foreground);';
+			item.onmouseenter = () => { item.style.background = 'var(--vscode-list-activeSelectionBackground)'; item.style.color = 'var(--vscode-list-activeSelectionForeground)'; };
+			item.onmouseleave = () => { item.style.background = 'transparent'; item.style.color = 'var(--vscode-dropdown-foreground)'; };
+			this._register(addDisposableListener(item, EventType.CLICK, () => {
+				dropdownMenu.style.display = 'none';
+				onClick();
+			}));
+			return item;
+		};
+
+		dropdownMenu.append(
+			createMenuItem('Component Info', () => this.addSpecificContext('info')),
+			createMenuItem('HTML', () => this.addSpecificContext('html')),
+			createMenuItem('CSS', () => this.addSpecificContext('css')),
+			createMenuItem('Page Context', () => this.addSpecificContext('page')),
+			createMenuItem('Full Component', () => this.addSpecificContext('full'))
+		);
+
+		this._register(addDisposableListener(this.addToChatButton, EventType.CLICK, (e) => {
+			e.stopPropagation();
+			dropdownMenu.style.display = dropdownMenu.style.display === 'none' ? 'block' : 'none';
+		}));
+		this._register(addDisposableListener(document, EventType.CLICK, () => {
+			dropdownMenu.style.display = 'none';
+		}));
+
+		addToChatContainer.append(this.addToChatButton, dropdownMenu);
+		header.append(this.inspectorTitle, this.inspectorMeta, addToChatContainer);
+
+		const actions = document.createElement('div');
+		actions.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border);';
+		this.collectionLabel = document.createElement('span');
+		this.collectionLabel.textContent = nls.localize('nativeBrowserCollectionEmpty', 'No components added to chat');
+		this.collectionLabel.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground);font-size:12px;';
+		this.scrapePageButton = document.createElement('button');
+		this.scrapePageButton.type = 'button';
+		this.scrapePageButton.textContent = nls.localize('nativeBrowserScrapePage', 'Scrape Page');
+		this.scrapePageButton.title = nls.localize('nativeBrowserScrapePageTitle', 'Use the local Crawl4AI service to add clean page content to Forge AI');
+		this.scrapePageButton.style.cssText = 'background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:0;border-radius:3px;padding:5px 8px;cursor:pointer;';
+		actions.append(this.collectionLabel, this.scrapePageButton);
 
 		this.hierarchyPreview = document.createElement('div');
 		this.hierarchyPreview.setAttribute('aria-label', nls.localize('nativeBrowserHierarchy', 'Component hierarchy'));
@@ -442,10 +523,10 @@ class NativeBrowserPane extends EditorPane {
 		this.inspectorTabs.design.panel.appendChild(this.designPreview);
 		this.inspectorTabs.css.panel.appendChild(this.cssPreview);
 		this.inspectorTabs.dom.panel.appendChild(this.htmlPreview);
-		this.inspectorPanel.append(header, this.hierarchyPreview, tabs, details);
+		this.inspectorPanel.append(header, actions, this.hierarchyPreview, tabs, details);
 		parent.appendChild(this.inspectorPanel);
 
-		this._register(addDisposableListener(this.addToChatButton, EventType.CLICK, () => this.addSelectionToChat()));
+		this._register(addDisposableListener(this.scrapePageButton, EventType.CLICK, () => this.scrapePageToChat()));
 	}
 
 	private showInspectorTab(activeTab: 'design' | 'css' | 'dom'): void {
@@ -506,6 +587,9 @@ class NativeBrowserPane extends EditorPane {
 		this.isInspecting = false;
 		this.selectedComponent = undefined;
 		this.inspectorPanel.style.display = 'none';
+		this.addedComponentKeys.clear();
+		this.addedComponentCount = 0;
+		this.updateCollectionLabel();
 		this.updateInspectButton();
 	}
 
@@ -585,39 +669,147 @@ class NativeBrowserPane extends EditorPane {
 		void this.webview.executeJavaScript(selectionOverlayScript(selection.selector, selection.name));
 	}
 
-	private async addSelectionToChat(): Promise<void> {
+	private async addSpecificContext(type: 'info' | 'html' | 'css' | 'page' | 'full'): Promise<void> {
 		if (!this.selectedComponent) {
 			return;
 		}
 		const selection = this.selectedComponent;
-		const userMessage = [
-			'I selected a component in the Forge browser. Recreate this design as reusable frontend code that I can integrate into my site. Keep the styling faithful, clean, and responsive.',
-			'',
-			`Page: ${selection.url}`,
-			`Selector: ${selection.selector}`,
-			`Element: <${selection.tagName}${selection.id ? ` id="${selection.id}"` : ''}${selection.className ? ` class="${selection.className}"` : ''}>`,
-			`Component: ${selection.name}`,
-			`Hierarchy: ${selection.hierarchy.join(' > ')}`,
-			`Attributes: ${JSON.stringify(selection.attributes)}`,
-			selection.assets.length ? `Assets: ${selection.assets.join(', ')}` : '',
-			`Bounds: ${selection.bounds.width}x${selection.bounds.height} at (${selection.bounds.x}, ${selection.bounds.y})`,
-			selection.text ? `Text: ${selection.text}` : '',
-			'',
-			'HTML:',
-			'```html',
-			selection.html,
-			'```',
-			'',
-			'CSS:',
-			'```css',
-			selection.css,
-			'```',
-		].filter(Boolean).join('\n');
+		const componentKey = `${selection.url}\n${selection.selector}\n${type}`;
+		if (this.addedComponentKeys.has(componentKey)) {
+			this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAlreadyAdded', 'This component part is already in the Forge AI chat collection.') });
+			return;
+		}
+		this.addedComponentKeys.add(componentKey);
+		this.addedComponentCount++;
+		this.updateCollectionLabel();
+
+		let userMessageParts: string[] = [];
+		const baseHeader = `BROWSER DESIGN COLLECTION — component ${this.addedComponentCount} (${type}).`;
+
+		if (type === 'info' || type === 'full') {
+			userMessageParts = userMessageParts.concat([
+				baseHeader,
+				'The user is collecting webpage components for one implementation. Preserve the visual intent, identify shared layout and style patterns, remove website-specific dependencies, and adapt the result to the current workspace and its framework. Wait for the user’s implementation request before making changes.',
+				'',
+				`Page: ${selection.url}`,
+				`Selector: ${selection.selector}`,
+				`Element: <${selection.tagName}${selection.id ? ` id="${selection.id}"` : ''}${selection.className ? ` class="${selection.className}"` : ''}>`,
+				`Component: ${selection.name}`,
+				`Hierarchy: ${selection.hierarchy.join(' > ')}`,
+				`Attributes: ${JSON.stringify(selection.attributes)}`,
+				selection.assets.length ? `Assets: ${selection.assets.join(', ')}` : '',
+				`Bounds: ${selection.bounds.width}x${selection.bounds.height} at (${selection.bounds.x}, ${selection.bounds.y})`,
+				selection.text ? `Text: ${selection.text}` : ''
+			]);
+		}
+		
+		if (type === 'page' || type === 'full') {
+			userMessageParts = userMessageParts.concat([
+				type === 'full' ? '' : baseHeader,
+				'LIVE PAGE SCRAPE:',
+				`Title: ${selection.page.title}`,
+				selection.page.description ? `Description: ${selection.page.description}` : '',
+				`Viewport: ${selection.page.viewport.width}x${selection.page.viewport.height}`,
+				selection.page.headings.length ? `Headings: ${selection.page.headings.map(heading => `H${heading.level} ${heading.text}`).join(' | ')}` : '',
+				selection.page.links.length ? `Links: ${selection.page.links.map(link => `${link.text || '(untitled)'} (${link.href})`).join(' | ')}` : '',
+				selection.page.forms.length ? `Forms: ${selection.page.forms.map(form => `${form.method.toUpperCase()} ${form.action} [${form.fields.join(', ')}]`).join(' | ')}` : '',
+				selection.page.text ? `Page text: ${selection.page.text}` : ''
+			]);
+		}
+
+		if (type === 'html' || type === 'full') {
+			userMessageParts = userMessageParts.concat([
+				type === 'full' ? '' : baseHeader,
+				'HTML:',
+				'```html',
+				selection.html,
+				'```'
+			]);
+		}
+
+		if (type === 'css' || type === 'full') {
+			userMessageParts = userMessageParts.concat([
+				type === 'full' ? '' : baseHeader,
+				'CSS:',
+				'```css',
+				selection.css,
+				'```'
+			]);
+		}
+
+		const userMessage = userMessageParts.filter(Boolean).join('\n');
 
 		await this.viewsService.openViewContainer(VOID_VIEW_CONTAINER_ID);
 		await this.chatThreadService.focusCurrentChat();
-		window.dispatchEvent(new CustomEvent('forge:add-context', { detail: { kind: `Browser component: ${selection.name}`, content: userMessage } }));
-		this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAddedToChat', 'Component added to the Forge AI chat bar.') });
+		window.dispatchEvent(new CustomEvent('forge:add-context', { detail: { kind: `Browser component: ${selection.name} (${type})`, content: userMessage } }));
+		this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAddedToChat', `Component ${type} added to the Forge AI chat collection.`) });
+	}
+
+	private updateCollectionLabel(): void {
+		if (!this.collectionLabel) {
+			return;
+		}
+		this.collectionLabel.textContent = this.addedComponentCount === 0
+			? nls.localize('nativeBrowserCollectionEmpty', 'No components added to chat')
+			: nls.localize('nativeBrowserCollectionCount', '{0} component(s) added to chat', this.addedComponentCount);
+	}
+
+	private async scrapePageToChat(): Promise<void> {
+		if (!this.isWebviewReady) {
+			return;
+		}
+		const url = this.webview.getURL();
+		if (!url) {
+			return;
+		}
+		this.scrapePageButton.disabled = true;
+		this.scrapePageButton.textContent = nls.localize('nativeBrowserScraping', 'Scraping…');
+		try {
+			// Crawl4AI exposes this loopback API when run with its official Docker image.
+			const response = await fetch('http://127.0.0.1:11235/crawl', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ urls: [url], priority: 10 })
+			});
+			if (!response.ok) {
+				throw new Error(`Crawl4AI returned ${response.status}.`);
+			}
+			let payload = await response.json() as { results?: unknown[]; task_id?: string };
+			for (let attempt = 0; !payload.results && payload.task_id && attempt < 60; attempt++) {
+				await new Promise<void>(resolve => setTimeout(resolve, 500));
+				const taskResponse = await fetch(`http://127.0.0.1:11235/task/${encodeURIComponent(payload.task_id)}`);
+				if (!taskResponse.ok) {
+					throw new Error(`Crawl4AI task returned ${taskResponse.status}.`);
+				}
+				payload = await taskResponse.json() as { results?: unknown[]; task_id?: string };
+			}
+			const result = payload.results?.[0] as { markdown?: { fit_markdown?: string; raw_markdown?: string } | string; metadata?: unknown; links?: unknown; cleaned_html?: string } | undefined;
+			const markdown = typeof result?.markdown === 'string' ? result.markdown : result?.markdown?.fit_markdown || result?.markdown?.raw_markdown || result?.cleaned_html || '';
+			if (!markdown) {
+				throw new Error('Crawl4AI returned no page content.');
+			}
+			const content = [
+				'CRAWL4AI PAGE RESEARCH',
+				`URL: ${url}`,
+				'Use this research as supporting context for the user’s request. Prefer the selected browser components when recreating UI.',
+				'',
+				'```markdown',
+				markdown.slice(0, 30000),
+				'```',
+				result?.metadata ? `Metadata: ${JSON.stringify(result.metadata)}` : '',
+				result?.links ? `Links: ${JSON.stringify(result.links)}` : '',
+			].filter(Boolean).join('\n');
+			await this.viewsService.openViewContainer(VOID_VIEW_CONTAINER_ID);
+			await this.chatThreadService.focusCurrentChat();
+			window.dispatchEvent(new CustomEvent('forge:add-context', { detail: { kind: 'Crawl4AI page research', content } }));
+			this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserScraped', 'Crawl4AI page research added to the Forge AI chat bar.') });
+		} catch (error) {
+			this.notificationService.notify({ severity: Severity.Error, message: nls.localize('nativeBrowserScrapeFailed', 'Crawl4AI could not reach its local server at http://127.0.0.1:11235. Start the Crawl4AI service, then try again.') });
+			console.error('[Forge Browser] Crawl4AI scrape failed', error);
+		} finally {
+			this.scrapePageButton.disabled = false;
+			this.scrapePageButton.textContent = nls.localize('nativeBrowserScrapePage', 'Scrape Page');
+		}
 	}
 
 	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -631,7 +823,11 @@ class NativeBrowserPane extends EditorPane {
 		}
 	}
 
-	override layout(_dimension: Dimension): void { }
+	override layout(dimension: Dimension): void {
+		if (this.browserLayout && this.toolbar) {
+			this.browserLayout.style.height = `${Math.max(0, dimension.height - this.toolbar.offsetHeight)}px`;
+		}
+	}
 	override get minimumWidth(): number { return 500; }
 }
 
