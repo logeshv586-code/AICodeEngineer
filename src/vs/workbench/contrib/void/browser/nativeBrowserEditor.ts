@@ -331,6 +331,7 @@ class NativeBrowserPane extends EditorPane {
 	private webview!: NativeWebview;
 	private inspectButton!: HTMLButtonElement;
 	private inspectorPanel!: HTMLElement;
+	private collapseButton!: HTMLButtonElement;
 	private inspectorTitle!: HTMLElement;
 	private inspectorMeta!: HTMLElement;
 	private hierarchyPreview!: HTMLElement;
@@ -425,7 +426,44 @@ class NativeBrowserPane extends EditorPane {
 
 	private createInspectorPanel(parent: HTMLElement): void {
 		this.inspectorPanel = document.createElement('section');
-		this.inspectorPanel.style.cssText = 'display:none;flex:0 0 380px;min-width:300px;height:100%;border-left:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);color:var(--vscode-sideBar-foreground);overflow:hidden;flex-direction:column;';
+		this.inspectorPanel.style.cssText = 'display:none;position:relative;flex:0 0 380px;min-width:300px;max-width:80%;height:100%;border-left:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);color:var(--vscode-sideBar-foreground);overflow:hidden;flex-direction:column;';
+
+		const resizer = document.createElement('div');
+		resizer.style.cssText = 'position:absolute;left:-2px;top:0;bottom:0;width:5px;cursor:ew-resize;z-index:100;background:transparent;';
+		let isResizing = false;
+		let startX = 0;
+		let startWidth = 0;
+
+		const onMouseMove = (e: MouseEvent) => {
+			if (!isResizing) return;
+			const delta = startX - e.clientX;
+			const newWidth = Math.max(200, startWidth + delta);
+			this.inspectorPanel.style.flex = `0 0 ${newWidth}px`;
+		};
+		const onMouseUp = () => {
+			if (isResizing) {
+				isResizing = false;
+				document.removeEventListener('mousemove', onMouseMove);
+				document.removeEventListener('mouseup', onMouseUp);
+				document.body.style.cursor = '';
+			}
+		};
+		this._register(addDisposableListener(resizer, EventType.MOUSE_DOWN, (e) => {
+			isResizing = true;
+			startX = e.clientX;
+			startWidth = this.inspectorPanel.getBoundingClientRect().width;
+			document.addEventListener('mousemove', onMouseMove);
+			document.addEventListener('mouseup', onMouseUp);
+			document.body.style.cursor = 'ew-resize';
+			e.preventDefault();
+		}));
+		this.inspectorPanel.appendChild(resizer);
+
+		this.collapseButton = document.createElement('button');
+		this.collapseButton.type = 'button';
+		this.collapseButton.textContent = '▼';
+		this.collapseButton.title = nls.localize('nativeBrowserCollapse', 'Toggle Inspector Panel');
+		this.collapseButton.style.cssText = 'background:none;border:none;color:var(--vscode-icon-foreground);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;';
 
 		const header = document.createElement('div');
 		header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--vscode-panel-border);';
@@ -434,8 +472,6 @@ class NativeBrowserPane extends EditorPane {
 		this.inspectorTitle.style.cssText = 'font-size:12px;';
 		this.inspectorMeta = document.createElement('span');
 		this.inspectorMeta.style.cssText = 'min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground);font-size:12px;';
-		const addToChatContainer = document.createElement('div');
-		addToChatContainer.style.cssText = 'position:relative;display:flex;align-items:center;';
 
 		this.addToChatButton = document.createElement('button');
 		this.addToChatButton.type = 'button';
@@ -443,40 +479,36 @@ class NativeBrowserPane extends EditorPane {
 		this.addToChatButton.title = nls.localize('nativeBrowserAddToChatTitle', 'Add this reusable component to the Forge AI chat bar');
 		this.addToChatButton.style.cssText = 'background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:0;border-radius:3px;padding:5px 10px;cursor:pointer;';
 
-		const dropdownMenu = document.createElement('div');
-		dropdownMenu.style.cssText = 'display:none;position:absolute;right:0;top:100%;margin-top:4px;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);border-radius:3px;box-shadow:0 2px 8px var(--vscode-widget-shadow);z-index:100;min-width:160px;padding:4px 0;font-size:12px;';
-
+		const addMenu = document.createElement('div');
+		addMenu.style.cssText = 'display:none;position:absolute;right:8px;top:40px;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:100;flex-direction:column;';
 		const createMenuItem = (label: string, onClick: () => void) => {
-			const item = document.createElement('div');
+			const item = document.createElement('button');
+			item.type = 'button';
 			item.textContent = label;
-			item.style.cssText = 'padding:6px 12px;cursor:pointer;color:var(--vscode-dropdown-foreground);';
-			item.onmouseenter = () => { item.style.background = 'var(--vscode-list-activeSelectionBackground)'; item.style.color = 'var(--vscode-list-activeSelectionForeground)'; };
-			item.onmouseleave = () => { item.style.background = 'transparent'; item.style.color = 'var(--vscode-dropdown-foreground)'; };
+			item.style.cssText = 'background:none;border:none;color:var(--vscode-dropdown-foreground);padding:6px 12px;text-align:left;cursor:pointer;white-space:nowrap;';
+			item.onmouseover = () => item.style.background = 'var(--vscode-list-activeSelectionBackground)';
+			item.onmouseout = () => item.style.background = 'none';
 			this._register(addDisposableListener(item, EventType.CLICK, () => {
-				dropdownMenu.style.display = 'none';
+				addMenu.style.display = 'none';
 				onClick();
 			}));
 			return item;
 		};
-
-		dropdownMenu.append(
-			createMenuItem('Component Info', () => this.addSpecificContext('info')),
-			createMenuItem('HTML', () => this.addSpecificContext('html')),
-			createMenuItem('CSS', () => this.addSpecificContext('css')),
-			createMenuItem('Page Context', () => this.addSpecificContext('page')),
-			createMenuItem('Full Component', () => this.addSpecificContext('full'))
+		addMenu.append(
+			createMenuItem('Page Content', () => this.addSelectionToChat('page')),
+			createMenuItem('Full Component', () => this.addSelectionToChat('full'))
 		);
+		header.append(this.collapseButton, this.inspectorTitle, this.inspectorMeta, this.addToChatButton, addMenu);
 
 		this._register(addDisposableListener(this.addToChatButton, EventType.CLICK, (e) => {
+			addMenu.style.display = addMenu.style.display === 'none' ? 'flex' : 'none';
 			e.stopPropagation();
-			dropdownMenu.style.display = dropdownMenu.style.display === 'none' ? 'block' : 'none';
 		}));
-		this._register(addDisposableListener(document, EventType.CLICK, () => {
-			dropdownMenu.style.display = 'none';
+		this._register(addDisposableListener(document, EventType.CLICK, (e) => {
+			if (e.target !== this.addToChatButton) {
+				addMenu.style.display = 'none';
+			}
 		}));
-
-		addToChatContainer.append(this.addToChatButton, dropdownMenu);
-		header.append(this.inspectorTitle, this.inspectorMeta, addToChatContainer);
 
 		const actions = document.createElement('div');
 		actions.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border);';
@@ -523,9 +555,19 @@ class NativeBrowserPane extends EditorPane {
 		this.inspectorTabs.design.panel.appendChild(this.designPreview);
 		this.inspectorTabs.css.panel.appendChild(this.cssPreview);
 		this.inspectorTabs.dom.panel.appendChild(this.htmlPreview);
-		this.inspectorPanel.append(header, actions, this.hierarchyPreview, tabs, details);
+		
+		const panelBody = document.createElement('div');
+		panelBody.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;';
+		panelBody.append(actions, this.hierarchyPreview, tabs, details);
+		
+		this.inspectorPanel.append(header, panelBody);
 		parent.appendChild(this.inspectorPanel);
 
+		this._register(addDisposableListener(this.collapseButton, EventType.CLICK, () => {
+			const isCollapsed = panelBody.style.display === 'none';
+			panelBody.style.display = isCollapsed ? 'flex' : 'none';
+			this.collapseButton.textContent = isCollapsed ? '▼' : '▶';
+		}));
 		this._register(addDisposableListener(this.scrapePageButton, EventType.CLICK, () => this.scrapePageToChat()));
 	}
 
@@ -669,80 +711,53 @@ class NativeBrowserPane extends EditorPane {
 		void this.webview.executeJavaScript(selectionOverlayScript(selection.selector, selection.name));
 	}
 
-	private async addSpecificContext(type: 'info' | 'html' | 'css' | 'page' | 'full'): Promise<void> {
-		if (!this.selectedComponent) {
-			return;
-		}
+	private addSelectionToChat(mode: 'page' | 'full' = 'full'): void {
 		const selection = this.selectedComponent;
-		const componentKey = `${selection.url}\n${selection.selector}\n${type}`;
-		if (this.addedComponentKeys.has(componentKey)) {
-			this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAlreadyAdded', 'This component part is already in the Forge AI chat collection.') });
+		if (!selection) {
 			return;
 		}
-		this.addedComponentKeys.add(componentKey);
+
 		this.addedComponentCount++;
 		this.updateCollectionLabel();
 
-		let userMessageParts: string[] = [];
-		const baseHeader = `BROWSER DESIGN COLLECTION — component ${this.addedComponentCount} (${type}).`;
-
-		if (type === 'info' || type === 'full') {
-			userMessageParts = userMessageParts.concat([
-				baseHeader,
-				'The user is collecting webpage components for one implementation. Preserve the visual intent, identify shared layout and style patterns, remove website-specific dependencies, and adapt the result to the current workspace and its framework. Wait for the user’s implementation request before making changes.',
-				'',
+		let userMessage: string[] = [];
+		if (mode === 'page') {
+			userMessage = [
+				`[Browser Page Content: ${selection.page.title}]`,
+				selection.page.description ? `Description: ${selection.page.description}` : '',
+				selection.page.headings.length ? `Headings: ${selection.page.headings.map(heading => `H${heading.level} ${heading.text}`).join(' | ')}` : '',
+				selection.page.text ? `Page text: ${selection.page.text}` : ''
+			];
+		} else {
+			userMessage = [
+				`[Browser Component: ${selection.name}]`,
 				`Page: ${selection.url}`,
 				`Selector: ${selection.selector}`,
 				`Element: <${selection.tagName}${selection.id ? ` id="${selection.id}"` : ''}${selection.className ? ` class="${selection.className}"` : ''}>`,
-				`Component: ${selection.name}`,
 				`Hierarchy: ${selection.hierarchy.join(' > ')}`,
 				`Attributes: ${JSON.stringify(selection.attributes)}`,
 				selection.assets.length ? `Assets: ${selection.assets.join(', ')}` : '',
-				`Bounds: ${selection.bounds.width}x${selection.bounds.height} at (${selection.bounds.x}, ${selection.bounds.y})`,
-				selection.text ? `Text: ${selection.text}` : ''
-			]);
-		}
-		
-		if (type === 'page' || type === 'full') {
-			userMessageParts = userMessageParts.concat([
-				type === 'full' ? '' : baseHeader,
-				'LIVE PAGE SCRAPE:',
-				`Title: ${selection.page.title}`,
-				selection.page.description ? `Description: ${selection.page.description}` : '',
-				`Viewport: ${selection.page.viewport.width}x${selection.page.viewport.height}`,
-				selection.page.headings.length ? `Headings: ${selection.page.headings.map(heading => `H${heading.level} ${heading.text}`).join(' | ')}` : '',
-				selection.page.links.length ? `Links: ${selection.page.links.map(link => `${link.text || '(untitled)'} (${link.href})`).join(' | ')}` : '',
-				selection.page.forms.length ? `Forms: ${selection.page.forms.map(form => `${form.method.toUpperCase()} ${form.action} [${form.fields.join(', ')}]`).join(' | ')}` : '',
-				selection.page.text ? `Page text: ${selection.page.text}` : ''
-			]);
-		}
-
-		if (type === 'html' || type === 'full') {
-			userMessageParts = userMessageParts.concat([
-				type === 'full' ? '' : baseHeader,
+				`Bounds: ${selection.bounds.width}x${selection.bounds.height}`,
+				selection.text ? `Text: ${selection.text}` : '',
+				'',
 				'HTML:',
 				'```html',
 				selection.html,
-				'```'
-			]);
-		}
-
-		if (type === 'css' || type === 'full') {
-			userMessageParts = userMessageParts.concat([
-				type === 'full' ? '' : baseHeader,
+				'```',
+				'',
 				'CSS:',
 				'```css',
 				selection.css,
 				'```'
-			]);
+			];
 		}
 
-		const userMessage = userMessageParts.filter(Boolean).join('\n');
-
-		await this.viewsService.openViewContainer(VOID_VIEW_CONTAINER_ID);
-		await this.chatThreadService.focusCurrentChat();
-		window.dispatchEvent(new CustomEvent('forge:add-context', { detail: { kind: `Browser component: ${selection.name} (${type})`, content: userMessage } }));
-		this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAddedToChat', `Component ${type} added to the Forge AI chat collection.`) });
+		const event = new CustomEvent('forge:add-context', {
+			detail: { content: userMessage.filter(Boolean).join('\n') }
+		});
+		window.dispatchEvent(event);
+		
+		this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAdded', 'Component added to chat.') });
 	}
 
 	private updateCollectionLabel(): void {
