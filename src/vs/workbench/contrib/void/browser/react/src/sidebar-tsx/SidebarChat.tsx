@@ -23,7 +23,7 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { SlashCommandContext } from '../workspace-tsx/utils/slashCommandRouter';
 import { WarningBox } from '../void-settings-tsx/WarningBox.tsx';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
-import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Bot, Sparkles, Mic, Image as ImageIcon, Hash, AtSign, ThumbsUp, ThumbsDown, GitFork, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Bot, Sparkles, Mic, Image as ImageIcon, Hash, AtSign, ThumbsUp, ThumbsDown, GitFork, CheckCircle2, AppWindow } from 'lucide-react';
 import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage } from '../../../../common/chatThreadServiceTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, ToolName, LintErrorItem, ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.tsx';
@@ -804,7 +804,8 @@ export const SelectedFiles = (
 						: selection.type === 'Folder' ? Folder
 							: selection.type === 'CodeSelection' ? Text
 								: selection.type === 'Image' ? ImageIcon
-									: File
+									: selection.type === 'BrowserComponent' ? AppWindow
+										: File
 				)
 
 				return <div // container for summarybox and code
@@ -865,7 +866,8 @@ export const SelectedFiles = (
 							{<SelectionIcon size={10} />}
 
 							{ // file name and range
-								getBasename(selection.uri.fsPath)
+								selection.type === 'BrowserComponent' ? selection.title
+								: getBasename(selection.uri.fsPath)
 								+ (selection.type === 'CodeSelection' ? ` (${selection.range[0]}-${selection.range[1]})` : '')
 							}
 
@@ -3206,9 +3208,19 @@ export const SidebarChat = () => {
 			setInstructionsAreEmpty(false);
 			textAreaFnsRef.current?.focus();
 		};
+		const handleAddStagingSelection = (event: Event) => {
+			const detail = (event as CustomEvent<any>).detail;
+			if (detail && detail.type === 'BrowserComponent') {
+				chatThreadsService.addNewStagingSelection(detail);
+			}
+		};
 		window.addEventListener('forge:add-context', handleForgeContext);
-		return () => window.removeEventListener('forge:add-context', handleForgeContext);
-	}, [draftText])
+		window.addEventListener('forge:add-staging-selection', handleAddStagingSelection);
+		return () => {
+			window.removeEventListener('forge:add-context', handleForgeContext);
+			window.removeEventListener('forge:add-staging-selection', handleAddStagingSelection);
+		};
+	}, [draftText, chatThreadsService])
 
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 

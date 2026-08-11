@@ -169,7 +169,6 @@ const _validatedModelState = (state: Omit<VoidSettingsState, '_modelOptions'>): 
 	let newModelOptions: ModelOption[] = []
 	for (const providerName of providerNames) {
 		const providerTitle = providerName // displayInfoOfProviderName(providerName).title.toLowerCase() // looks better lowercase, best practice to not use raw providerName
-		if (!newSettingsOfProvider[providerName]._didFillInProviderSettings) continue // if disabled, don't display model options
 		for (const model of newSettingsOfProvider[providerName].models) {
 			const { modelName, isHidden } = model
 			if (isHidden) continue

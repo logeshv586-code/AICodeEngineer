@@ -622,6 +622,9 @@ export const messageOfSelection = async (
 		const contentStr = [folderStructure, ...strOfFiles].join('\n\n')
 		return contentStr
 	}
+	else if (s.type === 'BrowserComponent') {
+		return `[${s.title}]\nURL: ${s.uri.toString()}\n${tripleTick[0]}markdown\n${s.content}\n${tripleTick[1]}`
+	}
 	else
 		return ''
 

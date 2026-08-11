@@ -103,6 +103,13 @@ export type StagingSelectionItem = {
 	mimeType?: string;
 	language?: undefined;
 	state?: undefined;
+} | {
+	type: 'BrowserComponent';
+	title: string;
+	content: string;
+	uri: URI;
+	language?: undefined;
+	state?: undefined;
 }
 
 
