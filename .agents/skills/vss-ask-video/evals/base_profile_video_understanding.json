@@ -22,7 +22,7 @@
       ]
     },
     {
-      "query": "Check if the warehouse_safety_0001 video is already uploaded on VST. If it doesn't exist, upload the warehouse_safety_0001 video to VIOS with timestamp 2025-01-01T00:00:00.000Z. If it exists, skip the uploading.",
+      "query": "Check if the warehouse_safety_0001 video is already uploaded on VST. If it doesn't exist, upload the warehouse_safety_0001 video to VIOS with timestamp 2026 forge-01-01T00:00:00.000Z. If it exists, skip the uploading.",
       "checks": [
         "Trajectory or reasoning shows probing VST/VIOS for warehouse_safety_0001 **before** deciding to upload\u2014for example listing sensors/streams via the agent tools (or equivalent REST such as curl /vst/api/v1/sensor/list)\u2014not unconditional PUT-only behavior.",
         "curl -sf http://localhost:30888/vst/api/v1/sensor/list returns a JSON array containing a sensor whose name matches the uploaded video's filename stem",

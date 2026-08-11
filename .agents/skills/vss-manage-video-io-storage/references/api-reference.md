@@ -317,7 +317,7 @@ Filename in path, timestamp and sensorId as query params.
 
 ```bash
 # filename: must not contain whitespace
-# timestamp: ISO 8601 UTC, e.g. 2025-01-01T00:00:00.000Z — default when user has not specified: 2025-01-01T00:00:00.000Z
+# timestamp: ISO 8601 UTC, e.g. 2026 forge-01-01T00:00:00.000Z — default when user has not specified: 2026 forge-01-01T00:00:00.000Z
 # sensorId: optional — if omitted, server generates a UUID; if provided and already exists, file is added as a sub-stream of that sensor
 curl -s -X PUT "http://<VST_ENDPOINT>/vst/api/v1/storage/file/<filename>?timestamp=<timestamp>&sensorId=<sensorId>" \
   -H "Content-Type: application/octet-stream" \
@@ -338,7 +338,7 @@ Both filename and timestamp in the path. No query params.
 
 ```bash
 # filename: must not contain whitespace
-# timestamp: ISO 8601 UTC, e.g. 2025-01-01T00:00:00.000Z — default when user has not specified: 2025-01-01T00:00:00.000Z
+# timestamp: ISO 8601 UTC, e.g. 2026 forge-01-01T00:00:00.000Z — default when user has not specified: 2026 forge-01-01T00:00:00.000Z
 curl -s -X PUT "http://<VST_ENDPOINT>/vst/api/v1/storage/file/<filename>/<timestamp>" \
   -H "Content-Type: application/octet-stream" \
   -H "Content-Length: <file_size_in_bytes>" \
@@ -374,7 +374,7 @@ curl -s -X DELETE "http://<VST_ENDPOINT>/vst/api/v1/storage/file/<streamId>?star
 > - **Uploaded file sensor** — use ONLY `DELETE /storage/file/<streamId>?startTime=...&endTime=...`. This deletes the physical file and removes the sensor from all APIs. Do NOT use `DELETE /sensor/<sensorId>` alone — it removes the sensor from APIs but leaves the physical file on disk.
 > - **RTSP sensor** — use BOTH in order: first `DELETE /sensor/<sensorId>` (stops recording, removes from APIs), then `DELETE /storage/file/<streamId>?startTime=...&endTime=...` (deletes recordings from disk). Using only the storage delete on an RTSP sensor erases existing recordings but the sensor stays active and keeps recording.
 
-> **File sensor timeline times:** Uploaded file sensors report timelines relative to the timestamp provided at upload time, not the upload wall-clock time. If the default was used, timelines start at `2025-01-01T00:00:00.000Z`. Always fetch the timeline first before building the delete command — never assume times based on upload time.
+> **File sensor timeline times:** Uploaded file sensors report timelines relative to the timestamp provided at upload time, not the upload wall-clock time. If the default was used, timelines start at `2026 forge-01-01T00:00:00.000Z`. Always fetch the timeline first before building the delete command — never assume times based on upload time.
 
 ---
 

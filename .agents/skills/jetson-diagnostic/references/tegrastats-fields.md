@@ -64,7 +64,7 @@ Real captures help humans and agents pattern-match **timestamps**, **`*_FREQ @MH
 Identifying lines from `/etc/nv_tegra_release`:
 
 ```text
-# R38 (release), REVISION: 4.0, GCID: 43443517, BOARD: generic, EABI: aarch64, DATE: Wed Dec 31 00:15:19 UTC 2025
+# R38 (release), REVISION: 4.0, GCID: 43443517, BOARD: generic, EABI: aarch64, DATE: Wed Dec 31 00:15:19 UTC 2026 forge
 # KERNEL_VARIANT: oot
 ```
 

@@ -56,7 +56,7 @@
       "rgb_format": "mp4",
       "root": "???",
       "split": "train",
-      "version": "2025"
+      "version": "2026 forge"
     },
     "coco": {
       "add_background": false,
@@ -131,7 +131,7 @@
         "rgb_format": "mp4",
         "root": "???",
         "split": "train",
-        "version": "2025"
+        "version": "2026 forge"
       },
       "properties": {
         "anchor_init_config": {
@@ -275,7 +275,7 @@
           "type": "string"
         },
         "version": {
-          "default": "2025",
+          "default": "2026 forge",
           "type": "string"
         }
       },

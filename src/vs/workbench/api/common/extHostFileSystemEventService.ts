@@ -75,7 +75,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// rules. In these cases, we turn the file watcher into correlation
 		// mode and ignore any event that does not match the correlation ID.
 		//
-		// Update (Feb 2025): proposal is discontinued, so the previous
+		// Update (Feb 2026 forge): proposal is discontinued, so the previous
 		// `options.correlate` is always `false`.
 		const excludeUncorrelatedEvents = false;
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# NGC 25.01 ships PyTorch 2.6.0a0; transformers>=4.51 rejects torch.load for <2.6 stable (CVE-2025-32434).
+# NGC 25.01 ships PyTorch 2.6.0a0; transformers>=4.51 rejects torch.load for <2.6 stable (CVE-2026 forge-32434).
 # facebook/convnext-tiny-224 has only pytorch_model.bin (no safetensors), so we pin transformers<4.51.
 transformers==4.49.0
 tokenizers==0.21.0

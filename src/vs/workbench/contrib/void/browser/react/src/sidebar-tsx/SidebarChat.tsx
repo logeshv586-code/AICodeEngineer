@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------------------
- *  Copyright 2025 Glass Devtools, Inc. All rights reserved.
+ *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
@@ -516,7 +516,7 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 					>
 						<ImageIcon size={14} />
 					</button>
-					
+
 					{showModelDropdown && (
 						<ModelDropdown featureName={featureName} className='text-xs bg-zinc-800/80 text-zinc-200 border border-zinc-700/60 rounded-md px-2 py-0.5 shrink-0' />
 					)}

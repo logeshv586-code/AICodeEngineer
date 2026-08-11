@@ -72,7 +72,7 @@ Underlying evaluation signals used in this run: <br>
 | Efficiency | 17 | 86% (+38%) |
 
 ## Skill Version(s): <br>
-0.3.0 (source: changelog, released 2025-05-21) <br>
+0.3.0 (source: changelog, released 2026 forge-05-21) <br>
 
 ## Ethical Considerations: <br>
 NVIDIA believes Trustworthy AI is a shared responsibility and we have established policies and practices to enable development for a wide array of AI applications. When downloaded or used in accordance with our terms of service, developers should work with their internal team to ensure this skill meets requirements for the relevant industry and use case and addresses unforeseen product misuse. <br>

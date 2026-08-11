@@ -120,7 +120,7 @@ suite('Logs Parsing', () => {
 
 	test('should parse multi-line log entry with empty lines', () => {
 		const text = [
-			'2025-01-27 09:53:00.450 [info] Found with version <20.18.1>',
+			'2026 forge-01-27 09:53:00.450 [info] Found with version <20.18.1>',
 			'Now using node v20.18.1 (npm v10.8.2)',
 			'',
 			'> husky - npm run -s precommit',
@@ -131,7 +131,7 @@ suite('Logs Parsing', () => {
 		const model = createModel(text);
 		const entry = parseLogEntryAt(model, 1);
 
-		assert.strictEqual(entry?.timestamp, new Date('2025-01-27 09:53:00.450').getTime());
+		assert.strictEqual(entry?.timestamp, new Date('2026 forge-01-27 09:53:00.450').getTime());
 		assert.strictEqual(entry?.logLevel, LogLevel.Info);
 		assert.strictEqual(entry?.category, undefined);
 		assert.strictEqual(model.getValueInRange(entry?.range), text);

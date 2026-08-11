@@ -59,7 +59,7 @@ This skill requires a VSS profile that serves the `video_understanding` tool —
 4. **If no matching sensor is present** — upload the video first, then re-list to confirm the new sensor appears:
    ```bash
    # filename: must not contain whitespace
-   # timestamp: ISO 8601 UTC — default 2025-01-01T00:00:00.000Z if user did not specify
+   # timestamp: ISO 8601 UTC — default 2026 forge-01-01T00:00:00.000Z if user did not specify
    curl -s -X PUT "http://${HOST_IP}:30888/vst/api/v1/storage/file/<filename>?timestamp=<timestamp>" \
      -H "Content-Type: application/octet-stream" \
      -H "Content-Length: <file_size_in_bytes>" \

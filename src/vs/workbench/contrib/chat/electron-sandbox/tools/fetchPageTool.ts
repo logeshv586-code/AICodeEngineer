@@ -6,7 +6,6 @@
 import { localize } from '../../../../../nls.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart } from '../../common/languageModelToolsService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -37,7 +36,6 @@ export class FetchWebPageTool implements IToolImpl {
 	private _alreadyApprovedDomains = new Set<string>();
 
 	constructor(
-		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) { }
 
@@ -58,7 +56,51 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
-		const contents = await this._readerModeService.extract(validUris);
+		const contents: string[] = [];
+		for (const uri of validUris) {
+			const urlStr = uri.toString(true);
+			try {
+				const response = await fetch('http://127.0.0.1:11235/crawl', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ urls: [urlStr], priority: 10 })
+				});
+				if (!response.ok) {
+					contents.push(`Error: Crawl4AI returned ${response.status}.`);
+					continue;
+				}
+				let payload = await response.json() as { results?: unknown[]; task_id?: string };
+				for (let attempt = 0; !payload.results && payload.task_id && attempt < 60; attempt++) {
+					await new Promise<void>(resolve => setTimeout(resolve, 500));
+					const taskResponse = await fetch(`http://127.0.0.1:11235/task/${encodeURIComponent(payload.task_id)}`);
+					if (!taskResponse.ok) {
+						break;
+					}
+					payload = await taskResponse.json() as { results?: unknown[]; task_id?: string };
+				}
+				const result = payload.results?.[0] as { markdown?: { fit_markdown?: string; raw_markdown?: string } | string; metadata?: unknown; links?: unknown; cleaned_html?: string } | undefined;
+				const markdown = typeof result?.markdown === 'string' ? result.markdown : result?.markdown?.fit_markdown || result?.markdown?.raw_markdown || result?.cleaned_html || '';
+				if (!markdown) {
+					contents.push(`Error: Crawl4AI returned no page content for ${urlStr}.`);
+					continue;
+				}
+
+				let encodedMetadata = '';
+				if (result?.metadata) {
+					encodedMetadata = `\n\nMetadata:\n${JSON.stringify(result.metadata)}`;
+				}
+				
+				let encodedLinks = '';
+				if (result?.links) {
+					encodedLinks = `\n\nLinks:\n${JSON.stringify(result.links)}`;
+				}
+
+				contents.push(`CRAWL4AI PAGE RESEARCH\nURL: ${urlStr}\n\n\`\`\`markdown\n${markdown.slice(0, 30000)}\n\`\`\`${encodedMetadata}${encodedLinks}`);
+
+			} catch (err) {
+				contents.push(`Error: Failed to fetch ${urlStr} via Crawl4AI. ${err}`);
+			}
+		}
 		// Make an array that contains either the content or undefined for invalid URLs
 		const contentsWithUndefined: (string | undefined)[] = [];
 		let indexInContents = 0;

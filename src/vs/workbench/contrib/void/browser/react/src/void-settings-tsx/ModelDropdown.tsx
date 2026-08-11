@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------------------
- *  Copyright 2025 Glass Devtools, Inc. All rights reserved.
+ *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
@@ -30,12 +30,14 @@ const builtInModelPresets: { modelName: string; providerName: ProviderName; tag?
 	{ modelName: 'Gemini-3-Flash-Preview', providerName: 'gemini' },
 ];
 
+
 export const ModelDropdown = ({ featureName, className }: { featureName: FeatureName; className: string }) => {
 	const settingsState = useSettingsState();
 	const accessor = useAccessor();
 	const voidSettingsService = accessor.get('IVoidSettingsService');
 	const commandService = accessor.get('ICommandService');
 
+	const [searchQuery, setSearchQuery] = useState('');
 	const [isOpen, setIsOpen] = useState(false);
 	const autoMode = settingsState.globalSettings.autoModelSelection;
 	const dropdownRef = useRef<HTMLDivElement>(null);
@@ -103,7 +105,8 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 	const selectModel = async (modelName: string, providerName: ProviderName) => {
 		const providerSettings = settingsState.settingsOfProvider[providerName];
 		const existing = providerSettings?.models.find(model => model.modelName === modelName);
-		if (!existing || !isModelConfigured(providerName, existing, settingsState.settingsOfProvider)) {
+		const tempModel = existing ?? { modelName, type: 'custom' as const, isHidden: false };
+		if (!isModelConfigured(providerName, tempModel, settingsState.settingsOfProvider)) {
 			openSettings();
 			return;
 		}
@@ -150,9 +153,11 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			const key = `${preset.providerName}:${preset.modelName}`;
 			if (!seen.has(key)) {
 				seen.add(key);
+				const providerSettings = settingsState.settingsOfProvider[preset.providerName];
+				const existing = providerSettings?.models.find(model => model.modelName === preset.modelName) ?? { modelName: preset.modelName, type: 'custom' as const, isHidden: false };
 				result.push({
 					...preset,
-					isConfigured: false,
+					isConfigured: isModelConfigured(preset.providerName, existing, settingsState.settingsOfProvider),
 				});
 			}
 		}
@@ -202,15 +207,28 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 						</div>
 					)}
 
-					{/* Section Header */}
+				{/* Section Header */}
 				<div className="px-3 pt-2 pb-1 flex items-center justify-between text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-					<span>Available Models ({allAvailableModels.length})</span>
-					<Info size={11} className="text-zinc-500 cursor-help" />
+					<span>Available Models</span>
+					<Info size={11} className="text-zinc-500 cursor-help" title="These models are available for your current AI tasks." />
+				</div>
+
+				<div className="px-2 py-1.5 border-b border-zinc-800">
+					<input
+						type="text"
+						placeholder="Search model..."
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
+						className="w-full bg-zinc-800/80 border border-zinc-700/60 rounded-md px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-[#7c83ff]"
+						autoFocus
+					/>
 				</div>
 
 				{/* Model Items List */}
 					<div className="max-h-56 overflow-y-auto py-1">
-						{allAvailableModels.map((m) => {
+						{allAvailableModels
+							.filter(m => m.modelName.toLowerCase().includes(searchQuery.toLowerCase()) || m.providerName.toLowerCase().includes(searchQuery.toLowerCase()))
+							.map((m) => {
 							const isSelected = selection?.modelName === m.modelName && selection?.providerName === m.providerName;
 							return (
 								<button

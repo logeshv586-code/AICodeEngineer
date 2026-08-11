@@ -75,7 +75,7 @@ Host: NVIDIA A100-SXM4-80GB, driver 560.35.05, NGC PyTorch 25.01-py3.
 - Biggest uplift of the set (+73.5 pts). CV classification on small subsets is
   forgiving — even tiny data + few epochs moves accuracy a lot.
 - Pin `transformers==4.49.0` required: ConvNeXt ships no safetensors and NGC 25.01
-  PyTorch 2.6.0a gets rejected by `transformers>=4.51` per CVE-2025-32434.
+  PyTorch 2.6.0a gets rejected by `transformers>=4.51` per CVE-2026 forge-32434.
 
 ### `detr-resnet50-cppe5/` — object detection
 - Modest uplift — DETR is known to need 100-300 epochs to converge (Hungarian

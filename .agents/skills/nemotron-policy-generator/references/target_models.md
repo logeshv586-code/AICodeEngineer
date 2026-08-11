@@ -17,7 +17,7 @@ The skill produces **one policy artifact** that works with **both** NVIDIA Nemot
 - **Custom-policy support:** shipped — BYO policy is the model's headline feature.
 - **Three deployment patterns:** vanilla safety / custom safety / topic-following.
 - **Runtime:** vLLM · SGLang · TRTLLM. Ampere / Hopper / Blackwell. Linux / Windows.
-- **Source:** [HuggingFace model card](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B), [EMNLP 2025 paper](https://arxiv.org/abs/2505.20087).
+- **Source:** [HuggingFace model card](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B), [EMNLP 2026 forge paper](https://arxiv.org/abs/2505.20087).
 
 ## Model B — `nvidia/Nemotron-3-Content-Safety`
 

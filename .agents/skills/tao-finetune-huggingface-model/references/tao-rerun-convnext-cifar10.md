@@ -85,7 +85,7 @@ Variance on 1000 eval samples: ±1–2 pts on accuracy across random seeds.
 
 ## Troubleshooting
 
-- **`ValueError: torch.load ... vulnerability CVE-2025-32434` at model load:** NGC
+- **`ValueError: torch.load ... vulnerability CVE-2026 forge-32434` at model load:** NGC
   25.01 ships PyTorch 2.6.0a (alpha); transformers ≥ 4.51 refuses `.bin` checkpoints
   on non-stable torch. ConvNeXt has no safetensors — `requirements.txt` pins
   `transformers==4.49.0 tokenizers==0.21.0`. If you change the pin, the error

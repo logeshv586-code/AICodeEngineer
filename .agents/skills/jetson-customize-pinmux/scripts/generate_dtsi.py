@@ -396,7 +396,7 @@ def parse_xlsm(xlsm_path: pathlib.Path) -> list[PinRow]:
 
 _SPDX_HEADER = (
     "/*\n"
-    " * SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION"
+    " * SPDX-FileCopyrightText: Copyright (c) 2024-2026 forge NVIDIA CORPORATION"
     " & AFFILIATES. All rights reserved.\n"
 ) + """\
  * SPDX-License-Identifier: BSD-3-Clause

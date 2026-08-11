@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------------------
- *  Copyright 2025 Glass Devtools, Inc. All rights reserved.
+ *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
@@ -1035,7 +1035,7 @@ Never include quotes, markdown, commentary, or explanations outside of <output> 
  *
  * @example
  * // Sample output (truncated for brevity)
- * const prompt = gitCommitMessage_userMessage("fileA.ts | 10 ++--", "diff --git a/fileA.ts...", "main", "abc123|Fix bug|2025-01-01\n...")
+ * const prompt = gitCommitMessage_userMessage("fileA.ts | 10 ++--", "diff --git a/fileA.ts...", "main", "abc123|Fix bug|2026 forge-01-01\n...")
  *
  * // Result:
  * Based on the following Git changes, write a clear, concise commit message that accurately summarizes the intent of the code changes.
@@ -1051,8 +1051,8 @@ Never include quotes, markdown, commentary, or explanations outside of <output> 
  * main
  *
  * Section 4 - Last 5 Commits (excluding merges):
- * abc123|Fix bug|2025-01-01
- * def456|Improve logging|2025-01-01
+ * abc123|Fix bug|2026 forge-01-01
+ * def456|Improve logging|2026 forge-01-01
  * ...
  */
 export const gitCommitMessage_userMessage = (stat: string, sampledDiffs: string, branch: string, log: string) => {

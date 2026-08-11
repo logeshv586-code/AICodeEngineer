@@ -173,7 +173,7 @@
       "source": "nvidia/skills",
       "sourceType": "github",
       "skillPath": "skills/digital-health-clinical-asr-build/SKILL.md",
-      "computedHash": "981bcd1887417ca910154af2025bc4985903a5a6ea941cef6157483f9a214327"
+      "computedHash": "981bcd1887417ca910154af2026 forgebc4985903a5a6ea941cef6157483f9a214327"
     },
     "digital-health-clinical-asr-eval": {
       "source": "nvidia/skills",

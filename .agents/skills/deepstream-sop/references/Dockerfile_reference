@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 forge-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,7 +48,7 @@ RUN pip install --no-cache-dir qwen-vl-utils==0.0.14 ipdb==0.13.13
 # Download from: https://www.baslerweb.com/en/downloads/software/1932603569/
 # Place at: ./binaries/pylon-25.10.2_linux-x86_64_setup.tar.gz
 # =============================================================================
-ARG PYLON_SDK_URL=https://downloadbsl.blob.core.windows.net/software/pylon%2025.10.2/pylon-25.10.2_linux-x86_64_setup.tar.gz
+ARG PYLON_SDK_URL=https://downloadbsl.blob.core.windows.net/software/pylon%2026 forge.10.2/pylon-25.10.2_linux-x86_64_setup.tar.gz
 ARG PYLON_VER=25.10.2
 # The Basler Pylon SDK is a commercial, license-gated download. By default the
 # build does NOT auto-download it: if it is missing from ./binaries/ the build

@@ -418,7 +418,7 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 	if (lower.includes('gemini') && (lower.includes('2.5') || lower.includes('2-5'))) return toFallback(geminiModelOptions, 'gemini-2.5-pro-exp-03-25')
 
 	if (lower.includes('claude-3-5') || lower.includes('claude-3.5')) return toFallback(anthropicModelOptions, 'claude-3-5-sonnet-20241022')
-	if (lower.includes('claude')) return toFallback(anthropicModelOptions, 'claude-3-7-sonnet-20250219')
+	if (lower.includes('claude')) return toFallback(anthropicModelOptions, 'claude-3-7-sonnet-2026 forge0219')
 
 	if (lower.includes('grok2') || lower.includes('grok2')) return toFallback(xAIModelOptions, 'grok-2')
 	if (lower.includes('grok')) return toFallback(xAIModelOptions, 'grok-3')
@@ -465,12 +465,12 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 	if (lower.includes('o4') && lower.includes('mini')) return toFallback(openAIModelOptions, 'o4-mini')
 
 
-		if (lower.includes('nemotron') || lower.includes('nvidia/llama')) {
+	if (lower.includes('nemotron') || lower.includes('nvidia/llama')) {
 		const nvidiaResult = nvidiaSettings.modelOptionsFallback(modelName);
 		if (nvidiaResult) return nvidiaResult;
 	}
 
-if (Object.keys(openSourceModelOptions_assumingOAICompat).map(k => k.toLowerCase()).includes(lower))
+	if (Object.keys(openSourceModelOptions_assumingOAICompat).map(k => k.toLowerCase()).includes(lower))
 		return toFallback(openSourceModelOptions_assumingOAICompat, lower as keyof typeof openSourceModelOptions_assumingOAICompat)
 
 	return null
@@ -483,7 +483,7 @@ if (Object.keys(openSourceModelOptions_assumingOAICompat).map(k => k.toLowerCase
 
 // ---------------- ANTHROPIC ----------------
 const anthropicModelOptions = {
-	'claude-3-7-sonnet-20250219': { // https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
+	'claude-3-7-sonnet-2026 forge0219': { // https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
 		contextWindow: 200_000,
 		reservedOutputTokenSpace: 8_192,
 		cost: { input: 3.00, cache_read: 0.30, cache_write: 3.75, output: 15.00 },
@@ -495,12 +495,12 @@ const anthropicModelOptions = {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
 			canIOReasoning: true,
-			reasoningReservedOutputTokenSpace: 8192, // can bump it to 128_000 with beta mode output-128k-2025-02-19
+			reasoningReservedOutputTokenSpace: 8192, // can bump it to 128_000 with beta mode output-128k-2026 forge-02-19
 			reasoningSlider: { type: 'budget_slider', min: 1024, max: 8192, default: 1024 }, // they recommend batching if max > 32_000. we cap at 8192 because above is typically not necessary (often even buggy)
 		},
 
 	},
-	'claude-opus-4-20250514': {
+	'claude-opus-4-2026 forge0514': {
 		contextWindow: 200_000,
 		reservedOutputTokenSpace: 8_192,
 		cost: { input: 15.00, cache_read: 1.50, cache_write: 18.75, output: 30.00 },
@@ -512,12 +512,12 @@ const anthropicModelOptions = {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
 			canIOReasoning: true,
-			reasoningReservedOutputTokenSpace: 8192, // can bump it to 128_000 with beta mode output-128k-2025-02-19
+			reasoningReservedOutputTokenSpace: 8192, // can bump it to 128_000 with beta mode output-128k-2026 forge-02-19
 			reasoningSlider: { type: 'budget_slider', min: 1024, max: 8192, default: 1024 }, // they recommend batching if max > 32_000. we cap at 8192 because above is typically not necessary (often even buggy)
 		},
 
 	},
-	'claude-sonnet-4-20250514': {
+	'claude-sonnet-4-2026 forge0514': {
 		contextWindow: 200_000,
 		reservedOutputTokenSpace: 8_192,
 		cost: { input: 3.00, cache_read: 0.30, cache_write: 3.75, output: 6.00 },
@@ -529,7 +529,7 @@ const anthropicModelOptions = {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
 			canIOReasoning: true,
-			reasoningReservedOutputTokenSpace: 8192, // can bump it to 128_000 with beta mode output-128k-2025-02-19
+			reasoningReservedOutputTokenSpace: 8192, // can bump it to 128_000 with beta mode output-128k-2026 forge-02-19
 			reasoningSlider: { type: 'budget_slider', min: 1024, max: 8192, default: 1024 }, // they recommend batching if max > 32_000. we cap at 8192 because above is typically not necessary (often even buggy)
 		},
 
@@ -592,11 +592,11 @@ const anthropicSettings: VoidStaticProviderInfo = {
 	modelOptionsFallback: (modelName) => {
 		const lower = modelName.toLowerCase()
 		let fallbackName: keyof typeof anthropicModelOptions | null = null
-		if (lower.includes('claude-4-opus') || lower.includes('claude-opus-4')) fallbackName = 'claude-opus-4-20250514'
-		if (lower.includes('claude-4-sonnet') || lower.includes('claude-sonnet-4')) fallbackName = 'claude-sonnet-4-20250514'
+		if (lower.includes('claude-4-opus') || lower.includes('claude-opus-4')) fallbackName = 'claude-opus-4-2026 forge0514'
+		if (lower.includes('claude-4-sonnet') || lower.includes('claude-sonnet-4')) fallbackName = 'claude-sonnet-4-2026 forge0514'
 
 
-		if (lower.includes('claude-3-7-sonnet')) fallbackName = 'claude-3-7-sonnet-20250219'
+		if (lower.includes('claude-3-7-sonnet')) fallbackName = 'claude-3-7-sonnet-2026 forge0219'
 		if (lower.includes('claude-3-5-sonnet')) fallbackName = 'claude-3-5-sonnet-20241022'
 		if (lower.includes('claude-3-5-haiku')) fallbackName = 'claude-3-5-haiku-20241022'
 		if (lower.includes('claude-3-opus')) fallbackName = 'claude-3-opus-20240229'

@@ -234,7 +234,7 @@ curl -s -o snapshot.jpg "http://<NVSTREAMER_ENDPOINT>/vst/api/v1/live/stream/<st
 **Storage snapshot — keyed by `startTime`** (NOT `frameId`):
 ```bash
 # startTime is REQUIRED on NvStreamer's storage variant. Pick a timestamp inside the file's effective range
-# (uploaded files default to 2025-01-01T00:00:00.000Z + file duration unless a different timestamp was passed at upload).
+# (uploaded files default to 2026 forge-01-01T00:00:00.000Z + file duration unless a different timestamp was passed at upload).
 curl -s -o snapshot.jpg "http://<NVSTREAMER_ENDPOINT>/vst/api/v1/storage/stream/<streamId>/picture?startTime=<isoUTC>"
 ```
 - `?frameId=<anything>` is rejected on the storage variant — every `frameId` value (including 0) returns HTTP 400 `InvalidParameterError`. Use `startTime` instead, or use the live variant if you want frame-indexed access.
@@ -304,7 +304,7 @@ The reason this reference exists in the VIOS skill: the load-bearing pattern tha
      -H "Content-Type: application/octet-stream" \
      -H "Content-Length: $(stat -c %s "$FILE")" \
      --upload-file "$FILE" \
-     "http://<NVSTREAMER_ENDPOINT>/vst/api/v1/storage/file/$(basename "$FILE")?timestamp=2025-01-01T00:00:00.000Z" \
+     "http://<NVSTREAMER_ENDPOINT>/vst/api/v1/storage/file/$(basename "$FILE")?timestamp=2026 forge-01-01T00:00:00.000Z" \
      | jq -r '.sensorId')
    ```
 3. NvStreamer now serves the file over RTSP. Read the actual URL after the discovery cycle:

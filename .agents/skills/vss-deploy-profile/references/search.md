@@ -332,5 +332,5 @@ Set `HF_TOKEN` in `deploy/docker/developer-profiles/dev-profile-search/.env` (de
 
 - **`docker logs vss-rtvi-embed`** — confirms model load and `Maximum concurrency for X tokens per GPU: Y x` line. If it OOMs, lower `RTVI_EMBED_NUM_VLM_PROCS` (10 → 4) or `NUM_STREAMS`.
 - **`docker logs vss-rtvi-cv`** — DeepStream perception pipeline logs. If GPU 0 OOMs in Path B (default, VLM co-located), drop `NUM_STREAMS` first (with user confirmation if going below 8), then revisit VLM `NIM_KVCACHE_PERCENT`.
-- **Embedding queries return zero hits** — check shared `logstash` is consuming `mdx-embed-filtered` and that the ES index `mdx-embed-filtered-2025-01-01` exists.
+- **Embedding queries return zero hits** — check shared `logstash` is consuming `mdx-embed-filtered` and that the ES index `mdx-embed-filtered-2026 forge-01-01` exists.
 - **Critique returns "no VLM configured"** — confirm `VLM_BASE_URL` resolves and the resolved compose includes a VLM service or `VLM_MODE=remote` is set.

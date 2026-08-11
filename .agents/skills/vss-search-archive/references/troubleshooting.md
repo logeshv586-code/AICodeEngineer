@@ -9,7 +9,7 @@ Isolate the problem encountered in vss-search-archive then iterate to resolve it
 - NEVER try to guess the URL or VST API to check what is available in the system. Use the `vss-manage-video-io-storage` skill instead to list video sources and manage streams feeding into the search pipeline
 ```bash
 # NEVER guess commands like
-# curl -s "http://<ip>:30888/vst/api/v1/sensors" 
+# curl -s "http://<ip>:30888/vst/api/v1/sensors"
 # curl -s "http://<ip>:30888/vst/api/v2/sensors?pageSize=50"
 ```
 
@@ -46,7 +46,7 @@ If further investigation is required, refer to the full components from the `vss
 
 - Further verifications to determine if returned video sources match the user query. Each step to go deeper:
     - Check their source names, their video description / tags via the `vss-manage-video-io-storage` skill
-    - Download screenshots using the `screenshot_url` of the best candidates (highest similarity scores) from the search hits (JSON results) to `/tmp`. Read them and verify if they correspond to the user query  
+    - Download screenshots using the `screenshot_url` of the best candidates (highest similarity scores) from the search hits (JSON results) to `/tmp`. Read them and verify if they correspond to the user query
 
 - Potentially retry by augmenting the user input with a lower similary threshold to include more results. This helps seeing if a clip of interest was filtered out due to a lower score
 
@@ -68,20 +68,20 @@ curl -s -X POST http://${HOST_IP}:${PORT}/v1/chat/completions \
 curl -s "http://${HOST_IP}:9200/_cat/indices?h=index,docs.count,store.size&v"
 
 # Count uploaded video_file embeddings
-curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-2025-01-01/_count"
+curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-2026 forge-01-01/_count"
 
 # Count RTSP embeddings for a source name; RTSP streams use date-based indices
-curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-*,-mdx-embed-filtered-2025-01-01/_count" \
+curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-*,-mdx-embed-filtered-2026 forge-01-01/_count" \
   -H "Content-Type: application/json" \
   -d '{"query": {"query_string": {"query": "*<sensor-name>*"}}}'
 
 # Sample one uploaded video_file embedding doc (without the vector)
-curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-2025-01-01/_search?size=1&pretty" \
+curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-2026 forge-01-01/_search?size=1&pretty" \
   -H "Content-Type: application/json" \
   -d '{"_source": {"excludes": ["embedding"]}, "query": {"match_all": {}}}'
 
 # Sample one RTSP embedding doc for a source name (without the vector)
-curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-*,-mdx-embed-filtered-2025-01-01/_search?size=1&pretty" \
+curl -s "http://${HOST_IP}:9200/mdx-embed-filtered-*,-mdx-embed-filtered-2026 forge-01-01/_search?size=1&pretty" \
   -H "Content-Type: application/json" \
   -d '{"_source": {"excludes": ["embedding"]}, "query": {"query_string": {"query": "*<sensor-name>*"}}}'
 ```

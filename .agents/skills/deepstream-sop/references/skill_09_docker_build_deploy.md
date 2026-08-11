@@ -141,7 +141,7 @@ SDK binary must be a **real file** (not a symlink) inside it.
 
 1. **Download Pylon SDK 25.10.2** from https://www.baslerweb.com/en/downloads/software/1932603569/
    (requires free Basler registration) — or use the direct URL set in the Dockerfile ARG:
-   `https://downloadbsl.blob.core.windows.net/software/pylon%2025.10.2/pylon-25.10.2_linux-x86_64_setup.tar.gz`
+   `https://downloadbsl.blob.core.windows.net/software/pylon%2026 forge.10.2/pylon-25.10.2_linux-x86_64_setup.tar.gz`
 
 2. **Place the real file** (not a symlink) at `./binaries/pylon-25.10.2_linux-x86_64_setup.tar.gz`
 

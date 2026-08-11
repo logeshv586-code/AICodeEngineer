@@ -22,7 +22,7 @@
       ]
     },
     {
-      "query": "Check if the warehouse_safety_0001 video is already uploaded on VST. If it doesn't exist, upload the warehouse_safety_0001 video to VIOS with timestamp 2025-01-01T00:00:00.000Z. If it exists, skip the uploading.",
+      "query": "Check if the warehouse_safety_0001 video is already uploaded on VST. If it doesn't exist, upload the warehouse_safety_0001 video to VIOS with timestamp 2026 forge-01-01T00:00:00.000Z. If it exists, skip the uploading.",
       "checks": [
         "Trajectory shows the agent verified `warehouse_safety_0001` exists in VST at some point during the trial \u2014 e.g. listing sensors/streams via the agent tools or a REST call to `/vst/api/v1/sensor/list`. The probe order relative to any upload step is not enforced; what matters is that the agent confirmed presence before any `/generate` (report) call.",
         "curl -sf http://localhost:30888/vst/api/v1/sensor/list returns a JSON array containing a sensor whose name matches the uploaded video's filename stem",
@@ -55,7 +55,7 @@
       ]
     },
     {
-      "query": "Give me a report on incidents on warehouse_safety_0001 between 2025-01-01T00:00:00.000Z and 2025-01-01T01:00:00.000Z.",
+      "query": "Give me a report on incidents on warehouse_safety_0001 between 2026 forge-01-01T00:00:00.000Z and 2026 forge-01-01T01:00:00.000Z.",
       "checks": [
         "The run initialized a VA-MCP session against http://localhost:9901/mcp (POST with method=initialize) and extracted mcp-session-id from the response header.",
         "The run issued at least one tools/call POST to http://localhost:9901/mcp with the mcp-session-id header set, calling video_analytics__get_incidents with arguments including start_time and end_time matching the user's range and source=warehouse_safety_0001 source_type=sensor.",

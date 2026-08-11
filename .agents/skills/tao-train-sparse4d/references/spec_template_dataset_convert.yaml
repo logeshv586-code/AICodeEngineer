@@ -33,7 +33,7 @@ aicity:
   rgb_format: mp4
   root: ???
   split: train
-  version: '2025'
+  version: '2026 forge'
 coco:
   add_background: false
   ann_file: <specify path to annotation file>

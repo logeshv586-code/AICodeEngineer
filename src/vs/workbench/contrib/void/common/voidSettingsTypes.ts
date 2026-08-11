@@ -1,6 +1,6 @@
 
 /*--------------------------------------------------------------------------------------
- *  Copyright 2025 Glass Devtools, Inc. All rights reserved.
+ *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
@@ -195,13 +195,13 @@ export const displayInfoOfSettingName = (providerName: ProviderName, settingName
 										providerName === 'awsBedrock' ? 'Endpoint' :
 											'(never)',
 
-		placeholder: providerName === 'ollama' ? defaultProviderSettings.ollama.endpoint
-			: providerName === 'vLLM' ? defaultProviderSettings.vLLM.endpoint
-				: providerName === 'openAICompatible' ? 'https://my-website.com/v1'
-					: providerName === 'lmStudio' ? defaultProviderSettings.lmStudio.endpoint
-						: providerName === 'liteLLM' ? 'https://your-litellm-domain.com/v1'
-							: providerName === 'awsBedrock' ? 'https://your-bedrock-gateway.com/v1'
-								: '(never)',
+			placeholder: providerName === 'ollama' ? defaultProviderSettings.ollama.endpoint
+				: providerName === 'vLLM' ? defaultProviderSettings.vLLM.endpoint
+					: providerName === 'openAICompatible' ? 'https://my-website.com/v1'
+						: providerName === 'lmStudio' ? defaultProviderSettings.lmStudio.endpoint
+							: providerName === 'liteLLM' ? 'https://your-litellm-domain.com/v1'
+								: providerName === 'awsBedrock' ? 'https://your-bedrock-gateway.com/v1'
+									: '(never)',
 
 
 		}

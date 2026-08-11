@@ -94,7 +94,7 @@ Confirm the source exists in VIOS first (Mandatory workflow Step 2). If it is mi
 ### File upload — universal three-step flow
 
 Use the timestamped upload form below. The VSS agent/search profile uses
-`2025-01-01T00:00:00.000Z` as the uploaded `video_file` base timestamp;
+`2026 forge-01-01T00:00:00.000Z` as the uploaded `video_file` base timestamp;
 VIOS storage and embeddings must share that timeline, otherwise
 screenshot URLs and critic frame fetches can fail.
 
@@ -118,7 +118,7 @@ UPLOAD_RESPONSE=$(curl -s -X POST "${UPLOAD_URL}" \
   -H "nvstreamer-file-name: ${FILENAME}" \
   -F "mediaFile=@${FILE_PATH};filename=${FILENAME}" \
   -F "filename=${FILENAME}" \
-  -F 'metadata={"timestamp":"2025-01-01T00:00:00"}')
+  -F 'metadata={"timestamp":"2026 forge-01-01T00:00:00"}')
 
 # 3. Tell the agent the upload finished — this fans out to RTVI-CV + RTVI-embed
 SENSOR=$(printf '%s' "${UPLOAD_RESPONSE}" | jq -r .sensorId)
@@ -267,7 +267,7 @@ curl -s -X POST http://${HOST_IP}:8000/generate \
 
 ### Advanced control knobs
 
-If user query is ambiguous, user wants more guidance or when fine-grained control is needed, augment the user `input_message` by calling out explicitly certain options in plain-text and steering the agent in the desired direction. Available control axes: 
+If user query is ambiguous, user wants more guidance or when fine-grained control is needed, augment the user `input_message` by calling out explicitly certain options in plain-text and steering the agent in the desired direction. Available control axes:
 
 | Axes                 | Type      | Default | Description                                               |
 |----------------------|-----------|---------|-----------------------------------------------------------|
@@ -277,7 +277,7 @@ If user query is ambiguous, user wants more guidance or when fine-grained contro
 | `critic usage`       | bool      | true    | VLM verifies each result and removes false positives      |
 | `description`        | string    | null    | Filter by camera metadata (e.g. location, category) if metadata is available|
 
-Pick and choose some of these tuning options. Adjust them as needed for the user’s situation and query. 
+Pick and choose some of these tuning options. Adjust them as needed for the user’s situation and query.
 For examples of discovery modes leveraging these, see [discovery_modes.md](references/discovery_modes.md).
 
 ---

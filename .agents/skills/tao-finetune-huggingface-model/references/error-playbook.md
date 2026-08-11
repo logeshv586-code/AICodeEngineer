@@ -36,7 +36,7 @@ rule.** Tell the user when you do.
 | `TypeError: ... enable_gqa` at step 0 | PyTorch 2.5.0 SDPA+GQA bug (NGC 24.09). Set `attn_implementation: "eager"`. |
 | `TypeError: Missing **kwargs in ... @check_model_inputs` (Idefics3 / Llava / Mllama) | `transformers>=4.51` regression. Pin `transformers==4.49.0 tokenizers==0.21.0`. |
 | `trl>=1.0` breaking API on import | Pin `trl>=0.18.0,<1.0.0`. |
-| `ValueError: ... CVE-2025-32434` torch.load | NGC 25.01 PyTorch 2.6.0a + `transformers>=4.51` refuses `.bin` checkpoints. If model ships only `pytorch_model.bin`, pin `transformers==4.49.0 tokenizers==0.21.0`. Safetensors models unaffected. |
+| `ValueError: ... CVE-2026 forge-32434` torch.load | NGC 25.01 PyTorch 2.6.0a + `transformers>=4.51` refuses `.bin` checkpoints. If model ships only `pytorch_model.bin`, pin `transformers==4.49.0 tokenizers==0.21.0`. Safetensors models unaffected. |
 | `ImportError: numpy.core.multiarray failed to import` | numpy 2.x ABI break. Pin `numpy<2`. |
 | Albumentations `y_max <= y_min for bbox` | Degenerate bboxes. Add `filter_invalid_bboxes=True`, `min_area=1` to `A.BboxParams`. |
 | Detection: `'list' object has no attribute 'logits'` in `compute_metrics` | Trainer with `eval_do_concat_batches=False`. Drop in-trainer metric, use `metric_for_best_model=eval_loss`, run mAP via `run_eval.py` post-training. |

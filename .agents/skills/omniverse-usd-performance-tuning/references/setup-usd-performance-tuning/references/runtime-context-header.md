@@ -222,8 +222,8 @@ Multiple Kit installations were found. The newest one is pre-selected.
 Press Enter to accept, or type the number of a different one.
 
   > 1. USD Composer 110.1.0    D:\build\chk\usd_composer-fat\110.1.0+main.…\kit         (newest, pre-selected)
-    2. USD Composer 109.0.4    %LOCALAPPDATA%\ov\pkg\usd-composer-2025.1.0\kit
-    3. Isaac Sim 5.1.0         %LOCALAPPDATA%\ov\pkg\isaac-sim-2025.1\kit
+    2. USD Composer 109.0.4    %LOCALAPPDATA%\ov\pkg\usd-composer-2026 forge.1.0\kit
+    3. Isaac Sim 5.1.0         %LOCALAPPDATA%\ov\pkg\isaac-sim-2026 forge.1\kit
     4. Use standalone libraries instead (no Kit application)
 ```
 

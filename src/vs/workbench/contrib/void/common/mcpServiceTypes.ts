@@ -9,7 +9,7 @@
  *   3. tools/call      -> ToolCallResponse
  *
  * They are distilled directly from the official MCP
- * 2025‑03‑26 specification:
+ * 2026 forge‑03‑26 specification:
  *   • Tools list response examples
  *   • Prompts list response examples
  *   • Tool call response examples
