@@ -61,8 +61,13 @@ import { ImageSupport } from '../workspace-tsx/components/ImageSupport.tsx';
 import { ArtSupport } from '../workspace-tsx/components/ArtSupport.tsx';
 import { CodeSupport } from '../workspace-tsx/components/CodeSupport.tsx';
 import { AgentWorkspace } from '../workspace-tsx/components/AgentWorkspace.tsx';
+import { sanitizeToolCallLeakage } from '../../../../common/sendLLMMessageTypes.js';
+import { getToolActivityMessage } from '../../../../common/toolActivityMessages.js';
 
-const readableChatContent = (value: unknown) => readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')
+const readableChatContent = (value: unknown, registeredToolNames: string[] = []) => {
+	const text = readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')
+	return sanitizeToolCallLeakage(text, registeredToolNames)
+}
 
 
 
@@ -1596,6 +1601,16 @@ const titleOfBuiltinToolName = {
 	'read_lint_errors': { done: `Read lint errors`, proposed: 'Read lint errors', running: loadingTitleWrapper('Reading lint errors') },
 	'search_in_file': { done: 'Searched in file', proposed: 'Search in file', running: loadingTitleWrapper('Searching in file') },
 } as const satisfies Record<BuiltinToolName, { done: any, proposed: any, running: any }>
+
+
+export const ToolActivityIndicator = ({ toolName }: { toolName: string }) => {
+	return <div className="px-4 py-2 mt-2 w-full flex items-center justify-start max-w-full">
+		<div className="flex items-center gap-2 max-w-full text-zinc-400">
+			<IconLoading className="w-3 text-sm flex-shrink-0" />
+			<span className="text-sm font-medium truncate flex-1 min-w-0">{getToolActivityMessage(toolName)}...</span>
+		</div>
+	</div>
+}
 
 
 const getTitle = (toolMessage: Pick<ChatMessage & { role: 'tool' }, 'name' | 'type' | 'mcpServerName'>): React.ReactNode => {
@@ -3183,18 +3198,28 @@ export const SidebarChat = () => {
 		});
 	}, [chatThreadsService, chatThreadsState.currentThreadId])
 
+	// Registered tools for sanitization
+	const registeredToolNames = useMemo(() => {
+		const mcpService = accessor.get('IMCPService');
+		const mcpTools = mcpService?.getMCPTools()?.map((t: any) => t.name) || [];
+		const builtinTools = Object.keys(approvalTypeOfBuiltinToolName);
+		return [...mcpTools, ...builtinTools];
+	}, [accessor]);
+
 	// Convert internal messages to ChatView format
 	const chatViewMessages = useMemo((): ChatMessage[] => {
 		return previousMessages
 			.map((m: any, i: number) => ({
 				id: m.id ?? `msg_${i}`,
 				role: m.role as 'user' | 'assistant',
-				content: m.displayContent ?? m.content ?? '',
+				content: m.role === 'assistant' 
+					? readableChatContent(m.displayContent ?? m.content ?? '', registeredToolNames)
+					: (m.displayContent ?? m.content ?? ''),
 				timestamp: m.timestamp ?? Date.now(),
 				messageIndex: i,
 			}))
 			.filter((m: any) => m.role === 'user' || m.role === 'assistant');
-	}, [previousMessages])
+	}, [previousMessages, registeredToolNames])
 
 	useEffect(() => {
 		const handleForgeContext = (event: Event) => {
@@ -3373,8 +3398,8 @@ export const SidebarChat = () => {
 			currCheckpointIdx={currCheckpointIdx}
 			chatMessage={{
 				role: 'assistant',
-				displayContent: readableLLMContent(displayContentSoFar),
-				reasoning: readableLLMContent(reasoningSoFar),
+				displayContent: readableChatContent(displayContentSoFar, registeredToolNames),
+				reasoning: readableChatContent(reasoningSoFar),
 				anthropicReasoning: null,
 			}}
 			messageIdx={streamingChatIdx}
@@ -3392,7 +3417,7 @@ export const SidebarChat = () => {
 			key={'curr-streaming-tool'}
 			toolCallSoFar={toolCallSoFar}
 		/>
-			: null
+			: <ToolActivityIndicator key={'curr-streaming-tool-activity'} toolName={toolCallSoFar.name} />
 		: null
 
 	const messagesHTML = <ScrollToBottomContainer

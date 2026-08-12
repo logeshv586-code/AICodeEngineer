@@ -49,6 +49,53 @@ export const readableLLMContent = (value: unknown): string => {
 	return String(value)
 }
 
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Strip recognized tool-call patterns from display text.
+ *
+ * Only removes structures whose tool name matches one of the
+ * `registeredToolNames`.  Legitimate assistant JSON (e.g. {"name":"John"})
+ * is never removed because "John" won't be in the tool list.
+ *
+ * This is a **secondary** safety net; the primary defence is the streaming
+ * tool-call interceptor in extractGrammar.ts.
+ */
+export const sanitizeToolCallLeakage = (text: string, registeredToolNames: string[]): string => {
+	if (!text || registeredToolNames.length === 0) return text
+
+	let result = text
+	for (const name of registeredToolNames) {
+		const eName = escapeRegex(name)
+
+		// Strip: tool_name({...}) or tool_name({"name":"tool_name",...})
+		// Uses a greedy-enough match that handles nested braces one level deep
+		result = result.replace(
+			new RegExp(`${eName}\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*\\)`, 'g'),
+			''
+		)
+
+		// Strip: tool_name{...} (no parens)
+		result = result.replace(
+			new RegExp(`${eName}\\s*\\{[\\s\\S]*?\\}`, 'g'),
+			''
+		)
+
+		// Strip: {"name":"tool_name","args":{...}} (JSON tool-call object)
+		result = result.replace(
+			new RegExp(`\\{\\s*"name"\\s*:\\s*"${eName}"[\\s\\S]*?\\}(?:\\s*\\})?`, 'g'),
+			''
+		)
+
+		// Strip: <tool_name>...</tool_name> (residual XML)
+		result = result.replace(
+			new RegExp(`<${eName}>[\\s\\S]*?</${eName}>`, 'g'),
+			''
+		)
+	}
+
+	return result.replace(/\n{3,}/g, '\n\n').trim()
+}
 
 
 export type AnthropicLLMChatMessage = {

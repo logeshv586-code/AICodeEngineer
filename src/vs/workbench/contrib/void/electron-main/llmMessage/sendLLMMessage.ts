@@ -7,6 +7,7 @@ import { SendLLMMessageParams, OnText, OnFinalMessage, OnError } from '../../com
 import { IMetricsService } from '../../common/metricsService.js';
 import { displayInfoOfProviderName } from '../../common/voidSettingsTypes.js';
 import { sendLLMMessageToProviderImplementation } from './sendLLMMessage.impl.js';
+import { encode as toonEncode } from '@toon-format/toon';
 
 
 export const sendLLMMessage = async ({
@@ -107,6 +108,30 @@ export const sendLLMMessage = async ({
 			return
 		}
 		const { sendFIM, sendChat } = implementation
+
+		// Apply TOON Token Reduction for ALL payloads
+		// We convert large stringified JSON back to objects, encode them, and stringify
+		// to significantly reduce token overhead in standard LLM task payloads.
+		if (messages_ && Array.isArray(messages_)) {
+			messages_.forEach(msg => {
+				const m = msg as any;
+				if (m.role === 'user' && typeof m.content === 'string' && m.content.includes('{') && m.content.includes('}')) {
+					try {
+						// Only apply TOON to JSON payloads like Crawl4AI metadata, tool results, etc
+						const regex = /```json\n([\s\S]*?)\n```/g;
+						m.content = m.content.replace(regex, (match: string, p1: string) => {
+							try {
+								const obj = JSON.parse(p1);
+								return `\`\`\`toon\n${toonEncode(obj)}\n\`\`\``;
+							} catch (e) {
+								return match;
+							}
+						});
+					} catch(e) {}
+				}
+			});
+		}
+
 		if (messagesType === 'chatMessages') {
 			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode, mcpTools })
 			return

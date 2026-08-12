@@ -203,6 +203,7 @@ export class MCPChannel implements IServerChannel {
 					...server.env,
 					...process.env
 				} as Record<string, string>,
+				cwd: server.cwd,
 			});
 
 			await client.connect(transport)

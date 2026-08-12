@@ -752,13 +752,10 @@ class NativeBrowserPane extends EditorPane {
 			];
 		}
 
-		const uriString = `forge-browser-component://page/${encodeURIComponent(selection.name)}_${Date.now()}`;
-		const event = new CustomEvent('forge:add-staging-selection', {
+		const event = new CustomEvent('forge:add-context', {
 			detail: {
-				type: 'BrowserComponent',
-				title: mode === 'page' ? `Page Content: ${selection.page.title || 'Untitled'}` : `Component: ${selection.name}`,
-				content: userMessage.filter(Boolean).join('\n'),
-				uri: URI.parse(uriString)
+				kind: mode === 'page' ? `Page Content: ${selection.page.title || 'Untitled'}` : `Component: ${selection.name}`,
+				content: userMessage.filter(Boolean).join('\n')
 			}
 		});
 		window.dispatchEvent(event);

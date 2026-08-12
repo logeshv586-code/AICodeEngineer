@@ -421,7 +421,6 @@ const systemToolsXMLPrompt = (chatMode: ChatMode, mcpTools: InternalToolInfo[] |
     - All parameters are REQUIRED unless noted otherwise.
     - You are only allowed to output ONE tool call, and it must be at the END of your response.
     - Your tool call will be executed immediately, and the results will appear in the following user message.
-    - If you cannot emit XML, use this exact fallback format: {"name":"tool_name","args":{...}}.
     - Use the exact tool name shown above. Do not invent names such as "name_file_or_folder".
     - When a workspace folder is listed, create requested files there immediately. Use that listed path (or a relative filename); never use /workspace as a literal filesystem path.`)
 

@@ -18,6 +18,7 @@ const builtInModelPresets: { modelName: string; providerName: ProviderName; tag?
 	{ modelName: 'GPT-5.4', providerName: 'openAI', tag: 'Beta' },
 	{ modelName: 'GPT-5.2', providerName: 'openAI' },
 	{ modelName: 'z-ai/glm-5.2', providerName: 'nvidia', tag: 'NVIDIA' },
+	{ modelName: 'Nemotron 3B Ultra', providerName: 'nvidia', tag: 'NVIDIA' },
 	{ modelName: 'nvidia/llama-3.3-nemotron-70b-instruct', providerName: 'nvidia', tag: 'NVIDIA' },
 	{ modelName: 'nvidia/llama-3.1-nemotron-70b-instruct', providerName: 'nvidia' },
 	{ modelName: 'nvidia/llama-3.1-nemotron-8b-instruct', providerName: 'nvidia' },
@@ -100,7 +101,12 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 		};
 	}, [isOpen]);
 
-	const toggleMenu = () => setIsOpen(open => !open);
+	const toggleMenu = () => {
+		if (!isOpen) {
+			setSearchQuery('');
+		}
+		setIsOpen(open => !open);
+	};
 
 	const selectModel = async (modelName: string, providerName: ProviderName) => {
 		const providerSettings = settingsState.settingsOfProvider[providerName];
@@ -220,7 +226,6 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}
 						className="w-full bg-zinc-800/80 border border-zinc-700/60 rounded-md px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-[#7c83ff]"
-						autoFocus
 					/>
 				</div>
 

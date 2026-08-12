@@ -19,6 +19,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { InternalToolInfo } from './prompt/prompts.js';
 import { IVoidSettingsService } from './voidSettingsService.js';
 import { MCPUserStateOfName } from './voidSettingsTypes.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 
 type MCPServiceState = {
@@ -82,6 +83,7 @@ class MCPService extends Disposable implements IMCPService {
 		@IEditorService private readonly editorService: IEditorService,
 		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IVoidSettingsService private readonly voidSettingsService: IVoidSettingsService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.channel = this.mainProcessService.getChannel('void-channel-mcp')
@@ -111,6 +113,11 @@ class MCPService extends Disposable implements IMCPService {
 				console.log('MCP Config file created:', mcpConfigUri.toString());
 			}
 			await this._addMCPConfigFileWatcher();
+
+			this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(async () => {
+				await this._refreshMCPServers();
+			}));
+
 			await this._refreshMCPServers();
 		} catch (error) {
 			console.error('Error initializing MCPService:', error);
@@ -249,6 +256,19 @@ class MCPService extends Disposable implements IMCPService {
 			if (!configFileJson.mcpServers) {
 				throw new Error('Missing mcpServers property');
 			}
+			
+			// NATIVE COCOINDEX INTEGRATION
+			const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+			if (workspaceFolders.length > 0) {
+				const workspaceRoot = workspaceFolders[0].uri.fsPath;
+				configFileJson.mcpServers['cocoindex'] = {
+					command: 'ccc',
+					args: ['mcp'],
+					cwd: workspaceRoot,
+					env: {}
+				};
+			}
+
 			return configFileJson as MCPConfigFileJSON;
 		} catch (error) {
 			const fullError = `Error parsing MCP config file: ${error}`;

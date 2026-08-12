@@ -139,9 +139,27 @@ export const extractReasoningWrapper = (
 }
 
 
-// =============== tools (XML) ===============
+// =============== tools (unified: XML / JSON / function-call) ===============
 
 
+
+// trim all whitespace up until the first newline, and all whitespace up until the last newline
+const trimBeforeAndAfterNewLines = (s: string) => {
+	if (!s) return s;
+
+	const firstNewLineIndex = s.indexOf('\n');
+
+	if (firstNewLineIndex !== -1 && s.substring(0, firstNewLineIndex).trim() === '') {
+		s = s.substring(firstNewLineIndex + 1, Infinity)
+	}
+
+	const lastNewLineIndex = s.lastIndexOf('\n');
+	if (lastNewLineIndex !== -1 && s.substring(lastNewLineIndex + 1, Infinity).trim() === '') {
+		s = s.substring(0, lastNewLineIndex)
+	}
+
+	return s
+}
 
 const findPartiallyWrittenToolTagAtEnd = (fullText: string, toolTags: string[]) => {
 	for (const toolTag of toolTags) {
@@ -192,14 +210,20 @@ const parseXMLPrefixToToolCall = <T extends ToolName,>(toolName: T, toolId: stri
 
 	// find first toolName tag
 	const openToolTag = `<${toolName}>`
+	const hybridToolTag = `{"name":"${toolName}">`
 	let i = str.indexOf(openToolTag)
+	let matchedOpenTag = openToolTag
+	if (i === -1) {
+		i = str.indexOf(hybridToolTag)
+		matchedOpenTag = hybridToolTag
+	}
 	if (i === -1) return getAnswer()
 	let j = str.lastIndexOf(`</${toolName}>`)
 	if (j === -1) j = Infinity
 	else isDone = true
 
 
-	str = str.substring(i + openToolTag.length, j)
+	str = str.substring(i + matchedOpenTag.length, j)
 
 	const pm = new SurroundingsRemover(str)
 
@@ -260,7 +284,175 @@ const parseXMLPrefixToToolCall = <T extends ToolName,>(toolName: T, toolId: stri
 	}
 }
 
-export const extractXMLToolsWrapper = (
+
+// ---- Unified tool-call detection helpers ----
+
+/**
+ * Extract a tool name from a detected tag/pattern, based on its format.
+ */
+const extractToolNameFromTag = (tag: string, tools: InternalToolInfo[]): ToolName => {
+	// XML: <tool_name>
+	if (tag.startsWith('<') && tag.endsWith('>') && !tag.startsWith('{"')) {
+		return tag.substring(1, tag.length - 1) as ToolName
+	}
+	// JSON/hybrid: {"name":"tool_name" or {"name":"tool_name">
+	const jsonMatch = tag.match(/"name"\s*:\s*"([^"]+)"/)
+	if (jsonMatch) {
+		return jsonMatch[1] as ToolName
+	}
+	// Function-call: tool_name({ or tool_name{
+	for (const t of tools) {
+		if (tag.startsWith(t.name)) {
+			return t.name as ToolName
+		}
+	}
+	return tag as ToolName
+}
+
+/**
+ * Detect function-call patterns in text: tool_name({...}) or tool_name{...}
+ * Only matches registered tool names.
+ */
+const findFnCallPattern = (text: string, tools: InternalToolInfo[]): { idx: number, toolName: ToolName } | null => {
+	for (const tool of tools) {
+		// Match: tool_name({ — function call with JSON arg in parens
+		const fnParenIdx = text.indexOf(`${tool.name}({`)
+		if (fnParenIdx !== -1) {
+			return { idx: fnParenIdx, toolName: tool.name as ToolName }
+		}
+		// Match: tool_name( — function call with opening paren (args may follow)
+		const fnIdx = text.indexOf(`${tool.name}(`)
+		if (fnIdx !== -1) {
+			// Verify this looks like a tool call, not prose (check for { or " after the paren)
+			const afterParen = text.substring(fnIdx + tool.name.length + 1, fnIdx + tool.name.length + 3)
+			if (afterParen.startsWith('{') || afterParen.startsWith('"') || afterParen.startsWith("'")) {
+				return { idx: fnIdx, toolName: tool.name as ToolName }
+			}
+		}
+		// Match: tool_name{ — direct JSON arg without parens
+		const directIdx = text.indexOf(`${tool.name}{`)
+		if (directIdx !== -1) {
+			return { idx: directIdx, toolName: tool.name as ToolName }
+		}
+	}
+	return null
+}
+
+/**
+ * Detect JSON tool-call patterns: {"name":"tool_name", ...}
+ * Only matches registered tool names.
+ */
+const findJSONToolCallStart = (text: string, tools: InternalToolInfo[]): { idx: number, toolName: ToolName } | null => {
+	for (const tool of tools) {
+		const pattern = `"name":"${tool.name}"`
+		const patternIdx = text.indexOf(pattern)
+		if (patternIdx !== -1) {
+			// Walk backward to find the opening { of the JSON object
+			const braceIdx = text.lastIndexOf('{', patternIdx)
+			if (braceIdx >= 0) {
+				return { idx: braceIdx, toolName: tool.name as ToolName }
+			}
+		}
+		// Also check with spaces around colon
+		const patternSpaced = `"name" : "${tool.name}"`
+		const patternSpacedIdx = text.indexOf(patternSpaced)
+		if (patternSpacedIdx !== -1) {
+			const braceIdx = text.lastIndexOf('{', patternSpacedIdx)
+			if (braceIdx >= 0) {
+				return { idx: braceIdx, toolName: tool.name as ToolName }
+			}
+		}
+	}
+	return null
+}
+
+/**
+ * Detect partial function-call or JSON tool-call patterns at the end of text
+ * that should be buffered (not yet shown to the user).
+ *
+ * Only buffers patterns that strongly indicate a tool invocation:
+ * - tool_name( with no matching ) → function-call in progress
+ * - {"name":"<partial_tool_name → JSON tool call starting
+ *
+ * Normal prose like "I'll use get_dir_tree to inspect" is NOT buffered
+ * because there's no ( or { after the tool name.
+ */
+const findPartialFnJsonAtEnd = (text: string, tools: InternalToolInfo[]): number | null => {
+	// 1. Check for tool_name( near the end without matching )
+	for (const tool of tools) {
+		const fnStart = `${tool.name}(`
+		const lastIdx = text.lastIndexOf(fnStart)
+		if (lastIdx !== -1) {
+			const afterFn = text.substring(lastIdx + fnStart.length)
+			// If no closing ) found, this is a partial function call — buffer it
+			if (!afterFn.includes(')')) {
+				return lastIdx
+			}
+		}
+	}
+
+	// 2. Check for tool_name{ near the end without matching }
+	for (const tool of tools) {
+		const fnStart = `${tool.name}{`
+		const lastIdx = text.lastIndexOf(fnStart)
+		if (lastIdx !== -1) {
+			const afterFn = text.substring(lastIdx + fnStart.length)
+			const openBraces = (afterFn.match(/{/g) || []).length + 1 // +1 for the one in fnStart
+			const closeBraces = (afterFn.match(/}/g) || []).length
+			if (openBraces > closeBraces) {
+				return lastIdx
+			}
+		}
+	}
+
+	// 3. Check for partial JSON: {"name":"<partial_tool_name at end of text
+	const jsonPrefixMatch = text.match(/\{\s*"name"\s*:\s*"([^"]*?)$/)
+	if (jsonPrefixMatch) {
+		const partialName = jsonPrefixMatch[1]
+		// Only buffer if some registered tool name starts with this partial
+		if (tools.some(t => t.name.startsWith(partialName))) {
+			const bufferStart = text.lastIndexOf(jsonPrefixMatch[0])
+			if (bufferStart >= 0) {
+				return bufferStart
+			}
+		}
+	}
+
+	// 4. Check for {"name":"tool_name" at end without complete JSON object
+	for (const tool of tools) {
+		const jsonStart = `{"name":"${tool.name}"`
+		const lastIdx = text.lastIndexOf(jsonStart)
+		if (lastIdx !== -1) {
+			const afterJson = text.substring(lastIdx)
+			const openBraces = (afterJson.match(/{/g) || []).length
+			const closeBraces = (afterJson.match(/}/g) || []).length
+			if (openBraces > closeBraces) {
+				return lastIdx
+			}
+		}
+	}
+
+	return null
+}
+
+
+// ---- Main streaming tool extractor ----
+
+/**
+ * Unified tool-call extractor for streaming LLM responses.
+ *
+ * Handles three tool-call formats:
+ * 1. XML:            <tool_name><param>value</param></tool_name>
+ * 2. Function-call:  tool_name({...}) or tool_name{...}
+ * 3. JSON:           {"name":"tool_name","args":{...}}
+ *
+ * Architecture: maintains two separate buffers:
+ * - `visibleTextSoFar`    — only user-facing text (never contains tool syntax)
+ * - `toolProtocolBuffer`  — tool syntax being accumulated (never shown to UI)
+ *
+ * This prevents tool protocol from contaminating the assistant message.
+ */
+export const extractToolsWrapper = (
 	onText: OnText,
 	onFinalMessage: OnFinalMessage,
 	chatMode: ChatMode | null,
@@ -272,18 +464,20 @@ export const extractXMLToolsWrapper = (
 	if (!tools) return { newOnText: onText, newOnFinalMessage: onFinalMessage }
 
 	const toolOfToolName: ToolOfToolName = {}
-	const toolOpenTags = tools.map(t => `<${t.name}>`)
+	// XML open tags (kept for backward compatibility with XML-format models)
+	const xmlOpenTags = tools.flatMap(t => [`<${t.name}>`, `{"name":"${t.name}">`])
 	for (const t of tools) { toolOfToolName[t.name] = t }
 
 	const toolId = generateUuid()
 
-	// detect <availableTools[0]></availableTools[0]>, etc
-	let fullText = '';
-	let trueFullText = ''
+	// ---- Dual-buffer state ----
+	let visibleTextSoFar = ''     // only user-facing text → goes to displayContentSoFar
+	let trueFullText = ''         // raw model output (internal only, for parsing)
 	let latestToolCall: RawToolCallObj | undefined = undefined
 
-	let foundOpenTag: { idx: number, toolName: ToolName } | null = null
-	let openToolTagBuffer = '' // the characters we've seen so far that come after a < with no space afterwards, not yet added to fullText
+	// For XML partial tag detection (existing mechanism)
+	let foundToolStart: { idx: number, toolName: ToolName } | null = null
+	let pendingBuffer = ''        // text not yet classified as visible or tool protocol
 
 	let prevFullTextLen = 0
 	const newOnText: OnText = (params) => {
@@ -291,69 +485,158 @@ export const extractXMLToolsWrapper = (
 		prevFullTextLen = params.fullText.length
 		trueFullText = params.fullText
 
-		// console.log('NEWTEXT', JSON.stringify(newText))
+		// If we've already found the start of a tool invocation, all subsequent
+		// text is part of the tool protocol — don't add to visible text.
+		if (foundToolStart !== null) {
+			// Re-parse tool call from the full raw text starting at the tool position
+			const toolText = trueFullText.substring(foundToolStart.idx, Infinity)
 
-
-		if (foundOpenTag === null) {
-			const newFullText = openToolTagBuffer + newText
-			// ensure the code below doesn't run if only half a tag has been written
-			const isPartial = findPartiallyWrittenToolTagAtEnd(newFullText, toolOpenTags)
-			if (isPartial) {
-				// console.log('--- partial!!!')
-				openToolTagBuffer += newText
-			}
-			// if no tooltag is partially written at the end, attempt to get the index
-			else {
-				// we will instantly retroactively remove this if it's a tag match
-				fullText += openToolTagBuffer
-				openToolTagBuffer = ''
-				fullText += newText
-
-				const i = findIndexOfAny(fullText, toolOpenTags)
-				if (i !== null) {
-					const [idx, toolTag] = i
-					const toolName = toolTag.substring(1, toolTag.length - 1) as ToolName
-					// console.log('found ', toolName)
-					foundOpenTag = { idx, toolName }
-
-					// do not count anything at or after i in fullText
-					fullText = fullText.substring(0, idx)
-				}
-
-
-			}
-		}
-
-		// toolTagIdx is not null, so parse the XML
-		if (foundOpenTag !== null) {
+			// Try XML parsing
 			latestToolCall = parseXMLPrefixToToolCall(
-				foundOpenTag.toolName,
+				foundToolStart.toolName,
 				toolId,
-				trueFullText.substring(foundOpenTag.idx, Infinity),
+				toolText,
 				toolOfToolName,
 			)
+
+			// If XML parsing didn't produce params, try JSON/function-call parsing
+			if (Object.keys(latestToolCall.rawParams).length === 0 && !latestToolCall.isDone) {
+				const jsonResult = parseJSONToolCall(toolText, tools)
+				if (jsonResult) {
+					latestToolCall = jsonResult.toolCall
+				}
+			}
+
+			onText({
+				...params,
+				fullText: visibleTextSoFar,
+				toolCall: latestToolCall,
+			})
+			return
 		}
 
+		// --- No tool start found yet — classify incoming text ---
+
+		pendingBuffer += newText
+
+		// Step 1: Check for partial XML tag at end of pending buffer
+		const isPartialXML = findPartiallyWrittenToolTagAtEnd(pendingBuffer, xmlOpenTags)
+		if (isPartialXML) {
+			// Buffer entire pending text — might be start of an XML tag
+			onText({
+				...params,
+				fullText: visibleTextSoFar,
+				toolCall: latestToolCall,
+			})
+			return
+		}
+
+		// Step 2: Flush pending buffer into visible text, then scan for patterns
+		visibleTextSoFar += pendingBuffer
+		pendingBuffer = ''
+
+		// Step 3: Check for complete XML open tag
+		const xmlMatch = findIndexOfAny(visibleTextSoFar, xmlOpenTags)
+		if (xmlMatch !== null) {
+			const [idx, toolTag] = xmlMatch
+			const toolName = extractToolNameFromTag(toolTag, tools)
+			foundToolStart = { idx, toolName }
+			visibleTextSoFar = visibleTextSoFar.substring(0, idx)
+
+			latestToolCall = parseXMLPrefixToToolCall(
+				toolName,
+				toolId,
+				trueFullText.substring(idx, Infinity),
+				toolOfToolName,
+			)
+
+			onText({ ...params, fullText: visibleTextSoFar, toolCall: latestToolCall })
+			return
+		}
+
+		// Step 4: Check for function-call pattern: tool_name({...}) or tool_name{...}
+		const fnMatch = findFnCallPattern(visibleTextSoFar, tools)
+		if (fnMatch) {
+			foundToolStart = { idx: fnMatch.idx, toolName: fnMatch.toolName }
+			visibleTextSoFar = visibleTextSoFar.substring(0, fnMatch.idx)
+
+			const toolText = trueFullText.substring(fnMatch.idx, Infinity)
+			const jsonResult = parseJSONToolCall(toolText, tools)
+			if (jsonResult) {
+				latestToolCall = jsonResult.toolCall
+			} else {
+				// Partial function-call — create a placeholder tool call
+				latestToolCall = {
+					name: fnMatch.toolName,
+					rawParams: {},
+					doneParams: [],
+					isDone: false,
+					id: toolId,
+				}
+			}
+
+			onText({ ...params, fullText: visibleTextSoFar, toolCall: latestToolCall })
+			return
+		}
+
+		// Step 5: Check for JSON tool-call pattern: {"name":"tool_name",...}
+		const jsonMatch = findJSONToolCallStart(visibleTextSoFar, tools)
+		if (jsonMatch) {
+			foundToolStart = { idx: jsonMatch.idx, toolName: jsonMatch.toolName }
+			visibleTextSoFar = visibleTextSoFar.substring(0, jsonMatch.idx)
+
+			const toolText = trueFullText.substring(jsonMatch.idx, Infinity)
+			const jsonResult = parseJSONToolCall(toolText, tools)
+			if (jsonResult) {
+				latestToolCall = jsonResult.toolCall
+			} else {
+				latestToolCall = {
+					name: jsonMatch.toolName,
+					rawParams: {},
+					doneParams: [],
+					isDone: false,
+					id: toolId,
+				}
+			}
+
+			onText({ ...params, fullText: visibleTextSoFar, toolCall: latestToolCall })
+			return
+		}
+
+		// Step 6: Check for partial function-call/JSON at end of visible text
+		// Buffer these so they don't flash in the UI before being classified
+		const partialMatch = findPartialFnJsonAtEnd(visibleTextSoFar, tools)
+		if (partialMatch !== null) {
+			pendingBuffer = visibleTextSoFar.substring(partialMatch)
+			visibleTextSoFar = visibleTextSoFar.substring(0, partialMatch)
+		}
+
+		// Emit visible text to the UI
 		onText({
 			...params,
-			fullText,
+			fullText: visibleTextSoFar,
 			toolCall: latestToolCall,
-		});
-	};
+		})
+	}
 
 
 	const newOnFinalMessage: OnFinalMessage = (params) => {
-		// treat like just got text before calling onFinalMessage (or else we sometimes miss the final chunk that's new to finalMessage)
+		// Flush any remaining text before processing final message
 		newOnText({ ...params })
 
-		fullText = fullText.trimEnd()
-		let toolCall = latestToolCall
-		let finalText = fullText
+		// If there was pending text that never resolved to a tool call, add it to visible
+		if (pendingBuffer && !foundToolStart) {
+			visibleTextSoFar += pendingBuffer
+			pendingBuffer = ''
+		}
 
-		// Some OpenAI-compatible/reasoning models ignore the XML instructions and
-		// return a JSON tool call instead. Recover it here so it still goes through
-		// the normal validation, approval, and execution pipeline.
-		if (!toolCall) {
+		visibleTextSoFar = visibleTextSoFar.trimEnd()
+		let toolCall = latestToolCall
+		let finalText = visibleTextSoFar
+
+		// Final pass: if no tool call was detected during streaming, try the
+		// full-text JSON parser as a last resort (handles edge cases)
+		if (!toolCall || (Object.keys(toolCall.rawParams).length === 0 && !toolCall.isDone)) {
 			const jsonToolCall = parseJSONToolCall(trueFullText || params.fullText, tools)
 			if (jsonToolCall) {
 				toolCall = jsonToolCall.toolCall
@@ -361,15 +644,13 @@ export const extractXMLToolsWrapper = (
 			}
 		}
 
-		// console.log('final message!!!', trueFullText)
-		// console.log('----- returning ----\n', fullText)
-		// console.log('----- tools ----\n', JSON.stringify(firstToolCallRef.current, null, 2))
-		// console.log('----- toolCall ----\n', JSON.stringify(toolCall, null, 2))
-
 		onFinalMessage({ ...params, fullText: finalText, toolCall: toolCall })
 	}
-	return { newOnText, newOnFinalMessage };
+	return { newOnText, newOnFinalMessage }
 }
+
+// Keep backward-compatible alias
+export const extractXMLToolsWrapper = extractToolsWrapper
 
 const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: number, toolCall: RawToolCallObj } | null => {
 	// Some OpenAI-compatible models emit a compact tool-call object, while
@@ -382,6 +663,36 @@ const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: nu
 		const brace = text.lastIndexOf('{', match.index ?? -1)
 		if (brace >= 0) start = brace
 	}
+
+	// Support models that output `tool_name{"arg": "val"}` directly
+	let directToolName: string | null = null;
+	if (start < 0) {
+		for (const tool of tools) {
+			const toolRegex = new RegExp(`\\b${tool.name}\\s*\\{`, 'g')
+			let match;
+			while ((match = toolRegex.exec(text)) !== null) {
+				start = match.index + match[0].length - 1 // points to '{'
+				directToolName = tool.name;
+			}
+		}
+	}
+
+	// Support models that output `tool_name({...})` with parens
+	if (start < 0) {
+		for (const tool of tools) {
+			const toolRegex = new RegExp(`\\b${tool.name}\\s*\\(\\s*\\{`, 'g')
+			let match;
+			while ((match = toolRegex.exec(text)) !== null) {
+				// Point start to the opening { (skip the paren)
+				const braceIdx = text.indexOf('{', match.index + tool.name.length)
+				if (braceIdx >= 0) {
+					start = braceIdx
+					directToolName = tool.name
+				}
+			}
+		}
+	}
+
 	if (start < 0) return null
 	const end = text.lastIndexOf('}')
 	if (end <= start) return null
@@ -400,10 +711,12 @@ const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: nu
 			return `"uri":"${escapedPath}"`
 		})
 		const parsed = JSON.parse(repairedCandidate) as { name?: unknown, args?: unknown, arguments?: unknown }
-		const toolName = parsed.name === 'name_file_or_folder' ? 'create_file_or_folder' : parsed.name
+		
+		let toolName = directToolName || parsed.name;
+		toolName = toolName === 'name_file_or_folder' ? 'create_file_or_folder' : toolName
 		if (typeof toolName !== 'string' || !tools.some(tool => tool.name === toolName)) return null
 
-		let rawArgs: unknown = parsed.args ?? parsed.arguments ?? {}
+		let rawArgs: unknown = directToolName ? parsed : (parsed.args ?? parsed.arguments ?? {})
 		if (typeof rawArgs === 'string') rawArgs = rawArgs.trim() ? JSON.parse(rawArgs) : {}
 		if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) return null
 		const rawParams = rawArgs as RawToolParamsObj
@@ -418,26 +731,19 @@ const parseJSONToolCall = (text: string, tools: InternalToolInfo[]): { start: nu
 			},
 		}
 	} catch {
+		if (directToolName) {
+			// Recover from invalid JSON args by passing empty args
+			return {
+				start,
+				toolCall: {
+					name: directToolName as ToolName,
+					rawParams: {},
+					doneParams: [],
+					id: generateUuid(),
+					isDone: true,
+				},
+			}
+		}
 		return null
 	}
-}
-
-
-
-// trim all whitespace up until the first newline, and all whitespace up until the last newline
-const trimBeforeAndAfterNewLines = (s: string) => {
-	if (!s) return s;
-
-	const firstNewLineIndex = s.indexOf('\n');
-
-	if (firstNewLineIndex !== -1 && s.substring(0, firstNewLineIndex).trim() === '') {
-		s = s.substring(firstNewLineIndex + 1, Infinity)
-	}
-
-	const lastNewLineIndex = s.lastIndexOf('\n');
-	if (lastNewLineIndex !== -1 && s.substring(lastNewLineIndex + 1, Infinity).trim() === '') {
-		s = s.substring(0, lastNewLineIndex)
-	}
-
-	return s
 }

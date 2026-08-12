@@ -114,13 +114,12 @@ export interface MCPTool {
 
 // export type ToolCallResponse = JsonRpcSuccess<ToolCallResult>;
 
-// MCP SERVER CONFIG FILE TYPES -----------------------------
-
 export interface MCPConfigFileEntryJSON {
 	// Command-based server properties
 	command?: string;
 	args?: string[];
 	env?: Record<string, string>;
+	cwd?: string;
 
 	// URL-based server properties
 	url?: URL;

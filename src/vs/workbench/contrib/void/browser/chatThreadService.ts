@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILLMMessageService } from '../common/sendLLMMessageService.js';
 import { chat_userMessageContent, isABuiltinToolName } from '../common/prompt/prompts.js';
-import { AnthropicReasoning, getErrorMessage, readableLLMContent, RawToolCallObj, RawToolParamsObj } from '../common/sendLLMMessageTypes.js';
+import { AnthropicReasoning, getErrorMessage, readableLLMContent, RawToolCallObj, RawToolParamsObj, sanitizeToolCallLeakage } from '../common/sendLLMMessageTypes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { FeatureName, ModelSelection, ModelSelectionOptions } from '../common/voidSettingsTypes.js';
 import { IVoidSettingsService } from '../common/voidSettingsService.js';
@@ -40,6 +40,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IMCPService } from '../common/mcpService.js';
 import { RawMCPToolCall } from '../common/mcpServiceTypes.js';
 import { getModelCapabilities } from '../common/modelCapabilities.js';
+import { getToolErrorLabel } from '../common/toolActivityMessages.js';
 
 
 // related to retrying when LLM message has error
@@ -661,7 +662,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				}
 			}
 			catch (error) {
-				const errorMessage = getErrorMessage(error)
+				const errorMessage = `Failed to ${getToolErrorLabel(toolName)}. ${getErrorMessage(error)}`
 				this._addMessageToThread(threadId, { role: 'tool', type: 'invalid_params', rawParams: opts.unvalidatedToolParams, result: null, name: toolName, content: errorMessage, id: toolId, mcpServerName })
 				return {}
 			}
@@ -731,7 +732,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			resolveInterruptor(() => { }) // resolve for the sake of it
 			if (interrupted) { return { interrupted: true } } // the tool result is added where we interrupt, not here
 
-			const errorMessage = getErrorMessage(error)
+			const errorMessage = `Failed to ${getToolErrorLabel(toolName)}. ${getErrorMessage(error)}`
 			this._updateLatestTool(threadId, { role: 'tool', type: 'tool_error', params: toolParams, result: errorMessage, name: toolName, content: errorMessage, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName })
 			return {}
 		}
@@ -746,7 +747,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				toolResultStr = this._mcpService.stringifyResult(toolResult as RawMCPToolCall)
 			}
 		} catch (error) {
-			const errorMessage = this.toolErrMsgs.errWhenStringifying(error)
+			const errorMessage = `Failed to ${getToolErrorLabel(toolName)}. ${this.toolErrMsgs.errWhenStringifying(error)}`
 			this._updateLatestTool(threadId, { role: 'tool', type: 'tool_error', params: toolParams, result: errorMessage, name: toolName, content: errorMessage, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName })
 			return {}
 		}
@@ -1791,6 +1792,20 @@ We only need to do it for files that were edited since `from`, ie files between 
 		const { allThreads } = this.state
 		const oldThread = allThreads[threadId]
 		if (!oldThread) return // should never happen
+		
+		let sanitizedMessage = message;
+		if (sanitizedMessage.role === 'assistant') {
+			const mcpToolNames = this._mcpService.getMCPTools()?.map(t => t.name) || []
+			const builtInToolNames = Object.keys(approvalTypeOfBuiltinToolName)
+			const registeredToolNames = [...mcpToolNames, ...builtInToolNames]
+			
+			sanitizedMessage = {
+				...sanitizedMessage,
+				displayContent: sanitizeToolCallLeakage(sanitizedMessage.displayContent, registeredToolNames),
+				// reasoning and anthropicReasoning can also be sanitized if needed, but displayContent is the main issue.
+			}
+		}
+
 		// update state and store it
 		const newThreads = {
 			...allThreads,
@@ -1799,7 +1814,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 				lastModified: new Date().toISOString(),
 				messages: [
 					...oldThread.messages,
-					message
+					sanitizedMessage
 				],
 			}
 		}
