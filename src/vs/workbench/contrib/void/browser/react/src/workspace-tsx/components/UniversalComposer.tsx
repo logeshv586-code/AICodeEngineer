@@ -126,9 +126,9 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
     }
 		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
-			if (!isDisabled && value.trim()) onSubmit();
+			if (!isDisabled && (value.trim() || attachments.length > 0)) onSubmit();
 		}
-	}, [value, isSlashOpen, filteredCommands, handleSlashSelect, isStreaming, isDisabled, onSubmit]);
+	}, [value, attachments.length, isSlashOpen, filteredCommands, handleSlashSelect, isStreaming, isDisabled, onSubmit]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;

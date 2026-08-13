@@ -3255,10 +3255,11 @@ export const SidebarChat = () => {
 			const detail = (event as CustomEvent<{ kind?: string; content?: string }>).detail;
 			if (!detail?.content) return;
 			const prefix = detail.kind ? `[${detail.kind}]\n` : '';
-			const current = draftText;
-			const next = current ? `${current}\n\n${prefix}${detail.content}` : `${prefix}${detail.content}`;
-			setDraftText(next);
-			textAreaFnsRef.current?.setValue(next);
+			setDraftText(current => {
+				const next = current ? `${current}\n\n${prefix}${detail.content}` : `${prefix}${detail.content}`;
+				textAreaFnsRef.current?.setValue(next);
+				return next;
+			});
 			setInstructionsAreEmpty(false);
 			textAreaFnsRef.current?.focus();
 		};
@@ -3274,7 +3275,7 @@ export const SidebarChat = () => {
 			window.removeEventListener('forge:add-context', handleForgeContext);
 			window.removeEventListener('forge:add-staging-selection', handleAddStagingSelection);
 		};
-	}, [draftText, chatThreadsService])
+	}, [chatThreadsService])
 
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 
@@ -3310,7 +3311,7 @@ export const SidebarChat = () => {
 		}
 
 		try {
-			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, threadId })
+			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, _chatSelections: selections.slice(), threadId })
 		} catch (e) {
 			console.error('Error while sending message in chat:', e)
 		}
@@ -3321,7 +3322,7 @@ export const SidebarChat = () => {
 		textAreaFnsRef.current?.setValue('')
 		textAreaFnsRef.current?.focus()
 
-	}, [chatThreadsService, isDisabled, isRunning, textAreaFnsRef, setSelections, settingsState, agentProfiles, selectedAgentId, draftText, conversationMode])
+	}, [chatThreadsService, isDisabled, isRunning, textAreaFnsRef, setSelections, settingsState, agentProfiles, selectedAgentId, draftText, conversationMode, selections])
 
 	const onAddAttachment = useCallback((attachment: { uri: string; dataUrl: string; mimeType: string }) => {
 		setAttachments(previous => [...previous, attachment])
@@ -3331,6 +3332,16 @@ export const SidebarChat = () => {
 			chatThreadsService.addNewStagingSelection({ type: 'File', uri: URI.file(attachment.uri), language: attachment.uri.split('.').pop() || '', state: { wasAddedAsCurrentFile: false } })
 		}
 	}, [chatThreadsService])
+
+	const onRemoveAttachment = useCallback((attachmentIndex: number) => {
+		const attachment = attachments[attachmentIndex]
+		setAttachments(previous => previous.filter((_, index) => index !== attachmentIndex))
+		if (!attachment) return
+		const attachmentPath = URI.file(attachment.uri).fsPath
+		const expectedType = attachment.mimeType.startsWith('image/') ? 'Image' : 'File'
+		const selectionIndex = selections.findIndex(selection => selection.type === expectedType && selection.uri.fsPath === attachmentPath)
+		if (selectionIndex >= 0) setSelections([...selections.slice(0, selectionIndex), ...selections.slice(selectionIndex + 1)])
+	}, [attachments, selections, setSelections])
 
 	const createAgent = useCallback((name: string) => {
 		const id = `agent-${Date.now()}`
@@ -3590,7 +3601,7 @@ export const SidebarChat = () => {
 				capabilities={capabilities}
 				attachments={attachments}
 				onAddAttachment={onAddAttachment}
-				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+				onRemoveAttachment={onRemoveAttachment}
 				textAreaFnsRef={textAreaFnsRef}
 				agentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
 				agentOptions={agentProfiles.map(agent => ({ id: agent.id, name: agent.name }))}
@@ -3627,7 +3638,7 @@ export const SidebarChat = () => {
 				capabilities={capabilities}
 				attachments={attachments}
 				onAddAttachment={onAddAttachment}
-				onRemoveAttachment={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+				onRemoveAttachment={onRemoveAttachment}
 				textAreaFnsRef={textAreaFnsRef}
 				agentName={agentProfiles.find(agent => agent.id === selectedAgentId)?.name ?? 'Forge Agent'}
 				agentOptions={agentProfiles.map(agent => ({ id: agent.id, name: agent.name }))}
@@ -3707,7 +3718,7 @@ export const SidebarChat = () => {
 					modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
 					onOpenSettings={() => commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID)}
 					attachments={attachments}
-					onRemoveAttachment={(i) => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+					onRemoveAttachment={onRemoveAttachment}
 				/>
 				<ForgeContextPanel
 					files={selections.map(selection => selection.uri.fsPath)}

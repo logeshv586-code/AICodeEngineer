@@ -512,7 +512,7 @@ export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalTool
 				: undefined
 
 	const effectiveBuiltinTools = builtinToolNames?.map(toolName => builtinTools[toolName]) ?? undefined
-	const effectiveMCPTools = chatMode === 'agent' ? mcpTools : undefined
+	const effectiveMCPTools = chatMode === 'agent' || chatMode === 'gather' ? mcpTools : undefined
 
 	const tools: InternalToolInfo[] | undefined = !(builtinToolNames || mcpTools) ? undefined
 		: [
@@ -619,6 +619,7 @@ ${directoryStr}
 		details.push('Only use ONE tool call at a time.')
 		details.push(`NEVER say something like "I'm going to use \`tool_name\`". Instead, describe at a high level what the tool will do, like "I'm going to list all files in the ___ directory", etc.`)
 		details.push(`Many tools only work if the user has a workspace open.`)
+		details.push('Use the built-in semantic_search tool first when locating implementations or understanding unfamiliar code. It uses the current project\'s local CocoIndex; use file tools for exact reads and edits afterward. If semantic search is unavailable, disabled, still indexing, or returns an error, immediately continue with native exact workspace search instead of asking the user to paste files.')
 	}
 	else {
 		details.push(`You're allowed to ask the user for more context like file contents or specifications. If this comes up, tell them to reference files and folders by typing @.`)

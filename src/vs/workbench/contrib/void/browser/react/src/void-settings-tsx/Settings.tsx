@@ -19,10 +19,12 @@ import { ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsSer
 import Severity from '../../../../../../../base/common/severity.js'
 import { getModelCapabilities, modelOverrideKeys, ModelOverrides, defaultProviderSettings } from '../../../../common/modelCapabilities.js';
 import { TransferEditorType, TransferFilesInfo } from '../../../extensionTransferTypes.js';
-import { MCPServer } from '../../../../common/mcpServiceTypes.js';
+import { MCPConfigFileEntryJSON, MCPServer } from '../../../../common/mcpServiceTypes.js';
 import { useMCPServiceState } from '../util/services.tsx';
 import { OPT_OUT_KEY } from '../../../../common/storageKeys.js';
 import { StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
+import { FORGE_CHANNEL_NAME } from '../../../../common/forge/contracts/forgeIPC.js';
+import { COCOINDEX_AUTO_INDEX_STORAGE_KEY } from '../../../forge/semanticSearchService.js';
 
 type Tab =
 	| 'general'
@@ -37,6 +39,7 @@ type Tab =
 	| 'tab'
 	| 'editor'
 	| 'ws_workspace'
+	| 'codeIndex'
 	| 'mcp'
 	;
 
@@ -1067,7 +1070,6 @@ const MCPServerComponent = ({ name, server }: { name: string, server: MCPServer 
 				<VoidSwitch
 					value={isOn ?? false}
 					size='xs'
-					disabled={server.status === 'error'}
 					onChange={() => mcpService.toggleServerIsOn(name, !isOn)}
 				/>
 			</div>
@@ -1112,9 +1114,267 @@ const MCPServerComponent = ({ name, server }: { name: string, server: MCPServer 
 					<WarningBox text={server.error} />
 				</div>
 			)}
+
+			<div className='mt-3 flex flex-wrap gap-2'>
+				{server.status === 'error' && <VoidButtonBgDarken className='px-3 py-1' onClick={() => { void mcpService.retryServer(name) }}>
+					Retry
+				</VoidButtonBgDarken>}
+				<VoidButtonBgDarken className='px-3 py-1' onClick={() => { void mcpService.revealMCPConfigFile() }}>
+					Edit configuration
+				</VoidButtonBgDarken>
+				<VoidButtonBgDarken className='px-3 py-1 text-red-400' onClick={() => {
+					if (window.confirm(`Remove MCP server "${name}"?`)) void mcpService.removeServer(name)
+				}}>
+					Remove
+				</VoidButtonBgDarken>
+			</div>
 		</div>
 	);
 };
+
+const splitCommandArguments = (value: string): string[] => {
+	const args: string[] = []
+	for (const match of value.matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)) args.push(match[1] ?? match[2] ?? match[3])
+	return args
+}
+
+const parseRecordJSON = (label: string, value: string): Record<string, string> | undefined => {
+	if (!value.trim()) return undefined
+	const parsed = JSON.parse(value)
+	if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error(`${label} must be a JSON object.`)
+	return Object.fromEntries(Object.entries(parsed).map(([key, item]) => [key, String(item)]))
+}
+
+type CocoIndexUIStatus = {
+	installed: boolean;
+	initialized: boolean;
+	runtimePath?: string;
+	embeddingProvider?: string;
+	embeddingModel?: string;
+	sentenceTransformersAvailable: boolean;
+	eligible: boolean;
+	disabled: boolean;
+	isIndexing: boolean;
+	error?: string;
+};
+type CocoIndexUIStats = { totalFiles: number; totalChunks: number; lastIndexedAt: number; error?: string };
+
+const CocoIndexLocalPanel = () => {
+	const accessor = useAccessor();
+	const mainProcessService = accessor.get('IMainProcessService');
+	const workspaceContextService = accessor.get('IWorkspaceContextService');
+	const storageService = accessor.get('IStorageService');
+	const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri.fsPath ?? '';
+	const channel = useMemo(() => mainProcessService.getChannel(FORGE_CHANNEL_NAME), [mainProcessService]);
+	const [status, setStatus] = useState<CocoIndexUIStatus | null>(null);
+	const [stats, setStats] = useState<CocoIndexUIStats | null>(null);
+	const [busy, setBusy] = useState<'install' | 'enable' | 'refresh' | 'rebuild' | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [autoIndex, setAutoIndex] = useState(() => storageService.getBoolean(COCOINDEX_AUTO_INDEX_STORAGE_KEY, StorageScope.APPLICATION, true));
+
+	const refreshStatus = useCallback(async () => {
+		const nextStatus = await channel.call<CocoIndexUIStatus>('getCocoIndexStatus', { workspacePath: workspaceRoot });
+		setStatus(nextStatus);
+		setStats(workspaceRoot && nextStatus.initialized
+			? await channel.call<CocoIndexUIStats>('getIndexStats', { workspacePath: workspaceRoot })
+			: null);
+	}, [channel, workspaceRoot]);
+
+	useEffect(() => {
+		void refreshStatus();
+		const interval = setInterval(() => { void refreshStatus(); }, status?.isIndexing ? 1500 : 5000);
+		return () => clearInterval(interval);
+	}, [refreshStatus, status?.isIndexing]);
+
+	const installRuntime = async () => {
+		setBusy('install');
+		setError(null);
+		try {
+			await channel.call('installCocoIndex');
+			if (autoIndex && workspaceRoot) await channel.call('autoPrepareCocoIndexWorkspace', { workspacePath: workspaceRoot });
+			await refreshStatus();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(null);
+		}
+	};
+
+	const setAutomaticIndexing = async (enabled: boolean) => {
+		setAutoIndex(enabled);
+		storageService.store(COCOINDEX_AUTO_INDEX_STORAGE_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		try {
+			if (enabled && workspaceRoot) {
+				await channel.call('autoPrepareCocoIndexWorkspace', { workspacePath: workspaceRoot });
+				await refreshStatus();
+			}
+		} catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+	};
+
+	const disableProject = async () => {
+		if (!workspaceRoot) return;
+		setError(null);
+		try {
+			await channel.call('disableCocoIndexProject', { workspacePath: workspaceRoot });
+			await refreshStatus();
+		} catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+	};
+
+	const enableProject = async () => {
+		if (!workspaceRoot) return;
+		setBusy('enable');
+		setError(null);
+		try {
+			await channel.call('initializeCocoIndexProject', { workspacePath: workspaceRoot });
+			await channel.call('indexWorkspace', { workspacePath: workspaceRoot });
+			await refreshStatus();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(null);
+		}
+	};
+
+	const updateIndex = async (rebuild: boolean) => {
+		if (!workspaceRoot) return;
+		setBusy(rebuild ? 'rebuild' : 'refresh');
+		setError(null);
+		try {
+			await channel.call(rebuild ? 'rebuildCocoIndexWorkspace' : 'indexWorkspace', { workspacePath: workspaceRoot });
+			await refreshStatus();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(null);
+		}
+	};
+
+	const lastRefresh = !stats?.lastIndexedAt ? 'Not indexed yet' : new Date(stats.lastIndexedAt).toLocaleString();
+
+	return <div className='my-3 rounded-sm border border-void-border-2 bg-void-bg-1 p-4'>
+		<div className='flex flex-wrap items-center justify-between gap-3'>
+			<div>
+				<div className='text-sm font-medium text-void-fg-1'>Local CocoIndex code search</div>
+				<div className='mt-1 text-xs text-void-fg-3'>Project-scoped, incremental semantic index. It does not use MCP and stops its local daemon after inactivity.</div>
+			</div>
+			<div className={`text-xs ${status?.isIndexing ? 'text-yellow-500' : status?.initialized && !status.disabled ? 'text-green-500' : status?.installed ? 'text-yellow-500' : 'text-void-fg-3'}`}>
+				{status?.isIndexing ? 'Indexing…' : status?.disabled ? 'Disabled for this project' : status?.initialized ? 'Ready for this project' : status?.installed ? 'Installed; project setup needed' : 'Not installed'}
+			</div>
+		</div>
+		<div className='mt-3 flex items-center gap-2 text-xs text-void-fg-2'>
+			<VoidSwitch size='xs' value={autoIndex} onChange={(value) => { void setAutomaticIndexing(value); }} />
+			<span>Automatically index opened code projects</span>
+		</div>
+		<div className='mt-4 grid gap-3 text-xs text-void-fg-3 sm:grid-cols-2'>
+			<div className='rounded-sm bg-void-bg-2 p-3'>
+				<div className='mb-2 font-medium text-void-fg-1'>Shared runtime</div>
+				<div>{status?.installed ? '✓ Installed' : '• Not installed'}</div>
+				<div>{status?.sentenceTransformersAvailable ? '✓ SentenceTransformers available' : '• SentenceTransformers unavailable'}</div>
+				<div className='break-all'>{status?.embeddingModel ? `✓ ${status.embeddingModel}` : '• Embedding model not configured'}</div>
+				{status?.runtimePath && <div className='mt-1 break-all opacity-70'>{status.runtimePath}</div>}
+				{!status?.installed && <VoidButtonBgDarken className='mt-3 px-4 py-1' disabled={busy !== null} onClick={() => { void installRuntime(); }}>
+					{busy === 'install' ? 'Installing CocoIndex…' : 'Install CocoIndex'}
+				</VoidButtonBgDarken>}
+				<div className='mt-2 opacity-70'>The runtime and embedding model are shared by all projects.</div>
+			</div>
+			<div className='rounded-sm bg-void-bg-2 p-3'>
+				<div className='mb-2 font-medium text-void-fg-1'>Current project</div>
+				<div className='break-all'>{workspaceRoot || 'No project open'}</div>
+				<div>{status?.isIndexing ? '● Indexing…' : status?.disabled ? '○ Disabled' : status?.initialized ? '● Ready' : status?.eligible ? '○ Waiting to enable' : '○ Not recognized as a code project'}</div>
+				{stats && <>
+					<div>Files indexed: {stats.totalFiles.toLocaleString()}</div>
+					<div>Code chunks: {stats.totalChunks.toLocaleString()}</div>
+					<div>Last refresh: {lastRefresh}</div>
+				</>}
+				{status?.installed && (!status.initialized || status.disabled) && <VoidButtonBgDarken className='mt-3 px-4 py-1' disabled={!workspaceRoot || busy !== null} onClick={() => { void enableProject(); }}>
+					{busy === 'enable' ? 'Enabling and indexing…' : 'Enable CocoIndex for this project'}
+				</VoidButtonBgDarken>}
+				{status?.initialized && !status.disabled && <div className='mt-3 flex flex-wrap gap-2'>
+					<VoidButtonBgDarken className='px-4 py-1' disabled={busy !== null} onClick={() => { void updateIndex(false); }}>{busy === 'refresh' ? 'Refreshing…' : 'Refresh Index'}</VoidButtonBgDarken>
+					<VoidButtonBgDarken className='px-4 py-1' disabled={busy !== null} onClick={() => { if (window.confirm('Delete and rebuild this project\'s CocoIndex database?')) void updateIndex(true); }}>{busy === 'rebuild' ? 'Rebuilding…' : 'Rebuild Index'}</VoidButtonBgDarken>
+					<VoidButtonBgDarken className='px-4 py-1 text-red-400' disabled={busy !== null} onClick={() => { void disableProject(); }}>Disable for this project</VoidButtonBgDarken>
+				</div>}
+			</div>
+		</div>
+		{!workspaceRoot && <div className='mt-2 text-xs text-yellow-500'>Open a project to enable its code index.</div>}
+		{status?.error && <div className='mt-2'><WarningBox text={status.error} /></div>}
+		{error && <div className='mt-2'><WarningBox text={error} /></div>}
+	</div>;
+};
+
+const MCPAddServerPanel = () => {
+	const accessor = useAccessor()
+	const mcpService = accessor.get('IMCPService')
+	const workspaceContextService = accessor.get('IWorkspaceContextService')
+	const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri.fsPath ?? ''
+	const [isOpen, setIsOpen] = useState(false)
+	const [transport, setTransport] = useState<'stdio' | 'http'>('stdio')
+	const [name, setName] = useState('')
+	const [command, setCommand] = useState('')
+	const [args, setArgs] = useState('')
+	const [cwd, setCwd] = useState(workspaceRoot)
+	const [url, setUrl] = useState('')
+	const [environment, setEnvironment] = useState('')
+	const [headers, setHeaders] = useState('')
+	const [error, setError] = useState<string | null>(null)
+	const [saving, setSaving] = useState(false)
+
+	const save = async (serverName: string, config: MCPConfigFileEntryJSON) => {
+		setSaving(true)
+		setError(null)
+		try {
+			await mcpService.addOrUpdateServer(serverName, config)
+			setIsOpen(false)
+			setName('')
+			setCommand('')
+			setArgs('')
+			setUrl('')
+			setEnvironment('')
+			setHeaders('')
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err))
+		} finally {
+			setSaving(false)
+		}
+	}
+
+	const addConfiguredServer = async () => {
+		try {
+			const config: MCPConfigFileEntryJSON = transport === 'stdio'
+				? { command: command.trim(), args: splitCommandArguments(args), cwd: cwd.trim() || undefined, env: parseRecordJSON('Environment', environment) }
+				: { url: url.trim(), headers: parseRecordJSON('Headers', headers) }
+			await save(name.trim(), config)
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err))
+		}
+	}
+
+	const inputClass = 'w-full rounded-sm border border-void-border-2 bg-void-bg-1 px-2 py-1.5 text-sm text-void-fg-1 outline-none focus:border-void-fg-3'
+	return <div className='my-3'>
+		<div className='flex flex-wrap gap-2'>
+			<VoidButtonBgDarken className='px-4 py-1' onClick={() => setIsOpen(value => !value)}>{isOpen ? 'Cancel' : 'Add MCP Server'}</VoidButtonBgDarken>
+			<VoidButtonBgDarken className='px-4 py-1' onClick={() => { void mcpService.revealMCPConfigFile() }}>Open JSON</VoidButtonBgDarken>
+		</div>
+		{isOpen && <div className='mt-3 max-w-2xl space-y-3 rounded-sm border border-void-border-2 bg-void-bg-1 p-4'>
+			<div className='flex gap-4 text-sm text-void-fg-2'>
+				<label><input type='radio' checked={transport === 'stdio'} onChange={() => setTransport('stdio')} /> Local command</label>
+				<label><input type='radio' checked={transport === 'http'} onChange={() => setTransport('http')} /> HTTP / SSE</label>
+			</div>
+			<label className='block text-xs text-void-fg-3'>Server name<input className={`${inputClass} mt-1`} value={name} onChange={event => setName(event.target.value)} placeholder='my-mcp-server' /></label>
+			{transport === 'stdio' ? <>
+				<label className='block text-xs text-void-fg-3'>Command<input className={`${inputClass} mt-1`} value={command} onChange={event => setCommand(event.target.value)} placeholder='npx, uvx, python, or executable path' /></label>
+				<label className='block text-xs text-void-fg-3'>Arguments<input className={`${inputClass} mt-1`} value={args} onChange={event => setArgs(event.target.value)} placeholder='-y @example/mcp-server' /></label>
+				<label className='block text-xs text-void-fg-3'>Working directory<input className={`${inputClass} mt-1`} value={cwd} onChange={event => setCwd(event.target.value)} /></label>
+				<label className='block text-xs text-void-fg-3'>Environment variables (JSON)<textarea className={`${inputClass} mt-1 min-h-20 font-mono`} value={environment} onChange={event => setEnvironment(event.target.value)} placeholder={'{"API_KEY":"..."}'} /></label>
+			</> : <>
+				<label className='block text-xs text-void-fg-3'>MCP URL<input className={`${inputClass} mt-1`} value={url} onChange={event => setUrl(event.target.value)} placeholder='https://example.com/mcp' /></label>
+				<label className='block text-xs text-void-fg-3'>Request headers (JSON)<textarea className={`${inputClass} mt-1 min-h-20 font-mono`} value={headers} onChange={event => setHeaders(event.target.value)} placeholder={'{"Authorization":"Bearer ..."}'} /></label>
+			</>}
+			<VoidButtonBgDarken className='px-4 py-1' disabled={saving} onClick={() => { void addConfiguredServer() }}>{saving ? 'Connecting...' : 'Save and connect'}</VoidButtonBgDarken>
+		</div>}
+		{error && <div className='mt-2'><WarningBox text={error} /></div>}
+	</div>
+}
 
 // Main component that renders the list of servers
 const MCPServersList = () => {
@@ -1185,6 +1445,7 @@ export const Settings = () => {
 		{ tab: 'tab', label: 'Tab' },
 		{ tab: 'editor', label: 'Editor' },
 		...(workspaceNavItems.length > 0 ? [{ tab: 'ws_workspace' as Tab, label: 'Workspaces', isHeader: true }, ...workspaceNavItems.map(w => ({ tab: w.tab, label: w.label }))] : []),
+		{ tab: 'codeIndex', label: 'Code Index' },
 		{ tab: 'mcp', label: 'MCP' },
 	];
 	const shouldShowTab = (tab: Tab) => {
@@ -1201,7 +1462,6 @@ export const Settings = () => {
 	const voidSettingsService = accessor.get('IVoidSettingsService')
 	const chatThreadsService = accessor.get('IChatThreadService')
 	const notificationService = accessor.get('INotificationService')
-	const mcpService = accessor.get('IMCPService')
 	const storageService = accessor.get('IStorageService')
 	const metricsService = accessor.get('IMetricsService')
 	const isOptedOut = useIsOptedOut()
@@ -1820,6 +2080,15 @@ Alternatively, place a \`.voidrules\` file in the root of your workspace.
 
 
 
+							{/* Local code index section */}
+							<div className={shouldShowTab('codeIndex') ? `` : 'hidden'}>
+								<ErrorBoundary>
+									<h2 className='text-3xl mb-2'>Code Index</h2>
+									<h4 className='text-void-fg-3 mb-4'>Local semantic code search for Agent and Gather workflows.</h4>
+									<CocoIndexLocalPanel />
+								</ErrorBoundary>
+							</div>
+
 							{/* MCP section */}
 							<div className={shouldShowTab('mcp') ? `` : 'hidden'}>
 								<ErrorBoundary>
@@ -1829,11 +2098,7 @@ Alternatively, place a \`.voidrules\` file in the root of your workspace.
 Use Model Context Protocol to provide Agent mode with more tools.
 							`} chatMessageLocation={undefined} />
 									</h4>
-									<div className='my-2'>
-										<VoidButtonBgDarken className='px-4 py-1 w-full max-w-48' onClick={async () => { await mcpService.revealMCPConfigFile() }}>
-											Add MCP Server
-										</VoidButtonBgDarken>
-									</div>
+									<MCPAddServerPanel />
 
 									<ErrorBoundary>
 										<MCPServersList />

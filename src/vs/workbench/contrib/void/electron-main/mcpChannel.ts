@@ -32,13 +32,9 @@ type MCPServerError = MCPServer & { status: 'error' }
 
 
 type ClientInfo = {
-	_client: Client, // _client is the client that connects with an mcp client. We're calling mcp clients "server" everywhere except here for naming consistency.
+	_client?: Client, // _client is the client that connects with an mcp client. We're calling mcp clients "server" everywhere except here for naming consistency.
 	mcpServerEntryJSON: MCPConfigFileEntryJSON,
-	mcpServer: MCPServerNonError,
-} | {
-	_client?: undefined,
-	mcpServerEntryJSON: MCPConfigFileEntryJSON,
-	mcpServer: MCPServerError,
+	mcpServer: MCPServerNonError | MCPServerError,
 }
 
 type InfoOfClientId = {
@@ -136,28 +132,23 @@ export class MCPChannel implements IServerChannel {
 				// check if already refreshing
 				if (this._refreshingServerNames.has(serverName)) return
 				this._refreshingServerNames.add(serverName)
-
-				const prevServer = this.infoOfClientId[serverName]?.mcpServer;
-
-				// close and delete the old client
-				if (type === 'removed' || type === 'updated') {
-					await this._closeClient(serverName)
-					delete this.infoOfClientId[serverName]
-					this.mcpEmitters.serverEvent.onDelete.fire({ response: { prevServer, name: serverName, } })
-				}
-
-				// create a new client
-				if (type === 'added' || type === 'updated') {
-					const clientInfo = await this._createClient(mcpServersJSON[serverName], serverName, userStateOfName[serverName]?.isOn)
-					this.infoOfClientId[serverName] = clientInfo
-					this.mcpEmitters.serverEvent.onAdd.fire({ response: { newServer: clientInfo.mcpServer, name: serverName, } })
+				try {
+					const prevServer = this.infoOfClientId[serverName]?.mcpServer;
+					if (type === 'removed' || type === 'updated') {
+						await this._closeClient(serverName)
+						delete this.infoOfClientId[serverName]
+						this.mcpEmitters.serverEvent.onDelete.fire({ response: { prevServer, name: serverName, } })
+					}
+					if (type === 'added' || type === 'updated') {
+						const clientInfo = await this._createClient(mcpServersJSON[serverName], serverName, userStateOfName[serverName]?.isOn)
+						this.infoOfClientId[serverName] = clientInfo
+						this.mcpEmitters.serverEvent.onAdd.fire({ response: { newServer: clientInfo.mcpServer, name: serverName, } })
+					}
+				} finally {
+					this._refreshingServerNames.delete(serverName)
 				}
 			})
 		)
-
-		allChanges.forEach(({ serverName, type }) => {
-			this._refreshingServerNames.delete(serverName)
-		})
 
 	}
 
@@ -169,9 +160,11 @@ export class MCPChannel implements IServerChannel {
 		let info: MCPServerNonError;
 
 		if (server.url) {
+			const serverUrl = new URL(server.url)
+			const requestInit = server.headers ? { headers: server.headers } : undefined
 			// first try HTTP, fall back to SSE
 			try {
-				transport = new StreamableHTTPClientTransport(server.url);
+				transport = new StreamableHTTPClientTransport(serverUrl, { requestInit });
 				await client.connect(transport);
 				console.log(`Connected via HTTP to ${serverName}`);
 				const { tools } = await client.listTools()
@@ -179,11 +172,11 @@ export class MCPChannel implements IServerChannel {
 				info = {
 					status: isOn ? 'success' : 'offline',
 					tools: toolsWithUniqueName,
-					command: server.url.toString(),
+					command: serverUrl.toString(),
 				}
 			} catch (httpErr) {
 				console.warn(`HTTP failed for ${serverName}, trying SSE…`, httpErr);
-				transport = new SSEClientTransport(server.url);
+				transport = new SSEClientTransport(serverUrl, { requestInit });
 				await client.connect(transport);
 				const { tools } = await client.listTools()
 				const toolsWithUniqueName = tools.map(({ name, ...rest }) => ({ name: this._addUniquePrefix(name), ...rest }))
@@ -191,22 +184,41 @@ export class MCPChannel implements IServerChannel {
 				info = {
 					status: isOn ? 'success' : 'offline',
 					tools: toolsWithUniqueName,
-					command: server.url.toString(),
+					command: serverUrl.toString(),
 				}
 			}
 		} else if (server.command) {
 			// console.log('ENV DATA: ', server.env)
-			transport = new StdioClientTransport({
+			const stderrChunks: string[] = []
+			const stdioTransport = new StdioClientTransport({
 				command: server.command,
 				args: server.args,
 				env: {
+					...process.env,
+					PYTHONUTF8: '1',
+					PYTHONIOENCODING: 'utf-8',
 					...server.env,
-					...process.env
 				} as Record<string, string>,
 				cwd: server.cwd,
+				stderr: 'pipe',
 			});
+			transport = stdioTransport
+			stdioTransport.stderr?.on('data', chunk => {
+				stderrChunks.push(String(chunk))
+				if (stderrChunks.join('').length > 12_000) stderrChunks.shift()
+			})
 
-			await client.connect(transport)
+			try {
+				await client.connect(transport)
+			} catch (error) {
+				const stderr = stderrChunks.join('').trim()
+				const setupHint = server.command.toLowerCase().includes('ccc') && /settings not found|not initialized|project marker|ccc init/i.test(stderr)
+					? ' CocoIndex is installed but not initialized. Run "ccc init" in this workspace, complete setup, then press Retry.'
+					: ''
+				try { await client.close() } catch { /* protocol never fully connected */ }
+				try { await transport.close() } catch { /* process already exited */ }
+				throw new Error(`${error}${stderr ? `\nServer output:\n${stderr}` : ''}${setupHint}`)
+			}
 
 			// Get the tools from the server
 			const { tools } = await client.listTools()
@@ -235,6 +247,10 @@ export class MCPChannel implements IServerChannel {
 	}
 
 	private async _createClient(serverConfig: MCPConfigFileEntryJSON, serverName: string, isOn = true): Promise<ClientInfo> {
+		if (!isOn) {
+			const command = serverConfig.url ?? `${serverConfig.command ?? ''} ${serverConfig.args?.join(' ') || ''}`.trim()
+			return { mcpServerEntryJSON: serverConfig, mcpServer: { status: 'offline', tools: [], command } }
+		}
 		try {
 			const c: ClientInfo = await this._createClientUnsafe(serverConfig, serverName, isOn)
 			return c
@@ -267,10 +283,13 @@ export class MCPChannel implements IServerChannel {
 
 	private async _toggleMCPServer(serverName: string, isOn: boolean) {
 		const prevServer = this.infoOfClientId[serverName]?.mcpServer
+		const existingInfo = this.infoOfClientId[serverName]
+		if (!existingInfo) return
 		// Handle turning on the server
 		if (isOn) {
-			// this.mcpEmitters.serverEvent.onChangeLoading.fire(getLoadingServerObject(serverName, isOn))
-			const clientInfo = await this._createClientUnsafe(this.infoOfClientId[serverName].mcpServerEntryJSON, serverName, isOn)
+			await this._closeClient(serverName)
+			const clientInfo = await this._createClient(existingInfo.mcpServerEntryJSON, serverName, isOn)
+			this.infoOfClientId[serverName] = clientInfo
 			this.mcpEmitters.serverEvent.onUpdate.fire({
 				response: {
 					name: serverName,
@@ -281,9 +300,9 @@ export class MCPChannel implements IServerChannel {
 		}
 		// Handle turning off the server
 		else {
-			// this.mcpEmitters.serverEvent.onChangeLoading.fire(getLoadingServerObject(serverName, isOn))
-			this._closeClient(serverName)
-			delete this.infoOfClientId[serverName]._client
+			await this._closeClient(serverName)
+			const command = existingInfo.mcpServerEntryJSON.url ?? `${existingInfo.mcpServerEntryJSON.command ?? ''} ${existingInfo.mcpServerEntryJSON.args?.join(' ') || ''}`.trim()
+			this.infoOfClientId[serverName] = { mcpServerEntryJSON: existingInfo.mcpServerEntryJSON, mcpServer: { status: 'offline', tools: [], command } }
 
 			this.mcpEmitters.serverEvent.onUpdate.fire({
 				response: {
@@ -291,7 +310,7 @@ export class MCPChannel implements IServerChannel {
 					newServer: {
 						status: 'offline',
 						tools: [],
-						command: '',
+						command,
 						// Explicitly set error to undefined to reset the error state
 						error: undefined,
 					},

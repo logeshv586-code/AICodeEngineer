@@ -319,7 +319,7 @@ export interface IChatThreadService {
 	editUserMessageAndStreamResponse({ userMessage, messageIdx, threadId }: { userMessage: string, messageIdx: number, threadId: string }): Promise<void>;
 
 	// call to add a message
-	addUserMessageAndStreamResponse({ userMessage, threadId }: { userMessage: string, threadId: string }): Promise<void>;
+	addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }): Promise<void>;
 
 	// approve/reject
 	approveLatestToolRequest(threadId: string): void;
@@ -626,9 +626,9 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		this._onDidChangeCurrentThread.fire()
 	}
 
-	private _queueUserMessage(threadId: string, content: string) {
+	private _queueUserMessage(threadId: string, content: string, selections?: StagingSelectionItem[]) {
 		const queue = this.queuedMessages[threadId] ?? []
-		queue.push({ id: generateUuid(), content, createdAt: Date.now() })
+		queue.push({ id: generateUuid(), content, createdAt: Date.now(), selections: selections?.slice() })
 		this.queuedMessages[threadId] = queue
 		this._fireQueueChanged(threadId)
 	}
@@ -652,7 +652,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		const next = this.queuedMessages[threadId]?.shift()
 		if (!next) return
 		this._fireQueueChanged(threadId)
-		await this._addUserMessageAndStreamResponse({ userMessage: next.content, threadId })
+		await this._addUserMessageAndStreamResponse({ userMessage: next.content, _chatSelections: next.selections, threadId })
 	}
 
 	async resumeAgent(threadId: string, instruction = 'Continue the interrupted task from the current workspace state. Finish the original request and verify the result.'): Promise<void> {
@@ -1485,12 +1485,13 @@ We only need to do it for files that were edited since `from`, ie files between 
 	async addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
 		const thread = this.state.allThreads[threadId];
 		if (!thread) return
+		const selections = _chatSelections ?? thread.state.stagingSelections
 		if (this.streamState[threadId]?.isRunning) {
-			this._queueUserMessage(threadId, userMessage)
+			this._queueUserMessage(threadId, userMessage, selections)
 			return
 		}
 		this.pausedQueueThreads.delete(threadId)
-		await this._selectAutoModelForPrompt(userMessage)
+		await this._selectAutoModelForPrompt(selections.some(selection => selection.type === 'Image') ? userMessage + '\n[image attachment]' : userMessage)
 
 		// if there's a current checkpoint, delete all messages after it
 		if (thread.state.currCheckpointIdx !== null) {
@@ -1511,7 +1512,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 		}
 
 		// Now call the original method to add the user message and stream the response
-		await this._addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId });
+		await this._addUserMessageAndStreamResponse({ userMessage, _chatSelections: selections, threadId });
 
 	}
 

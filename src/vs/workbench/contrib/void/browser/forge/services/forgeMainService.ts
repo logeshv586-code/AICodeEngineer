@@ -20,6 +20,26 @@ export class ForgeMainService {
 		return this.channel.call('getIndexStats', { workspacePath });
 	}
 
+	async getCocoIndexStatus(workspacePath?: string): Promise<any> {
+		return this.channel.call('getCocoIndexStatus', { workspacePath });
+	}
+
+	async installCocoIndex(): Promise<any> {
+		return this.channel.call('installCocoIndex');
+	}
+
+	async initializeCocoIndexProject(workspacePath: string): Promise<any> {
+		return this.channel.call('initializeCocoIndexProject', { workspacePath });
+	}
+
+	async autoPrepareCocoIndexWorkspace(workspacePath: string): Promise<any> {
+		return this.channel.call('autoPrepareCocoIndexWorkspace', { workspacePath });
+	}
+
+	async disableCocoIndexProject(workspacePath: string): Promise<any> {
+		return this.channel.call('disableCocoIndexProject', { workspacePath });
+	}
+
 	async getMemory(workspacePath: string): Promise<any> {
 		return this.channel.call('getMemory', { workspacePath });
 	}

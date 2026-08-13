@@ -22,6 +22,7 @@ export type QueuedUserMessage = {
 	id: string;
 	content: string;
 	createdAt: number;
+	selections?: StagingSelectionItem[];
 };
 
 export type ToolMessage<T extends ToolName> = {

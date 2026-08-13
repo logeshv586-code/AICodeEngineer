@@ -5,22 +5,20 @@
 
 import { IServerChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { IndexCoordinator } from '../indexer/indexCoordinator.js';
-import { Retriever } from '../retrieval/retriever.js';
 import { MetadataStore } from '../storage/metadataStore.js';
 import { WorkspaceModel } from '../workspace/workspaceModel.js';
 import { WorkspaceWatcher } from '../workspace/workspaceWatcher.js';
 import { KnowledgeGraph } from '../knowledge/knowledgeGraph.js';
 import { WorkspaceHealthCalculator } from '../knowledge/workspaceHealth.js';
+import { CocoIndexCodeService } from '../indexer/cocoIndexCodeService.js';
 
 export class ForgeIPCChannel implements IServerChannel {
 	private readonly workspaceModels = new Map<string, WorkspaceModel>();
 	private readonly workspaceWatchers = new Map<string, WorkspaceWatcher>();
 
 	constructor(
-		private readonly coordinator: IndexCoordinator,
-		private readonly retriever: Retriever,
-		private readonly metadataStore: MetadataStore
+		private readonly metadataStore: MetadataStore,
+		private readonly cocoIndex: CocoIndexCodeService,
 	) { }
 
 	listen(_: any, event: string): Event<any> {
@@ -34,15 +32,38 @@ export class ForgeIPCChannel implements IServerChannel {
 
 			case 'semanticSearch': {
 				const { query, topK, workspacePath } = arg || {};
-				return this.retriever.retrieve({ query, topK, workspacePath });
+				return this.cocoIndex.search(workspacePath, query, topK);
 			}
 			case 'indexWorkspace': {
-				const { workspacePath, forceReindex } = arg || {};
-				return this.coordinator.startIndexing(workspacePath, forceReindex);
+				const { workspacePath } = arg || {};
+				return this.cocoIndex.indexWorkspace(workspacePath);
+			}
+			case 'rebuildCocoIndexWorkspace': {
+				const { workspacePath } = arg || {};
+				return this.cocoIndex.rebuildWorkspace(workspacePath);
 			}
 			case 'getIndexStats': {
 				const { workspacePath } = arg || {};
-				return this.coordinator.getStats(workspacePath);
+				return this.cocoIndex.getStats(workspacePath);
+			}
+			case 'getCocoIndexStatus': {
+				const { workspacePath } = arg || {};
+				return this.cocoIndex.getStatus(workspacePath);
+			}
+			case 'installCocoIndex': {
+				return this.cocoIndex.install();
+			}
+			case 'initializeCocoIndexProject': {
+				const { workspacePath } = arg || {};
+				return this.cocoIndex.initializeProject(workspacePath);
+			}
+			case 'autoPrepareCocoIndexWorkspace': {
+				const { workspacePath } = arg || {};
+				return this.cocoIndex.autoPrepareWorkspace(workspacePath);
+			}
+			case 'disableCocoIndexProject': {
+				const { workspacePath } = arg || {};
+				return this.cocoIndex.disableProject(workspacePath);
 			}
 			case 'getMemory': {
 				const { workspacePath } = arg || {};
@@ -142,14 +163,8 @@ export class ForgeIPCChannel implements IServerChannel {
 
 // ── Factory (registered in app.ts) ────────────────────────────────────────────
 
-import { EmbeddingWorker } from '../embeddings/embeddingWorker.js';
-import { LanceDBService } from '../storage/lancedbService.js';
-
 export function createForgeIPCChannel(): ForgeIPCChannel {
-	const embedder = new EmbeddingWorker();
-	const lancedb = new LanceDBService();
 	const metadataStore = new MetadataStore();
-	const coordinator = new IndexCoordinator(embedder, lancedb, metadataStore);
-	const retriever = new Retriever(lancedb, embedder);
-	return new ForgeIPCChannel(coordinator, retriever, metadataStore);
+	const cocoIndex = new CocoIndexCodeService();
+	return new ForgeIPCChannel(metadataStore, cocoIndex);
 }

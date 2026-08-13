@@ -5,7 +5,7 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ChatMessage } from '../common/chatThreadServiceTypes.js';
+import { ChatMessage, StagingSelectionItem } from '../common/chatThreadServiceTypes.js';
 import { getIsReasoningEnabledState, getReservedOutputTokenSpace, getModelCapabilities } from '../common/modelCapabilities.js';
 import { reParsedToolXMLString, chat_systemMessage } from '../common/prompt/prompts.js';
 import { AnthropicLLMChatMessage, AnthropicReasoning, GeminiLLMChatMessage, LLMChatMessage, LLMFIMMessage, OpenAILLMChatMessage, RawToolParamsObj } from '../common/sendLLMMessageTypes.js';
@@ -21,6 +21,78 @@ import { IMCPService } from '../common/mcpService.js';
 import { ISkillsService } from './skillsService.js';
 
 export const EMPTY_MESSAGE = '(empty message)'
+
+const IMAGE_ATTACHMENT_MARKER = (index: number) => `[[FORGE_IMAGE_ATTACHMENT_${index}]]`
+const IMAGE_ATTACHMENT_PATTERN = /\[\[FORGE_IMAGE_ATTACHMENT_(\d+)\]\]/g
+
+type PromptImageAttachment = { dataUrl: string; mimeType: string }
+type AnthropicImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+
+const removeImageMarkers = (text: string): { text: string; indexes: number[] } => {
+	const indexes: number[] = []
+	const cleaned = text.replace(IMAGE_ATTACHMENT_PATTERN, (_match, index: string) => {
+		indexes.push(Number(index))
+		return ''
+	})
+	return { text: cleaned.replace(/\n{3,}/g, '\n\n').trim(), indexes }
+}
+
+const base64Image = (attachment: PromptImageAttachment): { mimeType: string; data: string } | undefined => {
+	const match = /^data:([^;,]+);base64,([\s\S]+)$/i.exec(attachment.dataUrl)
+	if (!match) return undefined
+	return { mimeType: match[1] || attachment.mimeType, data: match[2] }
+}
+
+const anthropicImageMediaType = (mimeType: string): AnthropicImageMediaType | undefined =>
+	(['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const).find(type => type === mimeType)
+
+/** Convert internal image markers into each provider's native multimodal blocks. */
+const injectImageAttachments = (messages: LLMChatMessage[], attachments: PromptImageAttachment[], providerName: ProviderName): void => {
+	for (const message of messages as any[]) {
+		if (message.role !== 'user') continue
+
+		// Gemini messages use parts/inlineData.
+		if (Array.isArray(message.parts)) {
+			const indexes: number[] = []
+			message.parts = message.parts.map((part: any) => {
+				if (typeof part.text !== 'string') return part
+				const cleaned = removeImageMarkers(part.text)
+				indexes.push(...cleaned.indexes)
+				return { ...part, text: cleaned.text }
+			}).filter((part: any) => part.text === undefined || part.text.length > 0)
+			for (const index of indexes) {
+				const image = attachments[index] && base64Image(attachments[index])
+				if (image) message.parts.push({ inlineData: image })
+			}
+			continue
+		}
+
+		const blocks = typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : message.content
+		if (!Array.isArray(blocks)) continue
+		const indexes: number[] = []
+		const cleanedBlocks = blocks.map((block: any) => {
+			if (block.type !== 'text' || typeof block.text !== 'string') return block
+			const cleaned = removeImageMarkers(block.text)
+			indexes.push(...cleaned.indexes)
+			return { ...block, text: cleaned.text }
+		}).filter((block: any) => block.type !== 'text' || block.text.length > 0)
+		if (indexes.length === 0) continue
+
+		if (providerName === 'anthropic') {
+			for (const index of indexes) {
+				const image = attachments[index] && base64Image(attachments[index])
+				const mediaType = image && anthropicImageMediaType(image.mimeType)
+				if (image && mediaType) cleanedBlocks.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: image.data } })
+			}
+		} else {
+			for (const index of indexes) {
+				const attachment = attachments[index]
+				if (attachment?.dataUrl) cleanedBlocks.push({ type: 'image_url', image_url: { url: attachment.dataUrl, detail: 'auto' } })
+			}
+		}
+		message.content = cleanedBlocks.length > 0 ? cleanedBlocks : [{ type: 'text', text: EMPTY_MESSAGE }]
+	}
+}
 
 
 
@@ -624,6 +696,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 
 	private _chatMessagesToSimpleMessages(chatMessages: ChatMessage[]): SimpleLLMMessage[] {
 		const simpleLLMMessages: SimpleLLMMessage[] = []
+		let imageIndex = 0
 
 		for (const m of chatMessages) {
 			if (m.role === 'checkpoint') continue
@@ -645,9 +718,12 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 				})
 			}
 			else if (m.role === 'user') {
+				const imageMarkers = (m.selections ?? [])
+					.filter((selection): selection is Extract<StagingSelectionItem, { type: 'Image' }> => selection.type === 'Image' && !!selection.dataUrl)
+					.map(() => IMAGE_ATTACHMENT_MARKER(imageIndex++))
 				simpleLLMMessages.push({
 					role: m.role,
-					content: m.content,
+					content: imageMarkers.length === 0 ? m.content : `${m.content}\n${imageMarkers.join('\n')}`,
 				})
 			}
 		}
@@ -721,6 +797,10 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const isReasoningEnabled = getIsReasoningEnabledState('Chat', providerName, modelName, modelSelectionOptions, overridesOfModel)
 		const reservedOutputTokenSpace = getReservedOutputTokenSpace(providerName, modelName, { isReasoningEnabled, overridesOfModel })
 		const llmMessages = this._chatMessagesToSimpleMessages(chatMessages)
+		const imageAttachments: PromptImageAttachment[] = chatMessages.flatMap(message => message.role !== 'user' ? [] :
+			(message.selections ?? []).flatMap(selection => selection.type === 'Image' && selection.dataUrl
+				? [{ dataUrl: selection.dataUrl, mimeType: selection.mimeType || 'image/png' }]
+				: []))
 		if (continuationDirective) llmMessages.push({ role: 'user', content: continuationDirective })
 
 		const { messages, separateSystemMessage } = prepareMessages({
@@ -734,6 +814,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 			reservedOutputTokenSpace,
 			providerName,
 		})
+		injectImageAttachments(messages, imageAttachments, providerName)
 		return { messages, separateSystemMessage };
 	}
 

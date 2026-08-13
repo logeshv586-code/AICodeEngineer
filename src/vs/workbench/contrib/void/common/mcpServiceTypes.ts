@@ -115,6 +115,9 @@ export interface MCPTool {
 // export type ToolCallResponse = JsonRpcSuccess<ToolCallResult>;
 
 export interface MCPConfigFileEntryJSON {
+	/** Identifies entries maintained by Forge. Unknown fields are ignored by MCP transports. */
+	managedBy?: 'forge-cocoindex';
+
 	// Command-based server properties
 	command?: string;
 	args?: string[];
@@ -122,7 +125,7 @@ export interface MCPConfigFileEntryJSON {
 	cwd?: string;
 
 	// URL-based server properties
-	url?: URL;
+	url?: string;
 	headers?: Record<string, string>;
 }
 

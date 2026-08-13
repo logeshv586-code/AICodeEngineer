@@ -14,7 +14,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
-import { MCPServerOfName, MCPConfigFileJSON, MCPServer, MCPToolCallParams, RawMCPToolCall, MCPServerEventResponse } from './mcpServiceTypes.js';
+import { MCPServerOfName, MCPConfigFileJSON, MCPConfigFileEntryJSON, MCPServer, MCPToolCallParams, RawMCPToolCall, MCPServerEventResponse } from './mcpServiceTypes.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { InternalToolInfo } from './prompt/prompts.js';
 import { IVoidSettingsService } from './voidSettingsService.js';
@@ -31,6 +31,9 @@ export interface IMCPService {
 	readonly _serviceBrand: undefined;
 	revealMCPConfigFile(): Promise<void>;
 	toggleServerIsOn(serverName: string, isOn: boolean): Promise<void>;
+	addOrUpdateServer(serverName: string, config: MCPConfigFileEntryJSON): Promise<void>;
+	removeServer(serverName: string): Promise<void>;
+	retryServer(serverName: string): Promise<void>;
 
 	readonly state: MCPServiceState; // NOT persisted
 	onDidChangeState: Event<void>;
@@ -47,6 +50,7 @@ export const IMCPService = createDecorator<IMCPService>('mcpConfigService');
 const MCP_CONFIG_FILE_NAME = 'mcp.json';
 const MCP_CONFIG_SAMPLE = { mcpServers: {} }
 const MCP_CONFIG_SAMPLE_STRING = JSON.stringify(MCP_CONFIG_SAMPLE, null, 2);
+const COCOINDEX_MANAGER = 'forge-cocoindex' as const;
 
 
 // export interface MCPCallToolOfToolName {
@@ -62,6 +66,7 @@ class MCPService extends Disposable implements IMCPService {
 
 
 	private readonly channel: IChannel // MCPChannel
+	private _lastMCPConfig: MCPConfigFileJSON = { mcpServers: {} };
 
 	// list of MCP servers pulled from mcpChannel
 	state: MCPServiceState = {
@@ -112,6 +117,7 @@ class MCPService extends Disposable implements IMCPService {
 				await this._createMCPConfigFile(mcpConfigUri);
 				console.log('MCP Config file created:', mcpConfigUri.toString());
 			}
+			await this._removeCocoIndexMCPServers();
 			await this._addMCPConfigFileWatcher();
 
 			this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(async () => {
@@ -190,6 +196,55 @@ class MCPService extends Disposable implements IMCPService {
 		}
 	}
 
+	private async _removeCocoIndexMCPServers(): Promise<void> {
+		const config = await this._readRawMCPConfigFile();
+		let changed = false;
+		for (const [name, entry] of Object.entries(config.mcpServers)) {
+			if (entry.managedBy === COCOINDEX_MANAGER
+				|| (name.toLowerCase() === 'cocoindex' && entry.command?.toLowerCase() === 'ccc' && entry.args?.[0] === 'mcp')) {
+				delete config.mcpServers[name];
+				changed = true;
+			}
+		}
+		if (changed) await this._writeRawMCPConfigFile(config);
+	}
+
+	private async _readRawMCPConfigFile(): Promise<MCPConfigFileJSON> {
+		const mcpConfigUri = await this._getMCPConfigFilePath();
+		const fileContent = await this.fileService.readFile(mcpConfigUri);
+		const parsed = JSON.parse(fileContent.value.toString()) as Partial<MCPConfigFileJSON>;
+		return { mcpServers: parsed.mcpServers ?? {} };
+	}
+
+	private async _writeRawMCPConfigFile(config: MCPConfigFileJSON): Promise<void> {
+		const mcpConfigUri = await this._getMCPConfigFilePath();
+		await this.fileService.writeFile(mcpConfigUri, VSBuffer.fromString(JSON.stringify(config, null, 2)));
+	}
+
+	public async addOrUpdateServer(serverName: string, config: MCPConfigFileEntryJSON): Promise<void> {
+		const name = serverName.trim();
+		if (!name) throw new Error('Server name is required.');
+		if (!config.command?.trim() && !config.url?.trim()) throw new Error('Enter either a command or an MCP URL.');
+		if (config.command && config.url) throw new Error('Choose either stdio command or HTTP URL, not both.');
+		const current = await this._readRawMCPConfigFile();
+		current.mcpServers[name] = config;
+		await this._writeRawMCPConfigFile(current);
+		await this._refreshMCPServers();
+	}
+
+	public async removeServer(serverName: string): Promise<void> {
+		const current = await this._readRawMCPConfigFile();
+		delete current.mcpServers[serverName];
+		await this._writeRawMCPConfigFile(current);
+		await this._refreshMCPServers();
+	}
+
+	public async retryServer(serverName: string): Promise<void> {
+		if (!(serverName in (await this._readRawMCPConfigFile()).mcpServers)) return;
+		await this.voidSettingsService.setMCPServerState(serverName, { isOn: true });
+		await this._refreshMCPServers([serverName]);
+	}
+
 	public getMCPTools(): InternalToolInfo[] | undefined {
 		const allTools: InternalToolInfo[] = []
 		for (const serverName in this.state.mcpServerOfName) {
@@ -256,19 +311,6 @@ class MCPService extends Disposable implements IMCPService {
 			if (!configFileJson.mcpServers) {
 				throw new Error('Missing mcpServers property');
 			}
-			
-			// NATIVE COCOINDEX INTEGRATION
-			const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-			if (workspaceFolders.length > 0) {
-				const workspaceRoot = workspaceFolders[0].uri.fsPath;
-				configFileJson.mcpServers['cocoindex'] = {
-					command: 'ccc',
-					args: ['mcp'],
-					cwd: workspaceRoot,
-					env: {}
-				};
-			}
-
 			return configFileJson as MCPConfigFileJSON;
 		} catch (error) {
 			const fullError = `Error parsing MCP config file: ${error}`;
@@ -279,7 +321,7 @@ class MCPService extends Disposable implements IMCPService {
 
 
 	// Handle server state changes
-	private async _refreshMCPServers(): Promise<void> {
+	private async _refreshMCPServers(forceServerNames: string[] = []): Promise<void> {
 
 		this._setHasError(undefined)
 
@@ -288,7 +330,7 @@ class MCPService extends Disposable implements IMCPService {
 		if (!newConfigFileJSON?.mcpServers) { console.log(`Not setting state: MCP config file did not have an 'mcpServers' field`); return }
 
 
-		const oldConfigFileNames = Object.keys(this.state.mcpServerOfName)
+		const oldConfigFileNames = Object.keys(this._lastMCPConfig.mcpServers)
 		const newConfigFileNames = Object.keys(newConfigFileJSON.mcpServers)
 
 		const addedServerNames = newConfigFileNames.filter(serverName => !oldConfigFileNames.includes(serverName)); // in new and not in old
@@ -302,13 +344,20 @@ class MCPService extends Disposable implements IMCPService {
 		// delete isOn for any servers that no longer show up in the config
 		await this.voidSettingsService.removeMCPUserStateOfNames(removedServerNames);
 
-		// set all servers to loading
-		for (const serverName in newConfigFileJSON.mcpServers) {
+		const updatedServerNames = newConfigFileNames.filter(serverName =>
+			!addedServerNames.includes(serverName)
+			&& (forceServerNames.includes(serverName)
+				|| JSON.stringify(this._lastMCPConfig.mcpServers[serverName]) !== JSON.stringify(newConfigFileJSON.mcpServers[serverName])))
+		const changedServerNames = [...addedServerNames, ...updatedServerNames]
+		this._lastMCPConfig = newConfigFileJSON
+
+		// Only reconnect changed servers. File watcher events often repeat our own writes.
+		for (const serverName of changedServerNames) {
 			this._setMCPServerState(serverName, { status: 'loading', tools: [] })
 		}
-		const updatedServerNames = Object.keys(newConfigFileJSON.mcpServers).filter(serverName => !addedServerNames.includes(serverName) && !removedServerNames.includes(serverName))
+		if (changedServerNames.length === 0 && removedServerNames.length === 0) return
 
-		this.channel.call('refreshMCPServers', {
+		await this.channel.call('refreshMCPServers', {
 			mcpConfigFileJSON: newConfigFileJSON,
 			addedServerNames,
 			removedServerNames,
@@ -338,7 +387,7 @@ class MCPService extends Disposable implements IMCPService {
 		this._setMCPServerState(serverName, { status: 'loading', tools: [] })
 
 		await this.voidSettingsService.setMCPServerState(serverName, { isOn });
-		this.channel.call('toggleMCPServer', { serverName, isOn })
+		await this.channel.call('toggleMCPServer', { serverName, isOn })
 	}
 
 
