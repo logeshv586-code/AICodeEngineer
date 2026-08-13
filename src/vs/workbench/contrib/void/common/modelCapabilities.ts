@@ -1457,6 +1457,16 @@ const openRouterSettings: VoidStaticProviderInfo = {
 
 // ---------------- NVIDIA API ----------------
 const nvidiaModelOptions: Record<string, VoidStaticModelInfo> = {
+	'z-ai/glm-5.2': {
+		contextWindow: 128_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0, output: 0 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'developer-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: false,
+	},
 	'nvidia/llama-3.3-nemotron-70b-instruct': {
 		contextWindow: 128_000,
 		reservedOutputTokenSpace: 8_192,
@@ -1604,6 +1614,7 @@ const nvidiaSettings: VoidStaticProviderInfo = {
 	modelOptionsFallback: (modelName) => {
 		const lower = modelName.toLowerCase()
 		let fallbackName: keyof typeof nvidiaModelOptions | null = null
+		if (lower.includes('glm-5.2') || lower.includes('z-ai/glm')) fallbackName = 'z-ai/glm-5.2'
 		if (lower.includes('nemotron-70b') || lower.includes('llama-3.3-nemotron')) fallbackName = 'nvidia/llama-3.3-nemotron-70b-instruct'
 		if (lower.includes('llama-3.1-nemotron')) fallbackName = 'nvidia/llama-3.1-nemotron-70b-instruct'
 		if (lower.includes('nemotron-8b') || lower.includes('llama-3.1-nemotron-8b')) fallbackName = 'nvidia/llama-3.1-nemotron-8b-instruct'

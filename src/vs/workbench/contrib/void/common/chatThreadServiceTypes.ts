@@ -18,6 +18,12 @@ export type AgentPlanItem = {
 	toolName?: ToolName; // the tool associated with this step, if any
 };
 
+export type QueuedUserMessage = {
+	id: string;
+	content: string;
+	createdAt: number;
+};
+
 export type ToolMessage<T extends ToolName> = {
 	role: 'tool';
 	content: string; // give this result to LLM (string of value)

@@ -24,12 +24,12 @@ import { SlashCommandContext } from '../workspace-tsx/utils/slashCommandRouter';
 import { WarningBox } from '../void-settings-tsx/WarningBox.tsx';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
 import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Bot, Sparkles, Mic, Image as ImageIcon, Hash, AtSign, ThumbsUp, ThumbsDown, GitFork, CheckCircle2, AppWindow } from 'lucide-react';
-import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage } from '../../../../common/chatThreadServiceTypes.js';
+import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage, QueuedUserMessage } from '../../../../common/chatThreadServiceTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, ToolName, LintErrorItem, ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.tsx';
 import { IsRunningType } from '../../../chatThreadService.js';
 import { acceptAllBg, acceptBorder, buttonFontSize, buttonTextColor, rejectAllBg, rejectBg, rejectBorder } from '../../../../common/helpers/colors.js';
-import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_INACTIVE_TIME } from '../../../../common/prompt/prompts.js';
+import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_INACTIVE_TIME, toolNamesIncludingAliases } from '../../../../common/prompt/prompts.js';
 import { readableLLMContent, RawToolCallObj } from '../../../../common/sendLLMMessageTypes.js';
 import ErrorBoundary from './ErrorBoundary.js';
 import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.tsx';
@@ -68,6 +68,29 @@ const readableChatContent = (value: unknown, registeredToolNames: string[] = [])
 	const text = readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')
 	return sanitizeToolCallLeakage(text, registeredToolNames)
 }
+
+const QueuedMessagesPanel = ({ messages, onUpdate, onRemove }: { messages: readonly QueuedUserMessage[], onUpdate: (id: string, content: string) => void, onRemove: (id: string) => void }) => {
+	const [editingId, setEditingId] = useState<string | undefined>();
+	const [editingText, setEditingText] = useState('');
+	if (messages.length === 0) return null;
+	return <div className='mx-2 mb-2 rounded-lg border border-blue-400/30 bg-blue-950/20 px-3 py-2 text-xs'>
+		<div className='mb-1 flex items-center gap-2 text-blue-300'>
+			<span className='font-medium'>Queued instructions</span>
+			<span className='text-blue-400/70'>{messages.length}</span>
+			<span className='ml-auto text-zinc-500'>They run in order</span>
+		</div>
+		<div className='flex flex-col gap-1'>
+			{messages.map((message, index) => editingId === message.id ? <div key={message.id} className='flex gap-1'>
+				<input autoFocus value={editingText} onChange={event => setEditingText(event.target.value)} className='min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-zinc-200 outline-none' onKeyDown={event => { if (event.key === 'Enter') { onUpdate(message.id, editingText); setEditingId(undefined); } }} />
+				<button type='button' className='text-emerald-400' onClick={() => { onUpdate(message.id, editingText); setEditingId(undefined); }}>Save</button>
+			</div> : <div key={message.id} className='group flex items-start gap-2 text-zinc-300'>
+				<span className='text-zinc-600'>{index + 1}.</span><span className='min-w-0 flex-1 whitespace-pre-wrap break-words'>{message.content}</span>
+				<button type='button' className='hidden text-zinc-500 hover:text-zinc-200 group-hover:inline' onClick={() => { setEditingId(message.id); setEditingText(message.content); }}>Edit</button>
+				<button type='button' className='hidden text-red-400 hover:text-red-300 group-hover:inline' onClick={() => onRemove(message.id)}>Remove</button>
+			</div>)}
+		</div>
+	</div>;
+};
 
 
 
@@ -3133,6 +3156,12 @@ export const SidebarChat = () => {
 	// stream state
 	const currThreadStreamState = useChatThreadsStreamState(chatThreadsState.currentThreadId)
 	const isRunning = currThreadStreamState?.isRunning
+	const [queuedMessages, setQueuedMessages] = useState<readonly QueuedUserMessage[]>(() => chatThreadsService.getQueuedMessages(chatThreadsState.currentThreadId))
+	useEffect(() => {
+		const refresh = () => setQueuedMessages(chatThreadsService.getQueuedMessages(chatThreadsState.currentThreadId))
+		refresh()
+		return chatThreadsService.onDidChangeQueuedMessages(refresh)
+	}, [chatThreadsService, chatThreadsState.currentThreadId])
 	const latestError = currThreadStreamState?.error
 	const { displayContentSoFar, toolCallSoFar, reasoningSoFar } = currThreadStreamState?.llmInfo ?? {}
 
@@ -3202,7 +3231,7 @@ export const SidebarChat = () => {
 	const registeredToolNames = useMemo(() => {
 		const mcpService = accessor.get('IMCPService');
 		const mcpTools = mcpService?.getMCPTools()?.map((t: any) => t.name) || [];
-		const builtinTools = Object.keys(approvalTypeOfBuiltinToolName);
+		const builtinTools = builtinToolNames.flatMap(toolNamesIncludingAliases);
 		return [...mcpTools, ...builtinTools];
 	}, [accessor]);
 
@@ -3250,8 +3279,6 @@ export const SidebarChat = () => {
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
 
 		if (isDisabled && !_forceSubmit) return
-		if (isRunning) return
-
 		const threadId = chatThreadsService.state.currentThreadId
 		// Button click handlers pass a MouseEvent as the first argument. Never let
 		// that DOM object become the persisted chat message (it contains React
@@ -3314,6 +3341,10 @@ export const SidebarChat = () => {
 	const onAbort = async () => {
 		const threadId = currentThread.id
 		await chatThreadsService.abortRunning(threadId)
+	}
+
+	const onResume = async () => {
+		await chatThreadsService.resumeAgent(currentThread.id)
 	}
 
 	// ── Conversation-First UI Handlers ─────────────────────────────────────
@@ -3475,6 +3506,17 @@ export const SidebarChat = () => {
 	const isLandingPage = previousMessages.length === 0
 
 	const threadPageInput = <div key={'input' + chatThreadsState.currentThreadId}>
+		<QueuedMessagesPanel
+			messages={queuedMessages}
+			onUpdate={(id, content) => chatThreadsService.updateQueuedMessage(currentThread.id, id, content)}
+			onRemove={(id) => chatThreadsService.removeQueuedMessage(currentThread.id, id)}
+		/>
+		{!isRunning && chatThreadsService.isAgentPaused(currentThread.id) && (
+			<div className='mx-2 mb-2 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-200'>
+				<span className='flex-1'>The task is paused. Review the workspace or add a new instruction, then continue.</span>
+				<button type='button' className='rounded bg-amber-400/20 px-2 py-1 font-medium hover:bg-amber-400/30' onClick={onResume}>Continue task</button>
+			</div>
+		)}
 		{/* Agent plan panel - visible while or after agent runs */}
 		{currThreadStreamState?.agentPlan && currThreadStreamState.agentPlan.length > 0 && (
 			<div className='px-2 pb-1'>

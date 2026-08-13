@@ -43,6 +43,20 @@ type SimpleLLMMessage = {
 
 const CHARS_PER_TOKEN = 4 // assume abysmal chars per token
 const TRIM_TO_LEN = 120
+const TOOL_TRIM_TO_LEN = 800
+
+const shortenMessageForContext = (content: string, targetLength: number, role: MesRole) => {
+	if (content.length <= targetLength) return content
+	const marker = role === 'tool'
+		? '\n...[CONTEXT_SHORTENED: the tool succeeded, but this conversation copy was shortened. Read the next page or a narrower line range; never ask the user to paste the local file.]...\n'
+		: '\n...[context shortened]...\n'
+	const available = Math.max(0, targetLength - marker.length)
+	const headLength = Math.ceil(available * .6)
+	const tailLength = Math.floor(available * .4)
+	return content.slice(0, headLength) + marker + (tailLength === 0 ? '' : content.slice(-tailLength))
+}
+
+type MesRole = SimpleLLMMessage['role'] | 'system'
 
 
 
@@ -351,15 +365,19 @@ const prepareOpenAIOrAnthropicMessages = ({
 		const m = messages[trimIdx]
 
 		// if can finish here, do
-		const numCharsWillTrim = m.content.length - TRIM_TO_LEN
+		const trimToLength = m.role === 'tool' ? TOOL_TRIM_TO_LEN : TRIM_TO_LEN
+		const numCharsWillTrim = m.content.length - trimToLength
+		if (numCharsWillTrim <= 0) {
+			alreadyTrimmedIdxes.add(trimIdx)
+			continue
+		}
 		if (numCharsWillTrim > remainingCharsToTrim) {
-			// trim remainingCharsToTrim + '...'.length chars
-			m.content = m.content.slice(0, m.content.length - remainingCharsToTrim - '...'.length).trim() + '...'
+			m.content = shortenMessageForContext(m.content, m.content.length - remainingCharsToTrim, m.role)
 			break
 		}
 
 		remainingCharsToTrim -= numCharsWillTrim
-		m.content = m.content.substring(0, TRIM_TO_LEN - '...'.length) + '...'
+		m.content = shortenMessageForContext(m.content, trimToLength, m.role)
 		alreadyTrimmedIdxes.add(trimIdx)
 	}
 

@@ -11,7 +11,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILLMMessageService } from '../common/sendLLMMessageService.js';
-import { chat_userMessageContent, isABuiltinToolName } from '../common/prompt/prompts.js';
+import { chat_userMessageContent, isABuiltinToolName, normalizeRawParams, normalizeToolName } from '../common/prompt/prompts.js';
 import { AnthropicReasoning, getErrorMessage, readableLLMContent, RawToolCallObj, RawToolParamsObj, sanitizeToolCallLeakage } from '../common/sendLLMMessageTypes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { FeatureName, ModelSelection, ModelSelectionOptions } from '../common/voidSettingsTypes.js';
@@ -20,7 +20,7 @@ import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, ToolCallParams, T
 import { IToolsService } from './toolsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { ChatMessage, CheckpointEntry, CodespanLocationLink, StagingSelectionItem, ToolMessage, AgentPlanItem } from '../common/chatThreadServiceTypes.js';
+import { ChatMessage, CheckpointEntry, CodespanLocationLink, StagingSelectionItem, ToolMessage, AgentPlanItem, QueuedUserMessage } from '../common/chatThreadServiceTypes.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IMetricsService } from '../common/metricsService.js';
 import { shorten } from '../../../../base/common/labels.js';
@@ -46,6 +46,7 @@ import { getToolErrorLabel } from '../common/toolActivityMessages.js';
 // related to retrying when LLM message has error
 const CHAT_RETRIES = 3
 const RETRY_DELAY = 2500
+const RATE_LIMIT_RETRY_DELAY = 10_000
 
 
 const findStagingSelectionIndex = (currentSelections: StagingSelectionItem[] | undefined, newSelection: StagingSelectionItem): number | null => {
@@ -250,6 +251,7 @@ export interface IChatThreadService {
 
 	onDidChangeCurrentThread: Event<void>;
 	onDidChangeStreamState: Event<{ threadId: string }>
+	onDidChangeQueuedMessages: Event<{ threadId: string }>
 
 	getCurrentThread(): ThreadType;
 	openNewThread(): void;
@@ -290,6 +292,11 @@ export interface IChatThreadService {
 
 	// entry pts
 	abortRunning(threadId: string): Promise<void>;
+	getQueuedMessages(threadId: string): readonly QueuedUserMessage[];
+	isAgentPaused(threadId: string): boolean;
+	updateQueuedMessage(threadId: string, messageId: string, content: string): void;
+	removeQueuedMessage(threadId: string, messageId: string): void;
+	resumeAgent(threadId: string, instruction?: string): Promise<void>;
 	dismissStreamError(threadId: string): void;
 
 	// call to edit a message
@@ -320,9 +327,13 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 	private readonly _onDidChangeStreamState = new Emitter<{ threadId: string }>();
 	readonly onDidChangeStreamState: Event<{ threadId: string }> = this._onDidChangeStreamState.event;
+	private readonly _onDidChangeQueuedMessages = new Emitter<{ threadId: string }>();
+	readonly onDidChangeQueuedMessages: Event<{ threadId: string }> = this._onDidChangeQueuedMessages.event;
 
 	readonly streamState: ThreadStreamState = {}
 	state: ThreadsState // allThreads is persisted, currentThread is not
+	private readonly queuedMessages: { [threadId: string]: QueuedUserMessage[] | undefined } = {};
+	private readonly pausedQueueThreads = new Set<string>();
 
 	// used in checkpointing
 	// private readonly _userModifiedFilesToCheckInCheckpoints = new LRUCache<string, null>(50)
@@ -579,10 +590,59 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		const errorMessage = this.toolErrMsgs.rejected
 		this._updateLatestTool(threadId, { role: 'tool', type: 'rejected', params: params, name: name, content: errorMessage, result: null, id, rawParams, mcpServerName })
 		this._setStreamState(threadId, undefined)
+		this.pausedQueueThreads.add(threadId)
 	}
 
 	private _computeMCPServerOfToolName = (toolName: string) => {
 		return this._mcpService.getMCPTools()?.find(t => t.name === toolName)?.mcpServerName
+	}
+
+	getQueuedMessages(threadId: string): readonly QueuedUserMessage[] {
+		return this.queuedMessages[threadId] ?? []
+	}
+
+	isAgentPaused(threadId: string): boolean {
+		return this.pausedQueueThreads.has(threadId)
+	}
+
+	private _fireQueueChanged(threadId: string) {
+		this._onDidChangeQueuedMessages.fire({ threadId })
+		this._onDidChangeCurrentThread.fire()
+	}
+
+	private _queueUserMessage(threadId: string, content: string) {
+		const queue = this.queuedMessages[threadId] ?? []
+		queue.push({ id: generateUuid(), content, createdAt: Date.now() })
+		this.queuedMessages[threadId] = queue
+		this._fireQueueChanged(threadId)
+	}
+
+	updateQueuedMessage(threadId: string, messageId: string, content: string): void {
+		const message = this.queuedMessages[threadId]?.find(item => item.id === messageId)
+		if (!message || !content.trim()) return
+		message.content = content.trim()
+		this._fireQueueChanged(threadId)
+	}
+
+	removeQueuedMessage(threadId: string, messageId: string): void {
+		const queue = this.queuedMessages[threadId]
+		if (!queue) return
+		this.queuedMessages[threadId] = queue.filter(item => item.id !== messageId)
+		this._fireQueueChanged(threadId)
+	}
+
+	private async _drainQueuedMessage(threadId: string) {
+		if (this.pausedQueueThreads.has(threadId) || this.streamState[threadId]?.isRunning) return
+		const next = this.queuedMessages[threadId]?.shift()
+		if (!next) return
+		this._fireQueueChanged(threadId)
+		await this._addUserMessageAndStreamResponse({ userMessage: next.content, threadId })
+	}
+
+	async resumeAgent(threadId: string, instruction = 'Continue the interrupted task from the current workspace state. Finish the original request and verify the result.'): Promise<void> {
+		if (this.streamState[threadId]?.isRunning) return
+		this.pausedQueueThreads.delete(threadId)
+		await this._addUserMessageAndStreamResponse({ userMessage: instruction, threadId })
 	}
 
 	async abortRunning(threadId: string) {
@@ -618,6 +678,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 
 		this._setStreamState(threadId, undefined)
+		this.pausedQueueThreads.add(threadId)
 	}
 
 
@@ -892,7 +953,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					if (nAttempts < CHAT_RETRIES) {
 						shouldRetryLLM = true
 						this._setStreamState(threadId, { isRunning: 'idle', interrupt: idleInterruptor, agentRunStartedAt })
-						await timeout(RETRY_DELAY)
+						const retryDelay = llmRes.error?.message.includes('HTTP 429') ? RATE_LIMIT_RETRY_DELAY : RETRY_DELAY
+						await timeout(retryDelay)
 						if (interruptedWhenIdle) {
 							this._setStreamState(threadId, undefined)
 							return
@@ -908,6 +970,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 						if (toolCallSoFar) this._addMessageToThread(threadId, { role: 'interrupted_streaming_tool', name: toolCallSoFar.name, mcpServerName: this._computeMCPServerOfToolName(toolCallSoFar.name) })
 
 						this._setStreamState(threadId, { isRunning: undefined, error })
+						this.pausedQueueThreads.add(threadId)
 						this._addUserCheckpoint({ threadId })
 						return
 					}
@@ -922,17 +985,19 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 				// call tool if there is one
 				if (toolCall) {
+					const canonicalToolName = normalizeToolName(toolCall.name) as ToolName
+					const rawParams = normalizeRawParams(toolCall.rawParams)
 					const mcpTools = this._mcpService.getMCPTools()
-					const mcpTool = mcpTools?.find(t => t.name === toolCall.name)
+					const mcpTool = mcpTools?.find(t => t.name === canonicalToolName)
 
-					const { awaitingUserApproval, interrupted } = await this._runToolCall(threadId, toolCall.name, toolCall.id, mcpTool?.mcpServerName, { preapproved: false, unvalidatedToolParams: toolCall.rawParams })
+					const { awaitingUserApproval, interrupted } = await this._runToolCall(threadId, canonicalToolName, toolCall.id, mcpTool?.mcpServerName, { preapproved: false, unvalidatedToolParams: rawParams })
 					if (interrupted) {
 						this._setStreamState(threadId, undefined)
 						return
 					}
 					if (awaitingUserApproval) { isRunningWhenEnd = 'awaiting_user' }
 					else { shouldSendAnotherMessage = true }
-					if (toolCall.name === 'create_file_or_folder' && !toolCall.rawParams.content && !String(toolCall.rawParams.uri ?? '').match(/[\\/]$/)) {
+					if (canonicalToolName === 'create_file_or_folder' && !rawParams.content && !String(rawParams.uri ?? '').match(/[\\/]$/)) {
 						forceEmptyFileContinuation = true
 					}
 
@@ -1323,6 +1388,9 @@ We only need to do it for files that were edited since `from`, ie files between 
 
 		p.then(() => {
 			if (threadId !== this.state.currentThreadId) notify({ error: null })
+			if (!this.streamState[threadId]?.isRunning && !this.pausedQueueThreads.has(threadId)) {
+				void this._drainQueuedMessage(threadId)
+			}
 		}).catch((e) => {
 			if (threadId !== this.state.currentThreadId) notify({ error: getErrorMessage(e) })
 			throw e
@@ -1337,11 +1405,6 @@ We only need to do it for files that were edited since `from`, ie files between 
 	private async _addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
 		const thread = this.state.allThreads[threadId]
 		if (!thread) return // should never happen
-
-		// interrupt existing stream
-		if (this.streamState[threadId]?.isRunning) {
-			await this.abortRunning(threadId)
-		}
 
 		// add dummy before this message to keep checkpoint before user message idea consistent
 		if (thread.messages.length === 0) {
@@ -1374,6 +1437,11 @@ We only need to do it for files that were edited since `from`, ie files between 
 	async addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
 		const thread = this.state.allThreads[threadId];
 		if (!thread) return
+		if (this.streamState[threadId]?.isRunning) {
+			this._queueUserMessage(threadId, userMessage)
+			return
+		}
+		this.pausedQueueThreads.delete(threadId)
 		await this._selectAutoModelForPrompt(userMessage)
 
 		// if there's a current checkpoint, delete all messages after it

@@ -16,7 +16,7 @@ import { computeDirectoryTree1Deep, IDirectoryStrService, stringifyDirectoryTree
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js'
 import { timeout } from '../../../../base/common/async.js'
 import { RawToolParamsObj } from '../common/sendLLMMessageTypes.js'
-import { MAX_CHILDREN_URIs_PAGE, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_BG_COMMAND_TIME, MAX_TERMINAL_INACTIVE_TIME } from '../common/prompt/prompts.js'
+import { MAX_CHILDREN_URIs_PAGE, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_BG_COMMAND_TIME, MAX_TERMINAL_INACTIVE_TIME, normalizeRawParams } from '../common/prompt/prompts.js'
 import { IVoidSettingsService } from '../common/voidSettingsService.js'
 import { generateUuid } from '../../../../base/common/uuid.js'
 import { ISemanticSearchService } from '../common/forge/contracts/ISemanticSearchService.js'
@@ -37,6 +37,7 @@ const isFalsy = (u: unknown) => {
 
 const validateStr = (argName: string, value: unknown) => {
 	if (value === null) throw new Error(`Invalid LLM output: ${argName} was null.`)
+	if (value === undefined) throw new Error(`The model omitted the required "${argName}" parameter. Retry the tool call with "${argName}" as a string.`)
 	if (typeof value !== 'string') throw new Error(`Invalid LLM output format: ${argName} must be a string, but its type is "${typeof value}". Full value: ${JSON.stringify(value)}.`)
 	return value
 }
@@ -116,11 +117,19 @@ const validateBoolean = (b: unknown, opts: { default: boolean }) => {
 	return opts.default
 }
 
-
 const checkIfIsFolder = (uriStr: string) => {
 	uriStr = uriStr.trim()
 	if (uriStr.endsWith('/') || uriStr.endsWith('\\')) return true
 	return false
+}
+
+const nextPageStr = (hasNextPage: boolean) => {
+	if (hasNextPage) return '\n\n(Additional results available on next page...)'
+	return ''
+}
+
+const stringifyLintErrors = (lintErrors: LintErrorItem[]) => {
+	return lintErrors.map(l => `${l.message} (line ${l.startLineNumber})`).join('\n')
 }
 
 export interface IToolsService {
@@ -191,7 +200,8 @@ export class ToolsService implements IToolsService {
 		};
 
 		this.validateParams = {
-			read_file: async (params: RawToolParamsObj) => {
+			read_file: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, start_line: startLineUnknown, end_line: endLineUnknown, page_number: pageNumberUnknown } = params
 				const uri = await resolveWorkspaceURI(uriStr)
 				const pageNumber = validatePageNum(pageNumberUnknown)
@@ -204,7 +214,8 @@ export class ToolsService implements IToolsService {
 
 				return { uri, startLine, endLine, pageNumber }
 			},
-			ls_dir: async (params: RawToolParamsObj) => {
+			ls_dir: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, page_number: pageNumberUnknown } = params
 
 				// Models occasionally omit the directory when asking for an initial
@@ -214,15 +225,17 @@ export class ToolsService implements IToolsService {
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				return { uri, pageNumber }
 			},
-			get_dir_tree: async (params: RawToolParamsObj) => {
+			get_dir_tree: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, } = params
 				const uri = isFalsy(uriStr) ? await ensureWorkspaceRoot() : await resolveWorkspaceURI(uriStr)
 				return { uri }
 			},
-			search_pathnames_only: (params: RawToolParamsObj) => {
+			search_pathnames_only: (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const {
 					query: queryUnknown,
-					search_in_folder: includeUnknown,
+					include_pattern: includeUnknown,
 					page_number: pageNumberUnknown
 				} = params
 
@@ -233,7 +246,8 @@ export class ToolsService implements IToolsService {
 				return { query: queryStr, includePattern, pageNumber }
 
 			},
-			search_for_files: async (params: RawToolParamsObj) => {
+			search_for_files: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const {
 					query: queryUnknown,
 					search_in_folder: searchInFolderUnknown,
@@ -251,21 +265,24 @@ export class ToolsService implements IToolsService {
 					pageNumber
 				}
 			},
-			search_in_file: async (params: RawToolParamsObj) => {
+			search_in_file: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, query: queryUnknown, is_regex: isRegexUnknown } = params;
 				const uri = await resolveWorkspaceURI(uriStr);
 				const query = validateStr('query', queryUnknown);
 				const isRegex = validateBoolean(isRegexUnknown, { default: false });
 				return { uri, query, isRegex };
 			},
-			semantic_search: (params: RawToolParamsObj) => {
-				const { query: queryUnknown, topK: topKUnknown } = params;
+			semantic_search: (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
+				const { query: queryUnknown, top_k: topKUnknown } = params;
 				const query = validateStr('query', queryUnknown);
 				const topK = validateNumber(topKUnknown, { default: 5 }) || 5;
-				return { query, topK };
+				return { query, top_k: topK };
 			},
 
-			read_lint_errors: async (params: RawToolParamsObj) => {
+			read_lint_errors: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const {
 					uri: uriUnknown,
 				} = params
@@ -275,7 +292,8 @@ export class ToolsService implements IToolsService {
 
 			// ---
 
-			create_file_or_folder: async (params: RawToolParamsObj) => {
+			create_file_or_folder: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriUnknown, content: contentUnknown } = params
 				const uri = await resolveWorkspaceURI(uriUnknown)
 				const uriStr = validateStr('uri', uriUnknown)
@@ -284,7 +302,8 @@ export class ToolsService implements IToolsService {
 				return { uri, isFolder, content: content ?? undefined }
 			},
 
-			delete_file_or_folder: async (params: RawToolParamsObj) => {
+			delete_file_or_folder: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriUnknown, is_recursive: isRecursiveUnknown } = params
 				const uri = await resolveWorkspaceURI(uriUnknown)
 				const isRecursive = validateBoolean(isRecursiveUnknown, { default: false })
@@ -293,14 +312,16 @@ export class ToolsService implements IToolsService {
 				return { uri, isRecursive, isFolder }
 			},
 
-			rewrite_file: async (params: RawToolParamsObj) => {
+			rewrite_file: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, new_content: newContentUnknown } = params
 				const uri = await resolveWorkspaceURI(uriStr)
 				const newContent = validateStr('newContent', newContentUnknown)
 				return { uri, newContent }
 			},
 
-			edit_file: async (params: RawToolParamsObj) => {
+			edit_file: async (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, search_replace_blocks: searchReplaceBlocksUnknown } = params
 				const uri = await resolveWorkspaceURI(uriStr)
 				const searchReplaceBlocks = validateStr('searchReplaceBlocks', searchReplaceBlocksUnknown)
@@ -309,26 +330,29 @@ export class ToolsService implements IToolsService {
 
 			// ---
 
-			run_command: (params: RawToolParamsObj) => {
+			run_command: (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { command: commandUnknown, cwd: cwdUnknown } = params
 				const command = validateStr('command', commandUnknown)
 				const cwd = validateOptionalStr('cwd', cwdUnknown)
 				const terminalId = generateUuid()
 				return { command, cwd, terminalId }
 			},
-			run_persistent_command: (params: RawToolParamsObj) => {
+			run_persistent_command: (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { command: commandUnknown, persistent_terminal_id: persistentTerminalIdUnknown } = params;
 				const command = validateStr('command', commandUnknown);
 				const persistentTerminalId = validateProposedTerminalId(persistentTerminalIdUnknown)
 				return { command, persistentTerminalId };
 			},
-			open_persistent_terminal: (params: RawToolParamsObj) => {
+			open_persistent_terminal: (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { cwd: cwdUnknown } = params;
 				const cwd = validateOptionalStr('cwd', cwdUnknown)
-				// No parameters needed; will open a new background terminal
 				return { cwd };
 			},
-			kill_persistent_terminal: (params: RawToolParamsObj) => {
+			kill_persistent_terminal: (rawParams: RawToolParamsObj) => {
+				const params = normalizeRawParams(rawParams)
 				const { persistent_terminal_id: terminalIdUnknown } = params;
 				const persistentTerminalId = validateProposedTerminalId(terminalIdUnknown);
 				return { persistentTerminalId };
@@ -452,13 +476,16 @@ export class ToolsService implements IToolsService {
 				return { result: { lintErrors } }
 			},
 
-			// ---
-
 			create_file_or_folder: async ({ uri, isFolder, content }) => {
-				if (isFolder)
+				if (isFolder) {
 					await fileService.createFolder(uri)
-				else {
-					await fileService.createFile(uri, content === undefined ? undefined : VSBuffer.fromString(content))
+				} else {
+					const parentUri = URI.joinPath(uri, '..')
+					if (!await fileService.exists(parentUri)) {
+						await fileService.createFolder(parentUri)
+					}
+					await fileService.createFile(uri, content === undefined ? undefined : VSBuffer.fromString(content), { overwrite: true })
+					await voidModelService.initializeModel(uri)
 				}
 				return { result: {} }
 			},
@@ -469,6 +496,13 @@ export class ToolsService implements IToolsService {
 			},
 
 			rewrite_file: async ({ uri, newContent }) => {
+				if (!await fileService.exists(uri)) {
+					const parentUri = URI.joinPath(uri, '..')
+					if (!await fileService.exists(parentUri)) {
+						await fileService.createFolder(parentUri)
+					}
+					await fileService.createFile(uri, VSBuffer.fromString(newContent), { overwrite: true })
+				}
 				await voidModelService.initializeModel(uri)
 				if (this.commandBarService.getStreamState(uri) === 'streaming') {
 					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
@@ -485,6 +519,13 @@ export class ToolsService implements IToolsService {
 			},
 
 			edit_file: async ({ uri, searchReplaceBlocks }) => {
+				if (!await fileService.exists(uri)) {
+					const parentUri = URI.joinPath(uri, '..')
+					if (!await fileService.exists(parentUri)) {
+						await fileService.createFolder(parentUri)
+					}
+					await fileService.createFile(uri, VSBuffer.fromString(''), { overwrite: true })
+				}
 				await voidModelService.initializeModel(uri)
 				if (this.commandBarService.getStreamState(uri) === 'streaming') {
 					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
@@ -501,7 +542,7 @@ export class ToolsService implements IToolsService {
 
 				return { result: lintErrorsPromise }
 			},
-			// ---
+
 			run_command: async ({ command, cwd, terminalId }) => {
 				const { resPromise, interrupt } = await this.terminalToolService.runCommand(command, { type: 'temporary', cwd, terminalId })
 				return { result: resPromise, interruptTool: interrupt }
@@ -521,24 +562,17 @@ export class ToolsService implements IToolsService {
 			},
 		}
 
-
-		const nextPageStr = (hasNextPage: boolean) => hasNextPage ? '\n\n(more on next page...)' : ''
-
-		const stringifyLintErrors = (lintErrors: LintErrorItem[]) => {
-			return lintErrors
-				.map((e, i) => `Error ${i + 1}:\nLines Affected: ${e.startLineNumber}-${e.endLineNumber}\nError message:${e.message}`)
-				.join('\n\n')
-				.substring(0, MAX_FILE_CHARS_PAGE)
-		}
-
-		// given to the LLM after the call for successful tool calls
 		this.stringOfResult = {
 			read_file: (params, result) => {
-				return `${params.uri.fsPath}\n\`\`\`\n${result.fileContents}\n\`\`\`${nextPageStr(result.hasNextPage)}${result.hasNextPage ? `\nMore info because truncated: this file has ${result.totalNumLines} lines, or ${result.totalFileLen} characters.` : ''}`
+				const pageStatus = result.hasNextPage ? 'MORE_PAGES' : 'COMPLETE'
+				const nextPageInstruction = result.hasNextPage
+					? ` Call read_file again with page_number=${params.pageNumber + 1}; do not ask the user to paste the file.`
+					: ' The requested file content is complete; do not ask the user to paste it.'
+				return `[READ_FILE ${pageStatus} page=${params.pageNumber} returned_chars=${result.fileContents.length} total_chars=${result.totalFileLen} total_lines=${result.totalNumLines}]${nextPageInstruction}\n${result.fileContents}\n[END_READ_FILE ${pageStatus}]`
 			},
 			ls_dir: (params, result) => {
 				const dirTreeStr = stringifyDirectoryTree1Deep(params, result)
-				return dirTreeStr // + nextPageStr(result.hasNextPage) // already handles num results remaining
+				return dirTreeStr
 			},
 			get_dir_tree: (params, result) => {
 				return result.str

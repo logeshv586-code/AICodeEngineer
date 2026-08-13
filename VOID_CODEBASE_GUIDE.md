@@ -1,170 +1,181 @@
-# Void Codebase Guide
+# Forge IDE Guide
 
-The Void codebase is not as intimidating as it seems!
+Forge is an AI-assisted development environment designed to understand a project, make changes directly, verify its work, and continue until the requested task is complete.
 
-Most of Void's code lives in the folder `src/vs/workbench/contrib/void/`.
+This guide explains the current workflow in plain language. It focuses on what happens during an update instead of describing internal source locations.
 
-The purpose of this document is to explain how Void's codebase works. If you want build instructions instead, see [Contributing](https://github.com/voideditor/void/blob/main/HOW_TO_CONTRIBUTE.md).
+## What Forge Can Do
 
+Forge agents can:
 
+- Read individual files or inspect the whole project.
+- Search for filenames, symbols, text, and related code.
+- Understand how several files work together before making changes.
+- Create new files and any missing parent locations.
+- Edit part of a file or rewrite the complete file.
+- Delete files or groups of files when the task requires it.
+- Run commands, builds, checks, and tests.
+- Report errors in a clear, actionable form.
+- Resume interrupted work without losing the task or queued instructions.
 
+## The Current Update Flow
 
+### 1. Receive the request
 
+The user describes the desired outcome in chat. The request can be short, detailed, or a continuation of earlier work.
 
+Forge keeps the request as the active task. If another message arrives while work is running, that message is placed in the task queue.
 
+### 2. Understand the goal
 
+The agent identifies:
 
-## Void Codebase Guide
+- What the user wants changed.
+- Which parts of the project are relevant.
+- What must remain unchanged.
+- How the result can be verified.
 
-### VSCode Rundown
-Here's a VSCode rundown if you're just getting started with Void. You can also see Microsoft's [wiki](https://github.com/microsoft/vscode/wiki/Source-Code-Organization) for some pictures. VSCode is an Electron app. Electron runs two processes: a **main** process (for internals) and a **browser** process (browser means HTML in general, not just "web browser").
-<p align="center" >
-<img src="https://github.com/user-attachments/assets/eef80306-2bfe-4cac-ba15-6156f65ab3bb" alt="Credit - https://github.com/microsoft/vscode/wiki/Source-Code-Organization" width="700px">
-</p>
+For a simple request, the agent can act immediately. For a larger request, it creates a small plan and updates progress as work continues.
 
-- Code in a  `browser/` folder always lives on the browser process, and it can use `window` and other browser items.
-- Code in an `electron-main/` folder always lives on the main process, and it can import `node_modules`.
-- Code in `common/` can be used by either process, but doesn't get any special imports.
-- The browser environment is not allowed to import `node_modules`. We came up with two workarounds:
-  1. Bundle the raw node_module code to the browser - we're doing this for React.
-  2. Implement the code on `electron-main/` and set up a channel between main/browser - we're doing this for sendLLMMessage.
+### 3. Gather enough context
 
+The agent reads the relevant files and searches the project before editing. Local files should be read directly; the user should not be asked to copy and paste a file that is already available in the open project.
 
+Every file-reading result identifies whether the requested content is complete. If more content exists, the agent reads the next page or requests a narrower line range automatically.
 
+### 4. Choose and normalize an action
 
-### Terminology
+Different AI providers sometimes use different names for the same action. Forge accepts common variations and converts them into one internal action.
 
-Here's some terminology you might want to know about when working inside VSCode:
-- An **Editor** is the thing that you type your code in. If you have 10 tabs open, that's just one editor! Editors contain tabs (or "models").
-- A **Model** is an internal representation of a file's contents. It's shared between editors (for example, if you press `Cmd+\` to make a new editor, then the model of a file like `A.ts` is shared between them. Two editors, one model. That's how changes sync.).
-- Each model has a **URI** it represents, like `/Users/.../my_file.txt`. (A URI or "resource" is generally just a path).
-- The **Workbench** is the wrapper that contains all the editors, the terminal, the file system tree, etc.
-- Usually you use the `ITextModel` type for models and the `ICodeEditor` type for editors. There aren't that many other types.
-<p align="center" >
-<img src="https://github.com/user-attachments/assets/6521c228-dc96-4cf5-a673-6b9ca78b9b06" alt="Credit - https://code.visualstudio.com/docs/getstarted/userinterface" width="400px">
-</p>
+For example, requests to write, save, create, overwrite, modify, remove, list, search, or run a command are interpreted consistently. Common parameter variations such as path, filename, content, code, text, query, and command are also understood.
 
+Malformed but recognizable tool calls are repaired when it is safe to do so. If an essential value is truly missing, the agent receives a clear message explaining exactly which value must be supplied and can retry the action.
 
+### 5. Create a checkpoint
 
-- VSCode is organized into "**Services**". A service is just a class that mounts a single time (in computer science theory this is called a "singleton"). You can register services with `registerSingleton` so that you can easily use them in any constructor with `@<Service>`. See _dummyContrib for an example we put together on how to register them. The registration is the same every time.
+Before changing files, Forge records a checkpoint. This gives the user a safe review and recovery point.
 
-- "**Actions**" are functions you register on VSCode so that either you or the user can call them later. They're also called "**Commands**".
-	- You can run actions as a user by pressing Cmd+Shift+P (opens the command pallete), or you can run them internally by using the commandService to call them by ID. We use actions to register keybinding listeners like Cmd+L, Cmd+K, etc. The nice thing about actions is the user can change the keybindings.
+Changes can be inspected, accepted, rejected, or reverted. A new checkpoint is created for the next meaningful set of edits.
 
+### 6. Make the change
 
+Forge chooses the least disruptive editing method that can complete the task:
 
+- A focused edit changes only the necessary section.
+- A rewrite replaces the full contents when the whole document or file must change.
+- A create action makes a new file and any missing parent locations.
+- A delete action removes the requested target after resolving it safely.
 
+Existing files can be intentionally overwritten when the requested action requires replacement. Newly created or rewritten files are immediately made available to the editor and later agent steps.
 
-### Void's LLM Message Pipeline
+### 7. Review the result
 
-Here's a picture of all the dependencies that are relevent between the time you first send a message through Void's sidebar, and the time a request is sent to your provider.
-Sending LLM messages from the main process avoids CSP issues with local providers and lets us use node_modules more easily.
+After editing, the agent checks the changed content and looks for obvious mistakes. For code changes, it also checks relevant diagnostics and confirms that the requested behavior is represented in the implementation.
 
+The agent must not claim completion merely because an edit action succeeded. Completion means the requested outcome has been checked.
 
-<div align="center">
-	<img width="100%" src="https://github.com/user-attachments/assets/9cf54dbb-82c4-4488-97a2-bd8dea890b50">
-</div>
+### 8. Build and validate
 
+Forge runs the checks that match the type of change. These may include:
 
+- Type checking or compilation.
+- User-interface bundle generation.
+- Automated tests.
+- Runtime artifact verification.
+- Focused checks for the exact bug or workflow being changed.
 
-**Notes:** `modelCapabilities` is an important file that must be updated when new models come out!
+If a check fails because of the new work, the agent investigates, fixes the issue, and runs the check again. Existing unrelated warnings are reported separately and are not presented as newly introduced failures.
 
+### 9. Finish or continue
 
-### Apply
+When all required work and verification are complete, the agent returns a concise summary of what changed and which checks passed.
 
-Void has two types of Apply: **Fast Apply** (uses Search/Replace, see below), and **Slow Apply** (rewrites whole file).
+If work is interrupted, rate-limited, or manually stopped, the task is paused instead of discarded. The user can choose **Continue task** or send a continuation message. Forge resumes from the preserved conversation, checkpoints, tool results, and queued instructions.
 
-When you click Apply and Fast Apply is enabled, we prompt the LLM to output Search/Replace block(s) like this:
-```
-<<<<<<< ORIGINAL
-// original code goes here
-=======
-// replaced code goes here
->>>>>>> UPDATED
-```
-This is what allows Void to quickly apply code even on 1000-line files. It's the same as asking the LLM to press Ctrl+F and enter in a search/replace query.
+## Queue and Decision Changes
 
-### Apply Inner Workings
+Messages sent while an agent is working are kept in order. Before continuing the next stage, Forge applies the newest queued instruction to the active task.
 
-The `editCodeService` file runs Apply. The same exact code is also used when the LLM calls the Edit tool, and when you submit Cmd+K. Just different versions of Fast/Slow Apply mode.
+A queued message can:
 
-Here is some important terminology:
-- A **DiffZone** is a {startLine, endLine} region of text where we compute and show red/green areas, or **Diffs**. When any changes are made to a file, we loop through all the DiffAreas on that file and refresh its Diffs.
-- A **DiffArea** is a generalization that just tracks line numbers like a DiffZone.
-- The only type of DiffArea that can "stream" is a DiffZone. Each DiffZone has an llmCancelToken if it's streaming.
+- Add another requirement.
+- Correct an assumption.
+- Change the preferred approach.
+- Cancel part of the work.
+- Replace the remaining task with a new direction.
 
-How Apply works:
-- When you click Apply, we create a **DiffZone** over that the full file so that any changes that the LLM makes will show up in red/green. We then stream the change.
-- When an LLM calls Edit, it's really calling Apply.
-- When you submit Cmd+K, it's the same as Apply except we create a smaller DiffZone (not on the whole file).
+The agent preserves completed work that is still useful, avoids repeating finished steps, and adjusts unfinished work to match the newest decision.
 
+## Interruption and Recovery
 
-### Writing Files Inner Workings
-When Void wants to change your code, it just writes to a text model. This means all you need to know to write to a file is its URI - you don't have to load it, save it, etc. There are some annoying background URI/model things to think about to get this to work, but we handled them all in `voidModelService`.
+An interruption can happen because the user presses stop, the application closes, the provider becomes unavailable, a rate limit is reached, or a tool is still waiting for approval.
 
-### Void Settings Inner Workings
-We have a service `voidSettingsService` that stores all your Void settings (providers, models, global Void settings, etc). Imagine this as an implicit dependency for any of the core Void services:
+Forge keeps enough state to resume safely:
 
-<div align="center">
-	<img width="800" src="https://github.com/user-attachments/assets/9f3cb68c-a61b-4810-8429-bb90b992b3fa">
-</div>
+- The original request and later queued messages.
+- Completed and pending plan items.
+- File checkpoints.
+- Successful tool results.
+- The active task state.
+- The point at which execution stopped.
 
-Here's a guide to some of the terminology we're using:
-- **FeatureName**: Autocomplete | Chat | CtrlK | Apply
-- **ModelSelection**: a {providerName, modelName} pair.
-- **ProviderName**: The name of a provider: `'ollama'`, `'openAI'`, etc.
-- **ModelName**: The name of a model (string type, eg `'gpt-4o'`).
-- **RefreshProvider**: a provider that we ping repeatedly to update the models list.
-- **ChatMode** = normal | gather | agent
+After resuming, the agent checks the current project state before applying another change. This prevents duplicate edits and allows the user to modify files manually between runs.
 
+## File Reading Rules
 
+When reading project files, agents follow these rules:
 
-### Approval State
-`editCodeService`'s data structures contain all the information about changes that the user needs to review. However, they don't store that information in a useful format. We wrote the following service to get a more useful derived state:
+- Trust a result marked complete.
+- Read the next page when more pages are available.
+- Use a smaller line range if conversation limits shorten a result.
+- Never treat conversation shortening as a file-system failure.
+- Never ask the user to paste an accessible local file merely because more context is needed.
+- Re-read a file before overwriting it if it may have changed since the previous read.
 
-<div align="center">
-	<img width="600" src="https://github.com/user-attachments/assets/f3645355-dff6-467c-bc38-ffe52077c08b">
-</div>
+## File Editing Rules
 
+When changing project files, agents follow these rules:
 
+- Work only inside the user-approved project scope.
+- Preserve unrelated user changes.
+- Create missing parent locations when creating a file.
+- Use focused edits when only a small section must change.
+- Use a complete rewrite when the user requests a document-wide rewrite.
+- Verify the resulting content after every significant update.
+- Run appropriate checks before reporting completion.
+- Explain any remaining limitation honestly.
 
-### Build process
-If you want to know how our build pipeline works, see our build repo [here](https://github.com/voideditor/void-builder).
+## Provider and Model Resilience
 
+Forge supports models from different providers even when their tool-call formats differ.
 
+The compatibility layer handles:
 
-## VSCode Codebase Guide
+- Structured function calls.
+- JSON tool calls.
+- XML-style tool calls.
+- Common tool-name aliases.
+- Common parameter-name aliases.
+- Recoverable formatting mistakes.
 
-For additional references, the Void team put together this list of links to get up and running with VSCode.
-<details>
+Provider errors are converted into useful messages. Authentication problems, unavailable models, oversized requests, server failures, timeouts, and rate limits are identified separately.
 
+For temporary rate limits, Forge waits longer before retrying. If retries are exhausted, it pauses the task so the user can continue later without starting again.
 
-#### Links for Beginners
+## Approval and Safety
 
-- [VSCode UI guide](https://code.visualstudio.com/docs/getstarted/userinterface)  - covers auxbar, panels, etc.
-- [UX guide](https://code.visualstudio.com/api/ux-guidelines/overview) - covers Containers, Views, Items, etc.
+Read-only inspection can run without interrupting the workflow. Actions that modify files or run commands follow the user's approval settings.
 
-#### Links for Contributors
+Forge resolves the exact target before a sensitive action, avoids broad destructive operations, and keeps checkpoints for recoverable edits. It does not expand the task into unrelated changes without user authorization.
 
-- [How VSCode's sourcecode is organized](https://github.com/microsoft/vscode/wiki/Source-Code-Organization) - this explains where the entry point files are, what `browser/` and `common/` mean, etc. This is the most important read on this whole list! We recommend reading the whole thing.
-- [Built-in VSCode styles](https://code.visualstudio.com/api/references/theme-color) - CSS variables that are built into VSCode. Use `var(--vscode-{theme but replacing . with -})`. You can also see their [Webview theming guide](https://code.visualstudio.com/api/extension-guides/webview#theming-webview-content).
+## Completion Standard
 
+A task is complete only when:
 
-#### Misc
+1. The requested outcome has been implemented.
+2. The changed files have been reviewed.
+3. Relevant validation has passed or any remaining failure has been clearly explained.
+4. No required queued instruction remains unhandled.
+5. The user receives a clear summary of the result.
 
-- [Every command](https://code.visualstudio.com/api/references/commands) built-in to VSCode - not used often, but here for reference.
-- Note: VSCode's repo is the source code for the Monaco editor! An "editor" is a Monaco editor, and it shares the code for ITextModel, etc.
-
-
-#### VSCode's Extension API
-
-Void is no longer an extension, so these links are no longer required, but they might be useful if we ever build an extension again.
-
-- [Files you need in an extension](https://code.visualstudio.com/api/get-started/extension-anatomy).
-- [An extension's `package.json` schema](https://code.visualstudio.com/api/references/extension-manifest).
-- ["Contributes" Guide](https://code.visualstudio.com/api/references/contribution-points) - the `"contributes"` part of `package.json` is how an extension mounts.
-- [The Full VSCode Extension API](https://code.visualstudio.com/api/references/vscode-api) - look on the right side for organization. The [bottom](https://code.visualstudio.com/api/references/vscode-api#api-patterns) of the page is easy to miss but is useful - cancellation tokens, events, disposables.
-- [Activation events](https://code.visualstudio.com/api/references/activation-events) you can define in `package.json` (not the most useful).
-
-
-</details>
+This is the workflow all Forge agents should follow, regardless of which supported AI model or provider is selected.

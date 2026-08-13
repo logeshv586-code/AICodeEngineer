@@ -126,7 +126,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
     }
 		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
-			if (!isStreaming && !isDisabled && value.trim()) onSubmit();
+			if (!isDisabled && value.trim()) onSubmit();
 		}
 	}, [value, isSlashOpen, filteredCommands, handleSlashSelect, isStreaming, isDisabled, onSubmit]);
 
@@ -441,28 +441,27 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
           </div>
 
           <div className="flex items-center gap-1">
-            {isStreaming ? (
-              <button
-                type="button"
-                onClick={onAbort}
+			{isStreaming && (
+			  <button
+				type="button"
+				onClick={onAbort}
                 data-action="abort"
                 className="flex items-center gap-1 px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors cursor-pointer"
               >
                 <Square size={12} />
-                Stop
-              </button>
-            ) : (
-              <button
-                type="button"
+				Stop
+			  </button>
+			)}
+			  <button
+				type="button"
                 onClick={onSubmit}
                 data-action="submit"
                 disabled={isDisabled || !value.trim()}
                 className="flex items-center gap-1 px-3 py-1 text-xs bg-[var(--forge-coco-accent)] hover:bg-[#9297ff] text-slate-950 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
-                <Send size={12} />
-                Send
-              </button>
-            )}
+				<Send size={12} />
+				{isStreaming ? 'Queue' : 'Send'}
+			  </button>
           </div>
         </div>
       </div>

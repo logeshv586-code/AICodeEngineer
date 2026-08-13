@@ -195,7 +195,7 @@ export const builtinTools: {
 
 	read_file: {
 		name: 'read_file',
-		description: `Returns full contents of a given file.`,
+		description: `Returns file contents together with explicit completeness and paging information. If the result says COMPLETE, you have the requested contents and must not ask the user to paste the local file. If it says MORE_PAGES, call read_file again with the next page_number.`,
 		params: {
 			...uriParam('file'),
 			start_line: { description: 'Optional. Do NOT fill this field in unless you were specifically given exact line numbers to search. Defaults to the beginning of the file.' },
@@ -355,8 +355,148 @@ export const builtinTools: {
 
 export const builtinToolNames = Object.keys(builtinTools) as BuiltinToolName[]
 const toolNamesSet = new Set<string>(builtinToolNames)
+
+export const toolAliasesByCanonicalName: Readonly<Record<string, readonly string[]>> = {
+	create_file_or_folder: ['write_file', 'write_file_or_folder', 'create_file', 'create_folder', 'save_file', 'write_to_file', 'put_file', 'new_file', 'write'],
+	read_file: ['read_file_or_folder', 'view_file', 'get_file', 'cat_file', 'read'],
+	edit_file: ['modify_file', 'update_file', 'apply_diff'],
+	rewrite_file: ['overwrite_file', 'replace_file'],
+	delete_file_or_folder: ['delete_file', 'remove_file', 'unlink_file', 'rm'],
+	ls_dir: ['list_dir', 'dir_list', 'ls', 'list_directory'],
+	get_dir_tree: ['dir_tree', 'tree', 'directory_tree'],
+	search_for_files: ['file_search', 'grep', 'search_files', 'search'],
+	search_pathnames_only: ['find_files', 'locate_file'],
+	run_command: ['exec', 'execute_command', 'run_terminal_command', 'bash', 'terminal'],
+}
+
+export const toolNamesIncludingAliases = (canonicalName: string): string[] => [
+	canonicalName,
+	...(toolAliasesByCanonicalName[canonicalName] ?? []),
+]
+
+export const parameterAliasesByCanonicalName: Readonly<Record<string, readonly string[]>> = {
+	uri: ['path', 'file_path', 'filePath', 'target_file', 'targetFile', 'filename', 'file', 'location', 'url'],
+	content: ['code', 'text', 'file_content', 'fileContent', 'body', 'contents', 'code_content', 'codeContent'],
+	new_content: ['newContent', 'content', 'code', 'text', 'file_content', 'fileContent', 'body', 'contents', 'code_content', 'codeContent'],
+	search_replace_blocks: ['searchReplaceBlocks', 'blocks', 'diff', 'patch', 'search_replace', 'searchReplace'],
+	query: ['pattern', 'search', 'term', 'q', 'search_query', 'searchQuery'],
+	command: ['cmd', 'script', 'shell_command', 'shellCommand'],
+	cwd: ['working_directory', 'workingDirectory', 'directory'],
+	search_in_folder: ['searchInFolder', 'folder', 'root', 'search_path', 'searchPath'],
+	include_pattern: ['includePattern', 'glob'],
+	is_regex: ['isRegex', 'regex'],
+	is_recursive: ['isRecursive', 'recursive'],
+	page_number: ['pageNumber', 'page'],
+	start_line: ['startLine', 'line_start', 'lineStart'],
+	end_line: ['endLine', 'line_end', 'lineEnd'],
+	top_k: ['topK', 'limit', 'k'],
+	persistent_terminal_id: ['persistentTerminalId', 'terminal_id', 'terminalId'],
+}
+
+export const parameterNamesIncludingAliases = (canonicalName: string): string[] => [
+	canonicalName,
+	...(parameterAliasesByCanonicalName[canonicalName] ?? []),
+]
+
+export const normalizeToolName = (toolName: string): BuiltinToolName | string => {
+	if (!toolName) return toolName;
+	const lower = toolName.trim().replace(/^<+/, '').replace(/[>{(\s]+$/, '').toLowerCase();
+	switch (lower) {
+		case 'write_file':
+		case 'write_file_or_folder':
+		case 'create_file':
+		case 'create_folder':
+		case 'save_file':
+		case 'write_to_file':
+		case 'put_file':
+		case 'new_file':
+		case 'write':
+		case 'create_file_or_folder':
+			return 'create_file_or_folder';
+
+		case 'read_file':
+		case 'read_file_or_folder':
+		case 'view_file':
+		case 'get_file':
+		case 'cat_file':
+		case 'read':
+			return 'read_file';
+
+		case 'edit_file':
+		case 'modify_file':
+		case 'update_file':
+		case 'apply_diff':
+			return 'edit_file';
+
+		case 'rewrite_file':
+		case 'overwrite_file':
+		case 'replace_file':
+			return 'rewrite_file';
+
+		case 'delete_file':
+		case 'delete_file_or_folder':
+		case 'remove_file':
+		case 'unlink_file':
+		case 'rm':
+			return 'delete_file_or_folder';
+
+		case 'ls_dir':
+		case 'list_dir':
+		case 'dir_list':
+		case 'ls':
+		case 'list_directory':
+			return 'ls_dir';
+
+		case 'get_dir_tree':
+		case 'dir_tree':
+		case 'tree':
+		case 'directory_tree':
+			return 'get_dir_tree';
+
+		case 'search_for_files':
+		case 'file_search':
+		case 'grep':
+		case 'search_files':
+		case 'search':
+			return 'search_for_files';
+
+		case 'search_pathnames_only':
+		case 'find_files':
+		case 'locate_file':
+			return 'search_pathnames_only';
+
+		case 'run_command':
+		case 'exec':
+		case 'execute_command':
+		case 'run_terminal_command':
+		case 'bash':
+		case 'terminal':
+			return 'run_command';
+
+		default:
+			return toolName;
+	}
+};
+
+export const normalizeRawParams = (rawParams: RawToolParamsObj): RawToolParamsObj => {
+	if (!rawParams || typeof rawParams !== 'object') return rawParams;
+
+	for (const canonicalName of Object.keys(parameterAliasesByCanonicalName)) {
+		const value = parameterNamesIncludingAliases(canonicalName)
+			.map(name => rawParams[name])
+			.find(candidate => candidate !== undefined && candidate !== null)
+		if (value === undefined) continue
+		rawParams[canonicalName] = typeof value === 'string'
+			? value
+			: canonicalName === 'search_replace_blocks' ? JSON.stringify(value) : String(value)
+	}
+
+	return rawParams;
+};
+
 export const isABuiltinToolName = (toolName: string): toolName is BuiltinToolName => {
-	const isAToolName = toolNamesSet.has(toolName)
+	const normalized = normalizeToolName(toolName)
+	const isAToolName = toolNamesSet.has(normalized)
 	return isAToolName
 }
 
@@ -493,6 +633,7 @@ ${directoryStr}
 		details.push(`Follow a complete execution loop for every implementation request: understand the acceptance criteria, inspect the relevant project and dependencies, make the edits with tools, run the most relevant tests/build/type checks, fix failures, and verify the final result before responding.`)
 		details.push(`When the user asks for a PDF, presentation, report, image, or other artifact, create the requested artifact in the workspace using the available tools or terminal commands, verify that it exists and can be opened, and report its exact path.`)
 		details.push(`For complex work, divide independent discovery, implementation, testing, documentation, or review tasks among the available agent/tool capabilities when possible; serialize edits that could conflict, then run one final integration and verification pass.`)
+		details.push(`When a file-reading result says COMPLETE, trust that result and continue the task; never ask the user to paste that local file. When it says MORE_PAGES or CONTEXT_SHORTENED, retrieve the next page or a narrower line range yourself before editing.`)
 	}
 
 	if (mode === 'gather') {

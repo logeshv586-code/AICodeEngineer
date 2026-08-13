@@ -89,7 +89,7 @@ export const sanitizeToolCallLeakage = (text: string, registeredToolNames: strin
 
 		// Strip: <tool_name>...</tool_name> (residual XML)
 		result = result.replace(
-			new RegExp(`<${eName}>[\\s\\S]*?</${eName}>`, 'g'),
+			new RegExp(`<?${eName}>[\\s\\S]*?</${eName}>`, 'g'),
 			''
 		)
 	}

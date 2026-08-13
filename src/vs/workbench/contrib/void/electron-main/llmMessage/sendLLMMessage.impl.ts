@@ -13,7 +13,7 @@ import { AnthropicLLMChatMessage, GeminiLLMChatMessage, LLMChatMessage, LLMFIMMe
 import { ChatMode, displayInfoOfProviderName, ModelSelectionOptions, OverridesOfModel, ProviderName, SettingsOfProvider } from '../../common/voidSettingsTypes.js';
 import { getSendableReasoningInfo, getModelCapabilities, getProviderCapabilities, defaultProviderSettings, getReservedOutputTokenSpace } from '../../common/modelCapabilities.js';
 import { extractReasoningWrapper, extractXMLToolsWrapper } from './extractGrammar.js';
-import { availableTools, InternalToolInfo } from '../../common/prompt/prompts.js';
+import { availableTools, InternalToolInfo, normalizeRawParams, normalizeToolName } from '../../common/prompt/prompts.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 
 const getGoogleApiKey = async () => {
@@ -242,16 +242,28 @@ const openAITools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | u
 
 
 // convert LLM tool call to our tool format
+const rawParamsFromLooseString = (value: string): RawToolParamsObj | null => {
+	const rawParams: RawToolParamsObj = {}
+	for (const match of value.matchAll(/(?:<\s*|\b)([\w-]+)\s*>([\s\S]*?)(?:<\/\s*\1\s*>|$)/g)) {
+		rawParams[match[1]] = match[2]
+	}
+	for (const match of value.matchAll(/([\w-]+)\s*[:=]\s*(?:"([\s\S]*?)"|'([\s\S]*?)')/g)) {
+		rawParams[match[1]] ??= match[2] ?? match[3] ?? ''
+	}
+	return Object.keys(rawParams).length === 0 ? null : rawParams
+}
+
 const rawToolCallObjOfParamsStr = (name: string, toolParamsStr: string, id: string): RawToolCallObj | null => {
 	let input: unknown
 	try { input = JSON.parse(toolParamsStr) }
-	catch (e) { return null }
+	catch { input = rawParamsFromLooseString(toolParamsStr) }
 
 	if (input === null) return null
 	if (typeof input !== 'object') return null
 
-	const rawParams: RawToolParamsObj = input
-	return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
+	const canonicalName = normalizeToolName(name)
+	const rawParams: RawToolParamsObj = normalizeRawParams(input as RawToolParamsObj)
+	return { id, name: canonicalName, rawParams, doneParams: Object.keys(rawParams), isDone: true }
 }
 
 
@@ -261,8 +273,9 @@ const rawToolCallObjOfAnthropicParams = (toolBlock: Anthropic.Messages.ToolUseBl
 	if (input === null) return null
 	if (typeof input !== 'object') return null
 
-	const rawParams: RawToolParamsObj = input
-	return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
+	const canonicalName = normalizeToolName(name)
+	const rawParams: RawToolParamsObj = normalizeRawParams(input as RawToolParamsObj)
+	return { id, name: canonicalName, rawParams, doneParams: Object.keys(rawParams), isDone: true }
 }
 
 

@@ -81,6 +81,34 @@ export const sendLLMMessage = async ({
 		if (errorMessage === 'TypeError: fetch failed')
 			errorMessage = `Failed to fetch from ${displayInfoOfProviderName(providerName).title}. This likely means you specified the wrong endpoint in Void's Settings, or your local model provider like Ollama is powered off.`
 
+		const providerTitle = displayInfoOfProviderName(providerName).title
+		const errorRecord = fullError as unknown as { status?: unknown, headers?: Record<string, unknown> | { get?: (name: string) => string | null } } | null
+		const parsedStatus = Number(errorRecord?.status)
+		const status = Number.isInteger(parsedStatus) ? parsedStatus : Number(errorMessage.match(/\b([45]\d\d)\b/)?.[1])
+		if (Number.isInteger(status)) {
+			const headers = errorRecord?.headers
+			const retryAfter = typeof (headers as { get?: unknown })?.get === 'function'
+				? (headers as { get: (name: string) => string | null }).get('retry-after')
+				: String((headers as Record<string, unknown> | undefined)?.['retry-after'] ?? '') || null
+			const statusMessages: Record<number, string> = {
+				400: `${providerTitle} rejected the request (HTTP 400). The selected model or endpoint may not support this request format.`,
+				401: `${providerTitle} rejected the API credentials (HTTP 401). Check the API key in Settings.`,
+				403: `${providerTitle} denied access (HTTP 403). Check model access and account permissions.`,
+				404: `${providerTitle} could not find the configured model or endpoint (HTTP 404). Check both in Settings.`,
+				408: `${providerTitle} timed out (HTTP 408). Retry the message.`,
+				413: `${providerTitle} rejected the request because its context was too large (HTTP 413). Remove attachments or start a shorter thread.`,
+				429: `${providerTitle} is rate-limiting requests (HTTP 429). Wait${retryAfter ? ` ${retryAfter} seconds` : ' briefly'} or check your provider quota, then use Continue task.`,
+				500: `${providerTitle} had an internal error (HTTP 500). Retry shortly.`,
+				502: `${providerTitle} returned a bad gateway response (HTTP 502). Check the endpoint or retry shortly.`,
+				503: `${providerTitle} is temporarily unavailable (HTTP 503). Retry shortly.`,
+				504: `${providerTitle} timed out at its gateway (HTTP 504). Retry shortly.`,
+			}
+			if (statusMessages[status]) {
+				errorMessage = statusMessages[status]
+				fullError = null
+			}
+		}
+
 		captureLLMEvent(`${loggingName} - Error`, { error: errorMessage })
 		onError_({ message: errorMessage, fullError })
 	}
