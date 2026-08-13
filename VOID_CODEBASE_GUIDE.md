@@ -149,6 +149,16 @@ When changing project files, agents follow these rules:
 
 Forge supports models from different providers even when their tool-call formats differ.
 
+### Continuous task context
+
+Every provider still has a physical request limit, but Forge treats task context as continuous. Project state, checkpoints, completed actions, queued decisions, and recent evidence remain available across model calls.
+
+When a model reaches its output-token boundary, Forge automatically starts a continuation worker. The worker receives the preserved task state, resumes at the unfinished point, reads any missing file page, and continues without requiring the user to send another message.
+
+If a provider rejects an input because it is too large, Forge compacts older conversation material while retaining the active request, latest decisions, tool outcomes, and current workspace state, then retries automatically.
+
+Independent read-only discovery tasks may run in parallel. File modifications and dependent steps remain ordered so separate workers cannot overwrite each other's changes.
+
 The compatibility layer handles:
 
 - Structured function calls.

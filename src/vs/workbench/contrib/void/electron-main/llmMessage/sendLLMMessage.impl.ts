@@ -344,6 +344,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 	let toolName = ''
 	let toolId = ''
 	let toolParamsStr = ''
+	let finishReason: string | undefined
 
 	openai.chat.completions
 		.create(options)
@@ -351,6 +352,8 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 			_setAborter(() => response.controller.abort())
 			// when receive text
 			for await (const chunk of response) {
+				const chunkFinishReason = chunk.choices[0]?.finish_reason
+				if (chunkFinishReason) finishReason = chunkFinishReason
 				// message
 				const newText = chunk.choices[0]?.delta?.content ?? ''
 				fullTextSoFar += newText
@@ -389,7 +392,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 			else {
 				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
 				const toolCallObj = toolCall ? { toolCall } : {}
-				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, finishReason, ...toolCallObj });
 			}
 		})
 		// when error/fail - this catches errors of both .create() and .then(for await)
@@ -580,7 +583,7 @@ const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessag
 		const toolCall = tools[0] && rawToolCallObjOfAnthropicParams(tools[0])
 		const toolCallObj = toolCall ? { toolCall } : {}
 
-		onFinalMessage({ fullText, fullReasoning, anthropicReasoning, ...toolCallObj })
+		onFinalMessage({ fullText, fullReasoning, anthropicReasoning, finishReason: response.stop_reason ?? undefined, ...toolCallObj })
 	})
 	// on error
 	stream.on('error', (error) => {
@@ -788,6 +791,7 @@ const sendGeminiChat = async ({
 	let toolName = ''
 	let toolParamsStr = ''
 	let toolId = ''
+	let finishReason: string | undefined
 
 
 	genAI.models.generateContentStream({
@@ -804,6 +808,8 @@ const sendGeminiChat = async ({
 
 			// Process the stream
 			for await (const chunk of stream) {
+				const chunkFinishReason = chunk.candidates?.[0]?.finishReason
+				if (chunkFinishReason) finishReason = String(chunkFinishReason)
 				// message
 				const newText = chunk.text ?? ''
 				fullTextSoFar += newText
@@ -834,7 +840,7 @@ const sendGeminiChat = async ({
 				if (!toolId) toolId = generateUuid() // ids are empty, but other providers might expect an id
 				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
 				const toolCallObj = toolCall ? { toolCall } : {}
-				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, finishReason, ...toolCallObj });
 			}
 		})
 		.catch(error => {

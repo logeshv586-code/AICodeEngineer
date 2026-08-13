@@ -634,6 +634,7 @@ ${directoryStr}
 		details.push(`When the user asks for a PDF, presentation, report, image, or other artifact, create the requested artifact in the workspace using the available tools or terminal commands, verify that it exists and can be opened, and report its exact path.`)
 		details.push(`For complex work, divide independent discovery, implementation, testing, documentation, or review tasks among the available agent/tool capabilities when possible; serialize edits that could conflict, then run one final integration and verification pass.`)
 		details.push(`When a file-reading result says COMPLETE, trust that result and continue the task; never ask the user to paste that local file. When it says MORE_PAGES or CONTEXT_SHORTENED, retrieve the next page or a narrower line range yourself before editing.`)
+		details.push(`A task is not complete merely because one model response reached its token limit. Forge may start a continuation turn with compacted history; resume from the exact unfinished point, avoid repeating completed work, inspect any missing file page yourself, and continue until the task is verified.`)
 	}
 
 	if (mode === 'gather') {

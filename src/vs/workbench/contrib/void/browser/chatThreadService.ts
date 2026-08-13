@@ -48,6 +48,22 @@ const CHAT_RETRIES = 3
 const RETRY_DELAY = 2500
 const RATE_LIMIT_RETRY_DELAY = 10_000
 
+const isTokenLimitFinishReason = (finishReason: string | undefined) => {
+	if (!finishReason) return false
+	const normalized = finishReason.toLowerCase().replace(/[-\s]+/g, '_')
+	return normalized === 'length'
+		|| normalized === 'max_tokens'
+		|| normalized === 'max_output_tokens'
+		|| normalized === 'token_limit'
+}
+
+const isContextOverflowError = (message: string | undefined) => {
+	return !!message && (/\[CONTEXT_OVERFLOW\]/.test(message)
+		|| /context(?: window| length)?.*(?:large|long|exceed|limit)|too many tokens|maximum.*tokens/i.test(message))
+}
+
+const CONTINUATION_DIRECTIVE = `Continue the same active task from the exact point where the previous worker reached its output-token boundary. Treat the previous response as partial, not final. Do not repeat completed explanation or edits. Re-check current workspace state before another write. If a file result says MORE_PAGES or CONTEXT_SHORTENED, read the next page or a narrower line range yourself. Continue using tools and verification until the user's entire task is complete.`
+
 
 const findStagingSelectionIndex = (currentSelections: StagingSelectionItem[] | undefined, newSelection: StagingSelectionItem): number | null => {
 	if (!currentSelections) return null
@@ -847,6 +863,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		let shouldSendAnotherMessage = true
 		let isRunningWhenEnd: IsRunningType = undefined
 		let forceEmptyFileContinuation = false
+		let continuationDirective: string | undefined
+		let contextWindowLimit: number | undefined
 
 		// Auto-checkpoint: record the current state of files before the agent starts modifying anything.
 		// This allows users to revert to before the run using the checkpoint UI.
@@ -877,10 +895,12 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			this._setStreamState(threadId, { isRunning: 'idle', interrupt: idleInterruptor, agentRunStartedAt })
 
 			const chatMessages = this.state.allThreads[threadId]?.messages ?? []
-			const { messages, separateSystemMessage } = await this._convertToLLMMessagesService.prepareLLMChatMessages({
+			let { messages, separateSystemMessage } = await this._convertToLLMMessagesService.prepareLLMChatMessages({
 				chatMessages,
 				modelSelection,
-				chatMode
+				chatMode,
+				continuationDirective,
+				contextWindowLimit,
 			})
 
 			if (interruptedWhenIdle) {
@@ -895,7 +915,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				nAttempts += 1
 
 				type ResTypes =
-					| { type: 'llmDone', toolCall?: RawToolCallObj, info: { fullText: string, fullReasoning: string, anthropicReasoning: AnthropicReasoning[] | null } }
+					| { type: 'llmDone', toolCall?: RawToolCallObj, info: { fullText: string, fullReasoning: string, anthropicReasoning: AnthropicReasoning[] | null, finishReason?: string } }
 					| { type: 'llmError', error?: { message: string; fullError: Error | null; } }
 					| { type: 'llmAborted' }
 
@@ -914,8 +934,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					onText: ({ fullText, fullReasoning, toolCall }) => {
 						this._setStreamState(threadId, { isRunning: 'LLM', llmInfo: { displayContentSoFar: readableLLMContent(fullText), reasoningSoFar: readableLLMContent(fullReasoning), toolCallSoFar: toolCall ?? null }, interrupt: Promise.resolve(() => { if (llmCancelToken) this._llmMessageService.abort(llmCancelToken) }), agentRunStartedAt })
 					},
-					onFinalMessage: async ({ fullText, fullReasoning, toolCall, anthropicReasoning, }) => {
-						resMessageIsDonePromise({ type: 'llmDone', toolCall, info: { fullText: readableLLMContent(fullText), fullReasoning: readableLLMContent(fullReasoning), anthropicReasoning } }) // resolve with tool calls
+					onFinalMessage: async ({ fullText, fullReasoning, toolCall, anthropicReasoning, finishReason }) => {
+						resMessageIsDonePromise({ type: 'llmDone', toolCall, info: { fullText: readableLLMContent(fullText), fullReasoning: readableLLMContent(fullReasoning), anthropicReasoning, finishReason } }) // resolve with tool calls
 					},
 					onError: async (error) => {
 						resMessageIsDonePromise({ type: 'llmError', error: error })
@@ -951,6 +971,21 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				else if (llmRes.type === 'llmError') {
 					// error, should retry
 					if (nAttempts < CHAT_RETRIES) {
+						if (isContextOverflowError(llmRes.error?.message)) {
+							const configuredWindow = modelSelection
+								? getModelCapabilities(modelSelection.providerName, modelSelection.modelName, overridesOfModel).contextWindow
+								: 16_000
+							contextWindowLimit = Math.max(2_048, Math.floor((contextWindowLimit ?? configuredWindow) * .25))
+							const compacted = await this._convertToLLMMessagesService.prepareLLMChatMessages({
+								chatMessages,
+								modelSelection,
+								chatMode,
+								continuationDirective,
+								contextWindowLimit,
+							})
+							messages = compacted.messages
+							separateSystemMessage = compacted.separateSystemMessage
+						}
 						shouldRetryLLM = true
 						this._setStreamState(threadId, { isRunning: 'idle', interrupt: idleInterruptor, agentRunStartedAt })
 						const retryDelay = llmRes.error?.message.includes('HTTP 429') ? RATE_LIMIT_RETRY_DELAY : RETRY_DELAY
@@ -982,6 +1017,19 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				this._addMessageToThread(threadId, { role: 'assistant', displayContent: info.fullText, reasoning: info.fullReasoning, anthropicReasoning: info.anthropicReasoning })
 
 				this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed', agentRunStartedAt }) // just decorative for clarity
+
+				// A provider output boundary is a handoff, not task completion. Start a
+				// fresh continuation turn with the preserved thread and compacted state.
+				if (isTokenLimitFinishReason(info.finishReason)) {
+					if (toolCall) {
+						this._addMessageToThread(threadId, { role: 'interrupted_streaming_tool', name: toolCall.name, mcpServerName: this._computeMCPServerOfToolName(toolCall.name) })
+					}
+					continuationDirective = CONTINUATION_DIRECTIVE
+					shouldSendAnotherMessage = true
+					this._metricsService.capture('Agent Context Handoff', { threadId, finishReason: info.finishReason, nMessagesSent })
+					continue
+				}
+				continuationDirective = undefined
 
 				// call tool if there is one
 				if (toolCall) {

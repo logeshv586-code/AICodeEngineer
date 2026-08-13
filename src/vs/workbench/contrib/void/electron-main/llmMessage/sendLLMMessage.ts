@@ -67,9 +67,9 @@ export const sendLLMMessage = async ({
 	}
 
 	const onFinalMessage: OnFinalMessage = (params) => {
-		const { fullText, fullReasoning, toolCall } = params
+		const { fullText, fullReasoning, toolCall, finishReason } = params
 		if (_didAbort) return
-		captureLLMEvent(`${loggingName} - Received Full Message`, { messageLength: fullText.length, reasoningLength: fullReasoning?.length, duration: new Date().getMilliseconds() - submit_time.getMilliseconds(), toolCallName: toolCall?.name })
+		captureLLMEvent(`${loggingName} - Received Full Message`, { messageLength: fullText.length, reasoningLength: fullReasoning?.length, duration: new Date().getMilliseconds() - submit_time.getMilliseconds(), toolCallName: toolCall?.name, finishReason })
 		onFinalMessage_(params)
 	}
 
@@ -82,6 +82,7 @@ export const sendLLMMessage = async ({
 			errorMessage = `Failed to fetch from ${displayInfoOfProviderName(providerName).title}. This likely means you specified the wrong endpoint in Void's Settings, or your local model provider like Ollama is powered off.`
 
 		const providerTitle = displayInfoOfProviderName(providerName).title
+		const isContextOverflow = /context(?: window| length)?|too many tokens|maximum.*tokens|prompt.*(?:long|large)/i.test(errorMessage)
 		const errorRecord = fullError as unknown as { status?: unknown, headers?: Record<string, unknown> | { get?: (name: string) => string | null } } | null
 		const parsedStatus = Number(errorRecord?.status)
 		const status = Number.isInteger(parsedStatus) ? parsedStatus : Number(errorMessage.match(/\b([45]\d\d)\b/)?.[1])
@@ -104,7 +105,9 @@ export const sendLLMMessage = async ({
 				504: `${providerTitle} timed out at its gateway (HTTP 504). Retry shortly.`,
 			}
 			if (statusMessages[status]) {
-				errorMessage = statusMessages[status]
+				errorMessage = isContextOverflow
+					? `[CONTEXT_OVERFLOW] ${providerTitle} rejected this context. Forge will compact the task state and continue automatically.`
+					: statusMessages[status]
 				fullError = null
 			}
 		}
