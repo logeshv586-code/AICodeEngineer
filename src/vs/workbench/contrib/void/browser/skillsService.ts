@@ -99,11 +99,19 @@ function parseSkillFile(content: string, filePath: string): SkillDef | null {
 		const { frontmatter, body } = parseFrontmatter(content);
 		const name: string = frontmatter['name'] || '';
 		const description: string = frontmatter['description'] || '';
-		const triggerKeywords: string[] = Array.isArray(frontmatter['triggerKeywords'])
+		let triggerKeywords: string[] = Array.isArray(frontmatter['triggerKeywords'])
 			? frontmatter['triggerKeywords'].map((k: string) => k.toLowerCase())
 			: [];
 
 		if (!name) return null;
+
+		// If no triggerKeywords provided, derive from name and words in description
+		if (triggerKeywords.length === 0) {
+			const words = new Set<string>();
+			name.toLowerCase().split(/[\s-_]+/).forEach(w => { if (w.length > 2) words.add(w); });
+			description.toLowerCase().split(/\W+/).forEach(w => { if (w.length > 3) words.add(w); });
+			triggerKeywords = Array.from(words);
+		}
 
 		return { name, description, triggerKeywords, body: body.trim(), filePath };
 	} catch {
@@ -230,14 +238,26 @@ class SkillsService extends Disposable implements ISkillsService {
 				try {
 					const stat = await this._fileService.resolve(skillsDir);
 					if (!stat.isDirectory || !stat.children) continue;
+
 					for (const child of stat.children) {
-						if (!child.name.endsWith('.md')) continue;
-						try {
-							const content = await this._fileService.readFile(child.resource);
-							const text = content.value.toString();
-							const skill = parseSkillFile(text, child.resource.fsPath);
-							if (skill) skills.push(skill);
-						} catch { /* ignore unreadable files */ }
+						if (child.isDirectory) {
+							// Check for folder-based SKILL.md: .agents/skills/<name>/SKILL.md
+							const skillMdUri = URI.joinPath(child.resource, 'SKILL.md');
+							try {
+								const content = await this._fileService.readFile(skillMdUri);
+								const text = content.value.toString();
+								const skill = parseSkillFile(text, skillMdUri.fsPath);
+								if (skill) skills.push(skill);
+							} catch { /* ignore if SKILL.md missing */ }
+						} else if (child.name.endsWith('.md')) {
+							// Flat markdown skill: .agents/skills/<name>.md
+							try {
+								const content = await this._fileService.readFile(child.resource);
+								const text = content.value.toString();
+								const skill = parseSkillFile(text, child.resource.fsPath);
+								if (skill) skills.push(skill);
+							} catch { /* ignore unreadable files */ }
+						}
 					}
 				} catch { /* ignore if .agents/skills/ doesn't exist */ }
 			}
