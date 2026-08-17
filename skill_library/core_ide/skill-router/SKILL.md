@@ -1,11 +1,11 @@
 ---
 name: skill-router
-description: Queries the master skill registry (328+ skills) and loads on-demand domain skills dynamically without context bloat. Use when searching or activating specialized skills.
+description: Queries the master skill registry and loads on-demand domain skills dynamically without context bloat. Use when searching or activating specialized skills.
 ---
 
 # Skill Router & Master Registry Tool
 
-Use `scripts/manage-skills.mjs` to interact with the 328+ domain skills in `skill_library/`.
+Use `scripts/manage-skills.mjs` to interact with the domain skills in `skill_library/`.
 
 ## CLI Usage
 

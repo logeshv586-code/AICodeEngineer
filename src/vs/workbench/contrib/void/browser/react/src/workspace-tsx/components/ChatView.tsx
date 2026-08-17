@@ -301,6 +301,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const handleSlashSelect = useCallback((cmd: any, args: string) => {
 		setIsSlashOpen(false);
 		setSlashAnchor(null);
+		if (cmd.category === 'Skills (Registry)' && !args) {
+			setDraftText(`${cmd.name} `);
+			setTimeout(() => {
+				if (textareaRef.current) {
+					textareaRef.current.focus();
+				}
+			}, 50);
+			return;
+		}
 		if (slashContext) {
 			cmd.execute({ ...slashContext, args });
 		}

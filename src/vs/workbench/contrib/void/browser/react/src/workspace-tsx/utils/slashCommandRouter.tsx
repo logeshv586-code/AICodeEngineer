@@ -563,16 +563,61 @@ export const SlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 	const listRef = useRef<HTMLDivElement>(null);
 
 	const allCommands = useMemo(() => createAllCommands(context), [context]);
+
+	const { commandQuery, args } = useMemo(() => {
+		const raw = filter.trim();
+		const [commandToken, ...argParts] = raw.split(/\s+/);
+		const commandQuery = (commandToken || '').replace(/^\//, '').toLowerCase();
+		const args = argParts.join(' ');
+		return { commandQuery, args };
+	}, [filter]);
+
+	// Dynamic skill autocomplete from 333-skill registry
+	const dynamicSkillCommands = useMemo<SlashCommand[]>(() => {
+		if (!commandQuery || commandQuery.length < 2) return [];
+		try {
+			const skillsService = context.accessor?.get?.(ISkillsService);
+			if (!skillsService) return [];
+			const suggestions = skillsService.autocompleteSkills(commandQuery, 8);
+			return suggestions.map(s => ({
+				name: `/${s.id}`,
+				label: s.name || s.id,
+				category: 'Skills (Registry)',
+				description: s.description || `Domain skill: ${s.id}`,
+				icon: <BookOpen size={14} />,
+				execute(ctx: SlashCommandContext) {
+					if (ctx.args) {
+						ctx.sendMessage(`/${s.id} ${ctx.args}`.trim());
+					} else {
+						ctx.sendMessage(`/${s.id}`);
+					}
+				}
+			}));
+		} catch {
+			return [];
+		}
+	}, [context.accessor, commandQuery]);
+
+	const allAvailableCommands = useMemo(() => {
+		return [...allCommands, ...dynamicSkillCommands];
+	}, [allCommands, dynamicSkillCommands]);
+
 	const filtered = useMemo(() => {
 		if (!filter.trim()) return allCommands;
-		const q = filter.toLowerCase().replace(/^\//, '').replace(/,/g, ' ');
-		return allCommands.filter(c =>
+		if (args.length > 0) {
+			return allAvailableCommands.filter(c =>
+				c.name.toLowerCase().replace(/^\//, '').startsWith(commandQuery) ||
+				c.name.toLowerCase().replace(/^\//, '') === commandQuery
+			);
+		}
+		const q = commandQuery;
+		return allAvailableCommands.filter(c =>
 			c.name.toLowerCase().includes(q) ||
 			c.label.toLowerCase().includes(q) ||
 			c.category.toLowerCase().includes(q) ||
 			c.description.toLowerCase().includes(q)
 		);
-	}, [allCommands, filter]);
+	}, [allCommands, allAvailableCommands, filter, commandQuery, args]);
 
 	const grouped = useMemo(() => {
 		const groups: Record<string, SlashCommand[]> = {};
@@ -606,12 +651,12 @@ export const SlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
 			const cmd = flat[selectedIndex];
-			if (cmd) onSelect(cmd, filter);
+			if (cmd) onSelect(cmd, args);
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
 			onClose();
 		}
-	}, [selectedIndex, grouped, filter, onSelect, onClose]);
+	}, [selectedIndex, grouped, args, onSelect, onClose]);
 
 	if (!isOpen) return null;
 
@@ -671,7 +716,7 @@ export const SlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 										<button
 											key={cmd.name}
 											type='button'
-											onClick={() => onSelect(cmd, filter)}
+											onClick={() => onSelect(cmd, args)}
 											className={`
 												w-full flex items-center gap-2.5 px-3 py-1.5
 												text-left transition-colors cursor-pointer

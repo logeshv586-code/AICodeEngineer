@@ -780,17 +780,15 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const fullSystemMessage = await this._generateChatMessagesSystemMessage(chatMode, specialToolFormat)
 
 		// Inject relevant skills into the system prompt based on the last user message
-		let skillsAddition = ''
+		const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user')
+		const lastUserContent = lastUserMsg?.role === 'user' ? (lastUserMsg.content || lastUserMsg.displayContent || '') : ''
+
 		let skillContext: SkillPromptContext | null = null;
-		if (!disableSystemMessage) {
-			const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user')
-			const lastUserContent = lastUserMsg?.role === 'user' ? (lastUserMsg.content || lastUserMsg.displayContent || '') : ''
-			if (lastUserContent) {
-				skillContext = await this.skillsService.prepareSkillContext(lastUserContent);
-				skillsAddition = skillContext.systemPromptAddition;
-			}
+		if (lastUserContent) {
+			skillContext = await this.skillsService.prepareSkillContext(lastUserContent);
 		}
 
+		const skillsAddition = disableSystemMessage ? '' : (skillContext?.systemPromptAddition || '');
 		const systemMessage = disableSystemMessage ? '' : fullSystemMessage + skillsAddition;
 
 		const modelSelectionOptions = this.voidSettingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]

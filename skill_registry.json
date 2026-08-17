@@ -332,7 +332,7 @@
     {
       "id": "skill-router",
       "name": "Skill Router & Registry Manager",
-      "short_description": "Queries the master skill registry (328+ skills) and loads on-demand domain skills dynamically without context bloat.",
+      "short_description": "Queries the master skill registry and loads on-demand domain skills dynamically without context bloat.",
       "category": "core_ide",
       "tags": [
         "skill-router",
@@ -349,7 +349,7 @@
         "load-skill"
       ],
       "path": "skill_library/core_ide/skill-router/SKILL.md",
-      "checksum": "sha256:2aeff68ae4c4a73728b227bf1482414204b5b12fb15e5b4c62a7f103685ef753",
+      "checksum": "sha256:74c7a7e4d4ed70ec5e06cfdd8eb916c11858b082059d38fa61ad2282fb96e38d",
       "source": "core_ide",
       "enabled": true,
       "workspace_default": true,

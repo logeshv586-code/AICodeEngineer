@@ -67,4 +67,31 @@ if (remainingMissing.length > 0) {
 	process.exit(1);
 }
 
-console.log('[forge-guard] Runtime artifacts verified.');
+// Verify skill registry and library assets
+const registryFile = path.join(workspaceRoot, 'skill_registry.json');
+if (!fs.existsSync(registryFile)) {
+	console.error('[forge-guard] Missing skill_registry.json at application root.');
+	process.exit(1);
+}
+
+try {
+	const registry = JSON.parse(fs.readFileSync(registryFile, 'utf8'));
+	const skills = Array.isArray(registry) ? registry : (registry.skills || []);
+	let missingSkillFiles = 0;
+	for (const skill of skills) {
+		const fullPath = path.join(workspaceRoot, skill.path);
+		if (!fs.existsSync(fullPath)) {
+			console.error(`[forge-guard] Missing packaged skill file: ${skill.id} -> ${skill.path}`);
+			missingSkillFiles++;
+		}
+	}
+	if (missingSkillFiles > 0) {
+		console.error(`[forge-guard] Refusing to launch: ${missingSkillFiles} skill files missing.`);
+		process.exit(1);
+	}
+} catch (e) {
+	console.error(`[forge-guard] Failed to parse skill_registry.json: ${e.message}`);
+	process.exit(1);
+}
+
+console.log('[forge-guard] Runtime artifacts and skill library verified.');
