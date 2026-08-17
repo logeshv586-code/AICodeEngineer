@@ -47,21 +47,37 @@ const slashCommands: SlashCommand[] = [
   {
     name: 'skills',
     label: 'List Skills',
-    description: 'Show bundled and workspace skills available to agents',
+    description: 'Show registry and workspace skill status',
     category: 'Skills',
     execute: (_args, accessor) => {
-      const skills = accessor.get('ISkillsService').getAllSkills();
-      accessor.get('INotificationService').info(skills.length
-        ? `Available skills: ${skills.map((skill: { name: string }) => skill.name).join(', ')}`
-        : 'No skills loaded. Add Markdown skills under .agents/skills/.');
+      const skillsService = accessor.get('ISkillsService');
+      const registryCount = skillsService.getRegistrySkillCount();
+      const workspaceSkills = skillsService.getAllSkills();
+      const names = workspaceSkills.map((skill: { name: string }) => skill.name).join(', ');
+      accessor.get('INotificationService').info(
+        `${registryCount} registry skills, ${workspaceSkills.length} active workspace skills${names ? ` (Active: ${names})` : ''}`
+      );
     },
   },
   {
     name: 'skill',
-    label: 'Use Skill',
-    description: 'Ask the agent to apply the relevant workspace skill',
+    label: 'Search Skills',
+    description: 'Search the 333-skill registry',
     category: 'Skills',
-    execute: (args, accessor) => sendAgentTask(accessor, `Use the most relevant loaded workspace skill for this task and follow it precisely. ${args}`),
+    execute: async (args, accessor) => {
+      const query = (args || '').trim();
+      if (!query) {
+        accessor.get('INotificationService').info('Usage: /skill <query> (e.g. /skill jetson)');
+        return;
+      }
+      const skillsService = accessor.get('ISkillsService');
+      const results = await skillsService.searchSkills(query);
+      const top = results.slice(0, 8);
+      const formatted = top.length
+        ? top.map((r: { id: string; category: string }) => `${r.id} (${r.category})`).join(', ')
+        : 'No matching skills found';
+      accessor.get('INotificationService').info(`Skill search "${query}": ${formatted}`);
+    },
   },
   {
     name: 'skill-add',
@@ -69,7 +85,7 @@ const slashCommands: SlashCommand[] = [
     description: 'Open the workspace location for custom .agents/skills Markdown files',
     category: 'Skills',
     execute: (_args, accessor) => {
-      accessor.get('INotificationService').info('Add a Markdown skill at <workspace>/.agents/skills/<name>.md with name, description, triggerKeywords, and the skill instructions.');
+      accessor.get('INotificationService').info('Add a custom skill under <workspace>/.agents/skills/<name>/SKILL.md or as a flat Markdown file.');
     },
   },
   {

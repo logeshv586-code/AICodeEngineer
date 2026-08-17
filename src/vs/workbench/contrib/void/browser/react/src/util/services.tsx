@@ -52,6 +52,7 @@ import { ITerminalService } from '../../../../../terminal/browser/terminal.js'
 import { ISearchService } from '../../../../../../services/search/common/search.js'
 import { IExtensionManagementService } from '../../../../../../../platform/extensionManagement/common/extensionManagement.js'
 import { IMCPService } from '../../../../common/mcpService.js';
+import { ISkillsService } from '../../../skillsService.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js'
 import { OPT_OUT_KEY } from '../../../../common/storageKeys.js'
 import { IMainProcessService } from '../../../../../../../platform/ipc/common/mainProcessService.js'
@@ -251,6 +252,7 @@ const getReactAccessor = (accessor: ServicesAccessor) => {
 		IExtensionManagementService: accessor.get(IExtensionManagementService),
 		IExtensionTransferService: accessor.get(IExtensionTransferService),
 		IMCPService: accessor.get(IMCPService),
+		ISkillsService: accessor.get(ISkillsService),
 
 		IStorageService: accessor.get(IStorageService),
 		IMainProcessService: accessor.get(IMainProcessService),

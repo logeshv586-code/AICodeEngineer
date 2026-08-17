@@ -18,7 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
 import { ToolName } from '../common/toolsServiceTypes.js';
 import { IMCPService } from '../common/mcpService.js';
-import { ISkillsService } from './skillsService.js';
+import { ISkillsService, SkillPromptContext } from './skillsService.js';
 
 export const EMPTY_MESSAGE = '(empty message)'
 
@@ -763,6 +763,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		})
 		return { messages, separateSystemMessage };
 	}
+
 	prepareLLMChatMessages: IConvertToLLMMessageService['prepareLLMChatMessages'] = async ({ chatMessages, chatMode, modelSelection, continuationDirective, contextWindowLimit }) => {
 		if (modelSelection === null) return { messages: [], separateSystemMessage: undefined }
 
@@ -780,11 +781,13 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 
 		// Inject relevant skills into the system prompt based on the last user message
 		let skillsAddition = ''
+		let skillContext: SkillPromptContext | null = null;
 		if (!disableSystemMessage) {
 			const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user')
 			const lastUserContent = lastUserMsg?.role === 'user' ? (lastUserMsg.content || lastUserMsg.displayContent || '') : ''
 			if (lastUserContent) {
-				skillsAddition = this.skillsService.getSkillsSystemPromptAddition(lastUserContent)
+				skillContext = await this.skillsService.prepareSkillContext(lastUserContent);
+				skillsAddition = skillContext.systemPromptAddition;
 			}
 		}
 
@@ -797,12 +800,29 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const isReasoningEnabled = getIsReasoningEnabledState('Chat', providerName, modelName, modelSelectionOptions, overridesOfModel)
 		const reservedOutputTokenSpace = getReservedOutputTokenSpace(providerName, modelName, { isReasoningEnabled, overridesOfModel })
 		const llmMessages = this._chatMessagesToSimpleMessages(chatMessages)
+
+		// Replace explicit slash command with effective prompt so the model
+		// receives "fix pipeline" instead of "/deepstream-dev fix pipeline"
+		if (
+			skillContext?.routing.type === 'explicit' &&
+			skillContext.routing.effectivePrompt !== skillContext.routing.originalPrompt
+		) {
+			for (let i = llmMessages.length - 1; i >= 0; i--) {
+				if (llmMessages[i].role === 'user') {
+					llmMessages[i] = {
+						...llmMessages[i],
+						content: skillContext.routing.effectivePrompt,
+					};
+					break;
+				}
+			}
+		}
+
 		const imageAttachments: PromptImageAttachment[] = chatMessages.flatMap(message => message.role !== 'user' ? [] :
 			(message.selections ?? []).flatMap(selection => selection.type === 'Image' && selection.dataUrl
 				? [{ dataUrl: selection.dataUrl, mimeType: selection.mimeType || 'image/png' }]
 				: []))
 		if (continuationDirective) llmMessages.push({ role: 'user', content: continuationDirective })
-
 		const { messages, separateSystemMessage } = prepareMessages({
 			messages: llmMessages,
 			systemMessage,

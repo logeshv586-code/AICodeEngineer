@@ -38,6 +38,8 @@ import {
 import { ServicesAccessor } from '../../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IChatThreadService } from '../../../chatThreadService.js';
+import { ISkillsService } from '../../../skillsService.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { ForgeEventBus } from '../../../../forge/events/forgeEventBus.js';
 import { ForgeEventType } from '../../../../../common/forge/events/forgeEvents.js';
 
@@ -459,6 +461,47 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 			},
 		},
 
+		// ── Skills ─────────────────────────────────────────────────────────────
+		{
+			name: '/skill',
+			label: 'Search Skills',
+			category: 'Skills',
+			description: 'Search the 333-skill registry (no LLM call)',
+			icon: <BookOpen size={14} />,
+			async execute() {
+				const query = ctx.args.trim();
+				if (!query) {
+					accessor.get(INotificationService).info('Usage: /skill <query> (e.g. /skill jetson)');
+					return;
+				}
+				const skillsService = accessor.get(ISkillsService);
+				const results = await skillsService.searchSkills(query);
+				const top = results.slice(0, 8);
+				const formatted = top.length
+					? top.map(r => `${r.id} (${r.category})`).join(', ')
+					: 'No matching skills found';
+				accessor.get(INotificationService).info(
+					`Skill search "${query}": ${formatted}`
+				);
+			},
+		},
+		{
+			name: '/skills',
+			label: 'List Skills',
+			category: 'Skills',
+			description: 'Show skill registry and workspace status',
+			icon: <BookOpen size={14} />,
+			execute() {
+				const skillsService = accessor.get(ISkillsService);
+				const registryCount = skillsService.getRegistrySkillCount();
+				const workspaceSkills = skillsService.getAllSkills();
+				const names = workspaceSkills.map(s => s.name).join(', ');
+				accessor.get(INotificationService).info(
+					`${registryCount} registry skills, ${workspaceSkills.length} active workspace skills${names ? ` (Active: ${names})` : ''}`
+				);
+			},
+		},
+
 		// ── System ─────────────────────────────────────────────────────────────
 		{
 			name: '/models',
@@ -494,6 +537,7 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 					'**Workflow** · /workflow start · /workflow stop\n\n' +
 					'**Context** · /context workspace · /context files · /context symbol · /context folder · /context git\n\n' +
 					'**Search** · /search semantic · /search file · /search text · /search references · /search definition\n\n' +
+					'**Skills** · /skill <query> · /skills\n\n' +
 					'**Tools** · /terminal · /run tests · /run lint · /run build · /git status · /git commit · /git diff · /debug · /browser\n\n' +
 					'**Memory** · /memory show · /memory save · /workspace index\n\n' +
 					'**System** · /models · /settings · /help\n\n' +

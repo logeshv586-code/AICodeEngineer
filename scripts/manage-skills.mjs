@@ -271,7 +271,7 @@ export function loadSkill(skillQuery, options = {}) {
 │ Source Path:            ${skill.path.padEnd(46)} │
 │ Activation Mode:        ephemeral runtime (State 3)                    │
 │ Persistent Discovery:   ${(isPersistent ? 'true (.agents/skills/)' : 'false (isolated to task)').padEnd(46)} │
-│ Injected into Task:     true                                           │
+│ Loaded for Task:        true                                           │
 └────────────────────────────────────────────────────────────────────────┘
 `);
     console.log(content);
