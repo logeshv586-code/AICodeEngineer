@@ -77,6 +77,12 @@ if (!fs.existsSync(registryFile)) {
 try {
 	const registry = JSON.parse(fs.readFileSync(registryFile, 'utf8'));
 	const skills = Array.isArray(registry) ? registry : (registry.skills || []);
+
+	if (typeof registry.skillCount === 'number' && registry.skillCount !== skills.length) {
+		console.error(`[forge-guard] Registry count mismatch: expected ${registry.skillCount}, found ${skills.length}`);
+		process.exit(1);
+	}
+
 	let missingSkillFiles = 0;
 	for (const skill of skills) {
 		const fullPath = path.join(workspaceRoot, skill.path);

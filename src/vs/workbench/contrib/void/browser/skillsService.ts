@@ -521,12 +521,17 @@ class SkillsService extends Disposable implements ISkillsService {
 			return { routing, systemPromptAddition: '' };
 		}
 
-		const sections = routing.loadedSkills.map(ls =>
-			`### Skill: ${ls.skill.name}\n> ${ls.skill.short_description}\n\n${ls.body}`
+		const sections = routing.loadedSkills.map(
+			ls =>
+				`### Skill: ${ls.skill.name}\n` +
+				`> ${ls.skill.short_description}\n\n` +
+				ls.body
 		);
 
 		const systemPromptAddition =
-			`\n\n## Domain Skills\nThe following domain-specific guidelines are relevant to this task:\n\n${sections.join('\n\n---\n\n')}`;
+			`\n\n## Domain Skills\n` +
+			`The following domain-specific guidelines are relevant to this task:\n\n` +
+			sections.join('\n\n---\n\n');
 
 		return { routing, systemPromptAddition };
 	}
