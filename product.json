@@ -7,8 +7,8 @@
 	"dataFolderName": ".forge-ai-editor",
 	"win32MutexName": "forgeaieditor",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/voideditor/void/blob/main/LICENSE.txt",
-	"serverLicenseUrl": "https://github.com/voideditor/void/blob/main/LICENSE.txt",
+	"licenseUrl": "https://github.com/logeshv586-code/AICodeEngineer/blob/main/LICENSE.txt",
+	"serverLicenseUrl": "https://github.com/logeshv586-code/AICodeEngineer/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
@@ -29,7 +29,7 @@
 	"darwinBundleIdentifier": "com.forgeai.code",
 	"linuxIconName": "forge-ai-editor",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/voideditor/void/issues/new",
+	"reportIssueUrl": "https://github.com/logeshv586-code/AICodeEngineer/issues/new",
 	"nodejsRepository": "https://nodejs.org",
 	"urlProtocol": "forge",
 	"extensionsGallery": {
@@ -38,9 +38,8 @@
 	},
 	"builtInExtensions": [],
 	"linkProtectionTrustedDomains": [
-		"https://voideditor.com",
-		"https://voideditor.dev",
-		"https://github.com/voideditor/void",
+		"https://github.com/logeshv586-code/AICodeEngineer",
+		"https://github.com",
 		"https://ollama.com"
 	]
 }
