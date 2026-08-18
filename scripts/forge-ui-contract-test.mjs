@@ -20,6 +20,9 @@ const source = {
   services: 'src/vs/workbench/contrib/void/browser/react/src/util/services.tsx',
   bridge: 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/hooks/useForgeBridge.ts',
   setup: 'setup-forge-super-agent.bat',
+  integrations: 'scripts/forge-integrations.mjs',
+  sidecars: 'scripts/forge-sidecars.mjs',
+  node24: 'scripts/forge-node24-runtime.mjs',
 };
 
 const contains = (text, all) => all.every(token => text.includes(token));
@@ -33,7 +36,8 @@ export const runUiContractTest = () => {
     check('registered settings action', contains(files.activeSidebar, ['workbench.action.openVoidSettings']) && contains(files.sidebar, ['workbench.action.openVoidSettings']) && contains(files.slashRouter, ['workbench.action.openVoidSettings']) && contains(files.slashCommands, ['workbench.action.openVoidSettings']) && contains(files.leftToolbar, ['workbench.action.openVoidSettings']), 'Visible settings controls must use the registered Forge settings action'),
     check('active slash super-agent commands', contains(files.slashRouter, ["name: '/browser'", "name: '/graph'", "name: '/work'", "name: '/design'", "name: '/health'", 'callForgeToolJson']), 'The active ChatView slash router must expose the Super Agent'),
     check('active Work Mode approval commands', contains(files.slashRouter, ["name: '/work-pending'", "name: '/work-approve'", "name: '/work-remove'", "action: 'ack'", 'approved: true']), 'Approval-gated scheduled commands must have a real user action path'),
-    check('workflow stop aborts agent run', contains(files.slashRouter, ["name: '/workflow,stop'", 'abortRunning(threadId)']) && !files.slashRouter.includes("sendMessage('Stopping the current workflow"), 'Stop must cancel the active run rather than submit another model request'),
+    check('workflow stop aborts agent run', contains(files.slashRouter, ["name: '/workflow,stop'", 'abortRunning(threadId)']) && !files.slashRouter.includes("sendMessage('Stopping the current workflow") && !files.slashRouter.includes("publish('CANCEL_WORKFLOW'"), 'Stop must cancel the active run rather than submit another model request or dead event'),
+    check('workspace index uses real service', contains(files.slashRouter, ['ISemanticSearchService', "name: '/workspace,index'", '.indexWorkspace()']) && !files.slashRouter.includes("publish('REINDEX_WORKSPACE'"), 'Workspace reindex must use the registered CocoIndex semantic search service'),
     check('direct skill search stays local', contains(files.chat, ['handleLocalSkillCommand', "text === '/skill'", "text === '/skills'", 'searchSkills(query)']), 'Pasted /skill and /skills commands must not reach the LLM'),
     check('native non-image file picker', contains(files.chat, ['IFileDialogService', 'showOpenDialog', 'handlePickFiles', 'onPickFiles={handlePickFiles}']), 'Code/document attachments must use native VS Code file URIs'),
     check('image attachment path', contains(files.composer, ['imageInputRef', "accept='image/*'", 'FileReader', 'onAddAttachment']), 'Images must retain data URLs for vision-capable models'),
@@ -42,6 +46,7 @@ export const runUiContractTest = () => {
     check('attachment-only submit', files.composer.includes('value.trim().length > 0 || attachments.length > 0'), 'Attached context must be sendable without placeholder text'),
     check('slash attachment picker event', contains(files.slashCommands, ["dispatchAttachmentPicker('file')", "dispatchAttachmentPicker('image')", 'forge:open-attachment-picker']) && contains(files.universalComposer, ['forge:open-attachment-picker', 'openAttachmentPicker']), 'Legacy slash attachment commands must still route into the legacy composer picker'),
     check('browser installed by one-click setup', contains(files.setup, ['--full --setup --browser', 'Playwright Chromium']), 'Fresh Windows setup must install the browser runtime used by forge_browser'),
+    check('Open Design isolated Node 24', contains(files.node24, ["NODE24_VERSION = '24.19.0'", "OPEN_DESIGN_PNPM_VERSION = '10.33.2'", 'SHASUMS256.txt', 'checksum mismatch']) && contains(files.integrations, ['forge-node24-runtime.mjs', "id === 'open-design'", 'runOpenDesignPnpm']) && contains(files.sidecars, ["runtime: 'node24'", 'forge-node24-runtime.mjs']), 'Open Design must not inherit Forge Node 20; it gets a checksummed Node 24 + pinned pnpm runtime'),
     check('Work Mode claim renewal', contains(files.activeSidebar, ['WORK_CLAIM_LEASE_MS', 'WORK_CLAIM_RENEW_MS', 'renewClaim', "action: 'claim'", "action: 'ack'"]), 'Long scheduled agent runs must renew their lease and avoid duplicate execution'),
     check('native workspace toolbar actions', contains(files.leftToolbar, ['workbench.files.action.focusFilesExplorer', 'workbench.action.findInFiles', 'workbench.action.terminal.toggleTerminal', 'focusCurrentChat', 'runKnowledgeTask', 'toggleReasoning']), 'Visible workspace toolbar buttons must route to real workbench or agent actions'),
     check('workflow badge action', contains(files.leftToolbar, ["onToolChange('workflows')", "title={`${threadCount} workflow(s)`}"]), 'The status badge must open workflows rather than being inert'),
