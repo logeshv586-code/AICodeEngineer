@@ -35,7 +35,7 @@ interface LeftToolbarProps {
 type ToolSpec = {
 	id: string;
 	label: string;
-	icon: React.ComponentType<{ size?: number; className?: string }>;
+	icon: React.ElementType<{ size?: number; className?: string }>;
 	shortcut?: string;
 	kind: 'workspace' | 'native' | 'chat' | 'knowledge' | 'reasoning';
 	command?: string;
