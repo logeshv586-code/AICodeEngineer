@@ -333,19 +333,24 @@ export const useCommandBarURIListener = (listener: (uri: URI) => void) => {
 export const useCommandBarState = () => {
 	const accessor = useAccessor()
 	const service = accessor.get('IVoidCommandBarService')
-	const [state, setState] = useState(service.state)
-	useEffect(() => service.onDidChangeState(() => setState({ ...service.state })), [service])
+	const [state, setState] = useState(() => ({ stateOfURI: service.stateOfURI, sortedURIs: service.sortedURIs }))
+	const listener = useCallback(() => {
+		setState({ stateOfURI: service.stateOfURI, sortedURIs: service.sortedURIs })
+	}, [service])
+	useCommandBarURIListener(listener)
 	return state
 }
 
+/** Keep the historical { uri } return shape used by command-bar consumers. */
 export const useActiveURI = () => {
 	const accessor = useAccessor()
-	const [uri, setUri] = useState<URI | null>(() => accessor.get('IVoidCommandBarService').state.uri ?? null)
+	const service = accessor.get('IVoidCommandBarService')
+	const [uri, setUri] = useState<URI | null>(() => service.activeURI)
 	useEffect(() => {
 		activeURIListeners.add(setUri)
 		return () => { activeURIListeners.delete(setUri) }
 	}, [])
-	return uri
+	return { uri }
 }
 
 export const useMCPState = () => {
