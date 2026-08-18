@@ -20,6 +20,7 @@ const ToolsView: React.FC<{ state: ForgeState; bridge: ReturnType<typeof useForg
 		workflows={bridge.state.workflows}
 		onSelectAgent={bridge.selectAgent}
 		onCreateAgent={bridge.createAgent}
+		onDeleteAgent={bridge.deleteAgent}
 		onStartWorkflow={bridge.startWorkflow}
 		onCancelWorkflow={bridge.cancelWorkflow}
 	/>
@@ -70,21 +71,6 @@ export const AgentWorkspace: React.FC = () => {
 			setIsRightPanelOpen(true);
 		}
 	}, [handleToolChange]);
-
-	const renderRightPanelContent = () => {
-		switch (rightPanelTab) {
-			case 'agents':
-				return <AgentsView agents={bridge.state.agents} selectedAgentId={bridge.state.selectedAgentId} workflows={bridge.state.workflows} onSelectAgent={bridge.selectAgent} onCreateAgent={bridge.createAgent} onStartWorkflow={bridge.startWorkflow} onCancelWorkflow={bridge.cancelWorkflow} />;
-			case 'workflows':
-				return <WorkflowsView workflows={bridge.state.workflows} activeWorkflowId={bridge.state.activeWorkflowId} planMode={bridge.state.planMode} onStartWorkflow={bridge.startWorkflow} onCancelWorkflow={bridge.cancelWorkflow} onDeleteWorkflow={bridge.deleteWorkflow} onSetActiveWorkflow={bridge.setActiveWorkflow} />;
-			case 'plan':
-				return <PlanViewInWorkspace plan={bridge.activeWorkflow?.plan ?? bridge.state.plan ?? null} />;
-			case 'forge':
-				return <div className='flex flex-col items-center justify-center h-full text-zinc-600 p-4'><span className='text-xs'>Forge Integration Panel</span><span className='text-[10px] mt-1 text-zinc-700'>Use the main conversation sidebar for Browser, Work Mode, Open Design, and integration health.</span></div>;
-			default:
-				return null;
-		}
-	};
 
 	const renderMainContent = () => {
 		switch (activeTool) {
