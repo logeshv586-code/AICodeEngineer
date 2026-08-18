@@ -82,6 +82,11 @@ jobs:
           cache: npm
           package-manager-cache: false
 
+      - name: Install Linux native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libkrb5-dev
+
       - name: Install dependencies
         run: npm ci
 
@@ -93,6 +98,9 @@ jobs:
 
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
+
+      - name: Model and provider routing contract
+        run: node scripts/forge-model-provider-contract-test.mjs
 
       - name: Work Mode queue and claim test
         run: node scripts/forge-work-self-test.mjs
@@ -111,8 +119,10 @@ jobs:
 
   windows-electron:
     name: Windows Electron build gate
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 45
+    env:
+      npm_config_msvs_version: '2022'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -132,6 +142,9 @@ jobs:
 
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
+
+      - name: Model and provider routing contract
+        run: node scripts/forge-model-provider-contract-test.mjs
 
       - name: Work Mode queue and claim test
         run: node scripts/forge-work-self-test.mjs
