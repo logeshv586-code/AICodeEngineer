@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
   roadmap:
@@ -64,7 +65,7 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.WIKI_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           FORGE_TRIAGE_REPO: logeshv586-code/AICodeEngineer
         run: |
           python .github/scripts/issue_triage.py > wiki/_new.md
