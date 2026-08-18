@@ -77,10 +77,7 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 		if (!onAddAttachment) return;
 		for (const file of files.filter(item => item.type.startsWith('image/'))) {
 			const reader = new FileReader();
-			reader.onload = event => {
-				const filePath = (file as File & { path?: string }).path || file.name;
-				onAddAttachment({ uri: filePath, dataUrl: String(event.target?.result || ''), mimeType: file.type || 'image/png' });
-			};
+			reader.onload = event => onAddAttachment({ uri: file.name, dataUrl: String(event.target?.result || ''), mimeType: file.type || 'image/png' });
 			reader.onerror = () => onAttachmentError?.(`Could not read image ${file.name}.`);
 			reader.readAsDataURL(file);
 		}
