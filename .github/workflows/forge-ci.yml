@@ -23,6 +23,8 @@ on:
       - 'resources/darwin/code.icns'
       - 'setup-forge-super-agent.bat'
       - 'run-forge-ide.bat'
+      - '.github/scripts/issue_triage.py'
+      - '.github/workflows/triage.yml'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/forge-ci.yml'
@@ -48,6 +50,8 @@ on:
       - 'resources/darwin/code.icns'
       - 'setup-forge-super-agent.bat'
       - 'run-forge-ide.bat'
+      - '.github/scripts/issue_triage.py'
+      - '.github/workflows/triage.yml'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/forge-ci.yml'
@@ -78,6 +82,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Syntax-check Forge triage
+        run: python3 -m py_compile .github/scripts/issue_triage.py
 
       - name: Brand and desktop contract test
         run: node scripts/forge-brand-contract-test.mjs
