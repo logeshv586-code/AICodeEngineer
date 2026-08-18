@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ForgeEventBus } from '../../../../forge/events/forgeEventBus.js';
 import type { ForgeEvent } from '../../../../../common/forge/events/forgeEvents.js';
 import type { PlannerOutput, PlanStep } from '../../../../../common/forge/planner/planSchema.js';
@@ -67,23 +67,34 @@ export type ForgeAction =
 	| { type: 'updateWorkflowStep'; workflowId: string; stepId: number; step: Partial<WorkflowStepInfo> }
 	| { type: 'setPlanMode'; mode: PlanMode };
 
-const initialState: ForgeState = {
-	planMode: 'idle', events: [], plan: null, agents: [], workflows: [], activeWorkflowId: null, selectedAgentId: null, isBrainActive: false,
+const capabilitiesForRole = (role: AgentRole): AgentCapability[] => {
+	switch (role) {
+		case 'BrainManager': return ['read_file', 'semantic_search', 'project_memory_search', 'get_dir_tree', 'mcp'];
+		case 'CodeEngineer': return ['read_file', 'write_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal', 'git', 'run_tests'];
+		case 'RAGAgent': case 'KnowledgeAgent': return ['read_file', 'semantic_search', 'project_memory_search', 'get_dir_tree', 'code_graph'];
+		case 'WebResearchAgent': return ['web_crawl', 'browser_control', 'screenshot', 'mcp'];
+		case 'ReviewAgent': return ['read_file', 'read_lint_errors', 'run_tests', 'git', 'semantic_search'];
+		case 'TestAgent': return ['read_file', 'terminal', 'run_tests', 'playwright', 'browser_control'];
+		case 'DeploymentAgent': return ['read_file', 'terminal', 'git', 'mcp'];
+		case 'UIAutomationAgent': return ['read_file', 'playwright', 'browser_control', 'screenshot'];
+		case 'DesignAgent': return ['read_file', 'write_file', 'design_generate', 'browser_control', 'screenshot', 'mcp'];
+		case 'AutomationAgent': return ['read_file', 'write_file', 'terminal', 'workflow_automation', 'mcp'];
+		case 'LearningAgent': return ['read_file', 'semantic_search', 'skill_evolution'];
+	}
 };
+
+const initialState: ForgeState = { planMode: 'idle', events: [], plan: null, agents: [], workflows: [], activeWorkflowId: null, selectedAgentId: null, isBrainActive: false };
 
 export function forgeReducer(state: ForgeState, action: ForgeAction): ForgeState {
 	switch (action.type) {
 		case 'selectAgent':
 			return state.agents.some(agent => agent.id === action.agentId) ? { ...state, selectedAgentId: action.agentId } : state;
-
 		case 'createAgent': {
+			const role = action.role ?? 'CodeEngineer';
 			const id = `agent-${Date.now()}`;
-			const newAgent: ForgeAgentInfo = {
-				id, name: action.name, role: action.role ?? 'CodeEngineer', state: 'idle', capabilities: ['read_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal'], progress: 0, createdAt: Date.now(),
-			};
-			return { ...state, agents: [...state.agents, newAgent], selectedAgentId: id };
+			const agent: ForgeAgentInfo = { id, name: action.name, role, state: 'idle', capabilities: capabilitiesForRole(role), progress: 0, createdAt: Date.now() };
+			return { ...state, agents: [...state.agents, agent], selectedAgentId: id };
 		}
-
 		case 'deleteAgent': {
 			if (action.agentId === 'forge-agent') return state;
 			const target = state.agents.find(agent => agent.id === action.agentId);
@@ -92,44 +103,30 @@ export function forgeReducer(state: ForgeState, action: ForgeAction): ForgeState
 			const selectedAgentId = state.selectedAgentId === action.agentId ? agents.find(agent => agent.id === 'forge-agent')?.id ?? agents[0]?.id ?? null : state.selectedAgentId;
 			return { ...state, agents, selectedAgentId };
 		}
-
 		case 'updateAgentState':
 			return { ...state, agents: state.agents.map(agent => agent.id === action.agentId ? { ...agent, state: action.state, progress: action.progress ?? agent.progress, currentTask: action.currentTask ?? agent.currentTask } : agent) };
-
 		case 'startWorkflow': {
 			const id = `workflow-${Date.now()}`;
 			const workflow: ForgeWorkflowInfo = { id, name: action.name, description: action.description, status: 'planning', plan: null, steps: [], createdAt: Date.now(), startedAt: Date.now() };
 			return { ...state, workflows: [workflow, ...state.workflows], activeWorkflowId: id, planMode: 'planning', isBrainActive: true };
 		}
-
 		case 'cancelWorkflow': {
 			const workflows = state.workflows.map(workflow => workflow.id === action.workflowId ? { ...workflow, status: 'cancelled' as const, completedAt: Date.now() } : workflow);
 			const otherActive = workflows.some(workflow => workflow.id !== action.workflowId && (workflow.status === 'running' || workflow.status === 'planning'));
 			return { ...state, workflows, planMode: otherActive ? state.planMode : 'idle', isBrainActive: otherActive };
 		}
-
 		case 'deleteWorkflow': {
 			const target = state.workflows.find(workflow => workflow.id === action.workflowId);
 			if (!target || target.status === 'running' || target.status === 'planning' || target.status === 'awaiting_approval') return state;
 			const workflows = state.workflows.filter(workflow => workflow.id !== action.workflowId);
 			const nextActive = state.activeWorkflowId === action.workflowId ? workflows[0]?.id ?? null : state.activeWorkflowId;
 			const activeWorkflow = workflows.find(workflow => workflow.id === nextActive);
-			return {
-				...state,
-				workflows,
-				activeWorkflowId: nextActive,
-				plan: activeWorkflow?.plan ?? (nextActive ? state.plan : null),
-				planMode: activeWorkflow?.status ?? 'idle',
-				isBrainActive: workflows.some(workflow => workflow.status === 'running' || workflow.status === 'planning'),
-			};
+			return { ...state, workflows, activeWorkflowId: nextActive, plan: activeWorkflow?.plan ?? (nextActive ? state.plan : null), planMode: activeWorkflow?.status ?? 'idle', isBrainActive: workflows.some(workflow => workflow.status === 'running' || workflow.status === 'planning') };
 		}
-
 		case 'setActiveWorkflow': {
 			const workflow = state.workflows.find(item => item.id === action.workflowId);
-			if (!workflow) return state;
-			return { ...state, activeWorkflowId: action.workflowId, plan: workflow.plan ?? state.plan, planMode: workflow.status };
+			return workflow ? { ...state, activeWorkflowId: action.workflowId, plan: workflow.plan ?? state.plan, planMode: workflow.status } : state;
 		}
-
 		case 'updateWorkflowStep': {
 			const workflows = state.workflows.map(workflow => {
 				if (workflow.id !== action.workflowId) return workflow;
@@ -143,24 +140,20 @@ export function forgeReducer(state: ForgeState, action: ForgeAction): ForgeState
 			const activeWorkflow = workflows.find(workflow => workflow.id === state.activeWorkflowId);
 			return { ...state, workflows, planMode: activeWorkflow?.status ?? state.planMode, plan: activeWorkflow?.plan ?? state.plan };
 		}
-
-		case 'setPlanMode':
-			return { ...state, planMode: action.mode };
+		case 'setPlanMode': return { ...state, planMode: action.mode };
 	}
 }
 
 export function useForgeBridge() {
 	const [state, setState] = useState<ForgeState>(initialState);
-	const stateRef = useRef(state);
-	stateRef.current = state;
 
 	useEffect(() => {
-		const defaultAgents: ForgeAgentInfo[] = [
-			{ id: 'forge-agent', name: 'Forge Agent', role: 'CodeEngineer', state: 'idle', capabilities: ['read_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal'], progress: 0, createdAt: Date.now() },
-			{ id: 'forge-reviewer', name: 'Review Agent', role: 'ReviewAgent', state: 'idle', capabilities: ['read_file', 'read_lint_errors', 'run_tests'], progress: 0, createdAt: Date.now() },
-			{ id: 'forge-rag', name: 'RAG Agent', role: 'RAGAgent', state: 'idle', capabilities: ['semantic_search', 'project_memory_search', 'get_dir_tree'], progress: 0, createdAt: Date.now() },
+		const defaults: ForgeAgentInfo[] = [
+			{ id: 'forge-agent', name: 'Forge Agent', role: 'CodeEngineer', state: 'idle', capabilities: capabilitiesForRole('CodeEngineer'), progress: 0, createdAt: Date.now() },
+			{ id: 'forge-reviewer', name: 'Review Agent', role: 'ReviewAgent', state: 'idle', capabilities: capabilitiesForRole('ReviewAgent'), progress: 0, createdAt: Date.now() },
+			{ id: 'forge-rag', name: 'Knowledge Agent', role: 'KnowledgeAgent', state: 'idle', capabilities: capabilitiesForRole('KnowledgeAgent'), progress: 0, createdAt: Date.now() },
 		];
-		setState(current => current.agents.length > 0 ? current : { ...current, agents: defaultAgents, selectedAgentId: 'forge-agent' });
+		setState(current => current.agents.length ? current : { ...current, agents: defaults, selectedAgentId: 'forge-agent' });
 	}, []);
 
 	useEffect(() => {
@@ -170,13 +163,12 @@ export function useForgeBridge() {
 				let plan = previous.plan;
 				let planMode = previous.planMode;
 				let isBrainActive = previous.isBrainActive;
-
 				if (event.type === 'PLAN_CREATED') { plan = event.payload.plan as PlannerOutput; planMode = 'running'; isBrainActive = true; }
-				else if (event.type === 'PLAN_STEP_UPDATED' && plan) { plan = { ...plan, steps: plan.steps.map((step: PlanStep) => step.id === (event.payload as any).stepId ? (event.payload as any).step : step) }; }
+				else if (event.type === 'PLAN_STEP_UPDATED' && plan) plan = { ...plan, steps: plan.steps.map((step: PlanStep) => step.id === (event.payload as any).stepId ? (event.payload as any).step : step) };
 				else if (event.type === 'RUN_COMPLETED') { planMode = 'completed'; isBrainActive = false; }
 				else if (event.type === 'RUN_FAILED') { planMode = 'failed'; isBrainActive = false; }
-				else if (event.type === 'AGENT_STARTED') { isBrainActive = true; }
-				else if (event.type === 'AGENT_FINISHED' || event.type === 'AGENT_FAILED') { isBrainActive = previous.agents.some(agent => agent.state === 'running' || agent.state === 'queued'); }
+				else if (event.type === 'AGENT_STARTED') isBrainActive = true;
+				else if (event.type === 'AGENT_FINISHED' || event.type === 'AGENT_FAILED') isBrainActive = previous.agents.some(agent => agent.state === 'running' || agent.state === 'queued');
 
 				const workflows = previous.workflows.map(workflow => {
 					if (event.type === 'PLAN_CREATED' && workflow.status === 'planning') {
@@ -209,6 +201,5 @@ export function useForgeBridge() {
 
 	const activeWorkflow = state.workflows.find(workflow => workflow.id === state.activeWorkflowId) ?? state.workflows[0] ?? null;
 	const selectedAgent = state.agents.find(agent => agent.id === state.selectedAgentId) ?? state.agents[0] ?? null;
-
 	return { state, activeWorkflow, selectedAgent, selectAgent, createAgent, deleteAgent, updateAgentState, startWorkflow, cancelWorkflow, deleteWorkflow, setActiveWorkflow, updateWorkflowStep, setPlanMode };
 }
