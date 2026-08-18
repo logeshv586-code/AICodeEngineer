@@ -3,26 +3,24 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { MCPUserState, RefreshableProviderName, SettingsOfProvider } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js'
 import { DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js'
 import { VoidSettingsState } from '../../../../../../../workbench/contrib/void/common/voidSettingsService.js'
 import { ColorScheme } from '../../../../../../../platform/theme/common/theme.js'
 import { RefreshModelStateOfProvider } from '../../../../../../../workbench/contrib/void/common/refreshModelService.js'
-
-import { ServicesAccessor } from '../../../../../../../editor/browser/editorExtensions.js';
+import { ServicesAccessor } from '../../../../../../../editor/browser/editorExtensions.js'
 import { IExplorerService } from '../../../../../../../workbench/contrib/files/browser/files.js'
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
-import { IContextViewService, IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { ILLMMessageService } from '../../../../common/sendLLMMessageService.js';
-import { IRefreshModelService } from '../../../../../../../workbench/contrib/void/common/refreshModelService.js';
-import { IVoidSettingsService } from '../../../../../../../workbench/contrib/void/common/voidSettingsService.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js'
+import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js'
+import { IContextViewService, IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js'
+import { IFileService } from '../../../../../../../platform/files/common/files.js'
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js'
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js'
+import { ILLMMessageService } from '../../../../common/sendLLMMessageService.js'
+import { IRefreshModelService } from '../../../../../../../workbench/contrib/void/common/refreshModelService.js'
+import { IVoidSettingsService } from '../../../../../../../workbench/contrib/void/common/voidSettingsService.js'
 import { IExtensionTransferService } from '../../../../../../../workbench/contrib/void/browser/extensionTransferService.js'
-
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js'
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js'
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js'
@@ -44,412 +42,296 @@ import { ILanguageService } from '../../../../../../../editor/common/languages/l
 import { IVoidModelService } from '../../../../common/voidModelService.js'
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js'
 import { IVoidCommandBarService } from '../../../voidCommandBarService.js'
-import { INativeHostService } from '../../../../../../../platform/native/common/native.js';
+import { INativeHostService } from '../../../../../../../platform/native/common/native.js'
 import { IEditCodeService } from '../../../editCodeServiceInterface.js'
 import { IToolsService } from '../../../toolsService.js'
 import { IConvertToLLMMessageService } from '../../../convertToLLMMessageService.js'
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js'
 import { ISearchService } from '../../../../../../services/search/common/search.js'
 import { IExtensionManagementService } from '../../../../../../../platform/extensionManagement/common/extensionManagement.js'
-import { IMCPService } from '../../../../common/mcpService.js';
-import { ISkillsService } from '../../../skillsService.js';
+import { IMCPService } from '../../../../common/mcpService.js'
+import { ISkillsService } from '../../../skillsService.js'
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js'
 import { OPT_OUT_KEY } from '../../../../common/storageKeys.js'
 import { IMainProcessService } from '../../../../../../../platform/ipc/common/mainProcessService.js'
 
-
-// normally to do this you'd use a useEffect that calls .onDidChangeState(), but useEffect mounts too late and misses initial state changes
-
-// even if React hasn't mounted yet, the variables are always updated to the latest state.
-// React listens by adding a setState function to these listeners.
-
 let chatThreadsState: ThreadsState
-const chatThreadsStateListeners: Set<(s: ThreadsState) => void> = new Set()
+const chatThreadsStateListeners = new Set<(s: ThreadsState) => void>()
 
 let chatThreadsStreamState: ThreadStreamState
-const chatThreadsStreamStateListeners: Set<(threadId: string) => void> = new Set()
+const chatThreadsStreamStateListeners = new Set<(threadId: string) => void>()
 
 let settingsState: VoidSettingsState
-const settingsStateListeners: Set<(s: VoidSettingsState) => void> = new Set()
+const settingsStateListeners = new Set<(s: VoidSettingsState) => void>()
 
 let refreshModelState: RefreshModelStateOfProvider
-const refreshModelStateListeners: Set<(s: RefreshModelStateOfProvider) => void> = new Set()
-const refreshModelProviderListeners: Set<(p: RefreshableProviderName, s: RefreshModelStateOfProvider) => void> = new Set()
+const refreshModelStateListeners = new Set<(s: RefreshModelStateOfProvider) => void>()
+const refreshModelProviderListeners = new Set<(p: RefreshableProviderName, s: RefreshModelStateOfProvider) => void>()
 
 let colorThemeState: ColorScheme
-const colorThemeStateListeners: Set<(s: ColorScheme) => void> = new Set()
+const colorThemeStateListeners = new Set<(s: ColorScheme) => void>()
 
-const ctrlKZoneStreamingStateListeners: Set<(diffareaid: number, s: boolean) => void> = new Set()
-const commandBarURIStateListeners: Set<(uri: URI) => void> = new Set();
-const activeURIListeners: Set<(uri: URI | null) => void> = new Set();
+const ctrlKZoneStreamingStateListeners = new Set<(diffareaid: number, s: boolean) => void>()
+const commandBarURIStateListeners = new Set<(uri: URI) => void>()
+const activeURIListeners = new Set<(uri: URI | null) => void>()
+const mcpListeners = new Set<() => void>()
 
-const mcpListeners: Set<() => void> = new Set()
-
-
-// must call this before you can use any of the hooks below
-// this should only be called ONCE! this is the only place you don't need to dispose onDidChange. If you use state.onDidChange anywhere else, make sure to dispose it!
-export const _registerServices = (_rawAccessor: ServicesAccessor) => {
-
-	// ╔══════════════════════════════════════════════════════════════╗
-	// ║  TEMPORARY DEBUG INSTRUMENTATION — REMOVE AFTER DIAGNOSIS  ║
-	// ╚══════════════════════════════════════════════════════════════╝
-	console.log('[Forge Debug] ▶ _registerServices() called');
-	let _debugServiceCount = 0;
-	const accessor = {
-		get: (id: any) => {
-			const count = ++_debugServiceCount;
-			const name = id?.toString?.() ?? `unknown-service-#${count}`;
-			console.log(`[Forge Debug]   [${count}] Resolving: ${name}...`);
-			try {
-				const result = _rawAccessor.get(id);
-				console.log(`[Forge Debug]   [${count}] ✅ ${name}`);
-				return result;
-			} catch (e) {
-				console.error(`[Forge Debug]   [${count}] ❌ ${name} FAILED:`, e);
-				throw e;
-			}
-		}
-	} as any as ServicesAccessor;
-	// ═══════════════════ END DEBUG INSTRUMENTATION ════════════════
-
+/**
+ * Register the workbench services used by the Forge React surfaces.
+ * This must run once before any hook below is used. Keep this bridge quiet:
+ * per-service debug logging here is extremely noisy and runs on every React mount.
+ */
+export const _registerServices = (accessor: ServicesAccessor) => {
 	const disposables: IDisposable[] = []
-
 	_registerAccessor(accessor)
 
-	const stateServices = {
-		chatThreadsStateService: accessor.get(IChatThreadService),
-		settingsStateService: accessor.get(IVoidSettingsService),
-		refreshModelService: accessor.get(IRefreshModelService),
-		themeService: accessor.get(IThemeService),
-		editCodeService: accessor.get(IEditCodeService),
-		voidCommandBarService: accessor.get(IVoidCommandBarService),
-		modelService: accessor.get(IModelService),
-		mcpService: accessor.get(IMCPService),
-	}
-
-	const { settingsStateService, chatThreadsStateService, refreshModelService, themeService, editCodeService, voidCommandBarService, modelService, mcpService } = stateServices
-
-
-
+	const chatThreadsStateService = accessor.get(IChatThreadService)
+	const settingsStateService = accessor.get(IVoidSettingsService)
+	const refreshModelService = accessor.get(IRefreshModelService)
+	const themeService = accessor.get(IThemeService)
+	const editCodeService = accessor.get(IEditCodeService)
+	const voidCommandBarService = accessor.get(IVoidCommandBarService)
+	const modelService = accessor.get(IModelService)
+	const mcpService = accessor.get(IMCPService)
 
 	chatThreadsState = chatThreadsStateService.state
-	disposables.push(
-		chatThreadsStateService.onDidChangeCurrentThread(() => {
-			chatThreadsState = chatThreadsStateService.state
-			chatThreadsStateListeners.forEach(l => l(chatThreadsState))
-		})
-	)
+	disposables.push(chatThreadsStateService.onDidChangeCurrentThread(() => {
+		chatThreadsState = chatThreadsStateService.state
+		chatThreadsStateListeners.forEach(listener => listener(chatThreadsState))
+	}))
 
-	// same service, different state
 	chatThreadsStreamState = chatThreadsStateService.streamState
-	disposables.push(
-		chatThreadsStateService.onDidChangeStreamState(({ threadId }) => {
-			chatThreadsStreamState = chatThreadsStateService.streamState
-			chatThreadsStreamStateListeners.forEach(l => l(threadId))
-		})
-	)
+	disposables.push(chatThreadsStateService.onDidChangeStreamState(({ threadId }) => {
+		chatThreadsStreamState = chatThreadsStateService.streamState
+		chatThreadsStreamStateListeners.forEach(listener => listener(threadId))
+	}))
 
 	settingsState = settingsStateService.state
-	disposables.push(
-		settingsStateService.onDidChangeState(() => {
-			settingsState = settingsStateService.state
-			settingsStateListeners.forEach(l => l(settingsState))
-		})
-	)
+	disposables.push(settingsStateService.onDidChangeState(() => {
+		settingsState = settingsStateService.state
+		settingsStateListeners.forEach(listener => listener(settingsState))
+	}))
 
 	refreshModelState = refreshModelService.state
-	disposables.push(
-		refreshModelService.onDidChangeState((providerName) => {
-			refreshModelState = refreshModelService.state
-			refreshModelStateListeners.forEach(l => l(refreshModelState))
-			refreshModelProviderListeners.forEach(l => l(providerName, refreshModelState)) // no state
-		})
-	)
+	disposables.push(refreshModelService.onDidChangeState(providerName => {
+		refreshModelState = refreshModelService.state
+		refreshModelStateListeners.forEach(listener => listener(refreshModelState))
+		refreshModelProviderListeners.forEach(listener => listener(providerName, refreshModelState))
+	}))
 
 	colorThemeState = themeService.getColorTheme().type
-	disposables.push(
-		themeService.onDidColorThemeChange(({ type }) => {
-			colorThemeState = type
-			colorThemeStateListeners.forEach(l => l(colorThemeState))
-		})
-	)
+	disposables.push(themeService.onDidColorThemeChange(({ type }) => {
+		colorThemeState = type
+		colorThemeStateListeners.forEach(listener => listener(colorThemeState))
+	}))
 
-	// no state
-	disposables.push(
-		editCodeService.onDidChangeStreamingInCtrlKZone(({ diffareaid }) => {
-			const isStreaming = editCodeService.isCtrlKZoneStreaming({ diffareaid })
-			ctrlKZoneStreamingStateListeners.forEach(l => l(diffareaid, isStreaming))
-		})
-	)
+	disposables.push(editCodeService.onDidChangeStreamingInCtrlKZone(({ diffareaid }) => {
+		const isStreaming = editCodeService.isCtrlKZoneStreaming({ diffareaid })
+		ctrlKZoneStreamingStateListeners.forEach(listener => listener(diffareaid, isStreaming))
+	}))
 
-	disposables.push(
-		voidCommandBarService.onDidChangeState(({ uri }) => {
-			commandBarURIStateListeners.forEach(l => l(uri));
-		})
-	)
+	disposables.push(voidCommandBarService.onDidChangeState(({ uri }) => {
+		commandBarURIStateListeners.forEach(listener => listener(uri))
+	}))
 
-	disposables.push(
-		voidCommandBarService.onDidChangeActiveURI(({ uri }) => {
-			activeURIListeners.forEach(l => l(uri));
-		})
-	)
+	disposables.push(voidCommandBarService.onDidChangeActiveURI(({ uri }) => {
+		activeURIListeners.forEach(listener => listener(uri))
+	}))
 
-	disposables.push(
-		mcpService.onDidChangeState(() => {
-			mcpListeners.forEach(l => l())
-		})
-	)
+	disposables.push(mcpService.onDidChangeState(() => {
+		mcpListeners.forEach(listener => listener())
+	}))
 
-
-	console.log(`[Forge Debug] ✅ _registerServices() completed — ${_debugServiceCount} services resolved`);
+	// Keep modelService eagerly resolved here because older Forge mounts rely on
+	// registration-time model initialization even when no hook reads it directly.
+	void modelService
 	return disposables
 }
 
-
-
-const getReactAccessor = (accessor: ServicesAccessor) => {
-	const reactAccessor = {
-		IModelService: accessor.get(IModelService),
-		IClipboardService: accessor.get(IClipboardService),
-		IContextViewService: accessor.get(IContextViewService),
-		IContextMenuService: accessor.get(IContextMenuService),
-		IFileService: accessor.get(IFileService),
-		IHoverService: accessor.get(IHoverService),
-		IThemeService: accessor.get(IThemeService),
-		ILLMMessageService: accessor.get(ILLMMessageService),
-		IRefreshModelService: accessor.get(IRefreshModelService),
-		IVoidSettingsService: accessor.get(IVoidSettingsService),
-		IEditCodeService: accessor.get(IEditCodeService),
-		IChatThreadService: accessor.get(IChatThreadService),
-
-		IInstantiationService: accessor.get(IInstantiationService),
-		ICodeEditorService: accessor.get(ICodeEditorService),
-		ICommandService: accessor.get(ICommandService),
-		IContextKeyService: accessor.get(IContextKeyService),
-		INotificationService: accessor.get(INotificationService),
-		IAccessibilityService: accessor.get(IAccessibilityService),
-		ILanguageConfigurationService: accessor.get(ILanguageConfigurationService),
-		ILanguageDetectionService: accessor.get(ILanguageDetectionService),
-		ILanguageFeaturesService: accessor.get(ILanguageFeaturesService),
-		IKeybindingService: accessor.get(IKeybindingService),
-		ISearchService: accessor.get(ISearchService),
-
-		IExplorerService: accessor.get(IExplorerService),
-		IEnvironmentService: accessor.get(IEnvironmentService),
-		IConfigurationService: accessor.get(IConfigurationService),
-		IPathService: accessor.get(IPathService),
-		IMetricsService: accessor.get(IMetricsService),
-		ITerminalToolService: accessor.get(ITerminalToolService),
-		ILanguageService: accessor.get(ILanguageService),
-		IVoidModelService: accessor.get(IVoidModelService),
-		IWorkspaceContextService: accessor.get(IWorkspaceContextService),
-
-		IVoidCommandBarService: accessor.get(IVoidCommandBarService),
-		INativeHostService: accessor.get(INativeHostService),
-		IToolsService: accessor.get(IToolsService),
-		IConvertToLLMMessageService: accessor.get(IConvertToLLMMessageService),
-		ITerminalService: accessor.get(ITerminalService),
-		IExtensionManagementService: accessor.get(IExtensionManagementService),
-		IExtensionTransferService: accessor.get(IExtensionTransferService),
-		IMCPService: accessor.get(IMCPService),
-		ISkillsService: accessor.get(ISkillsService),
-
-		IStorageService: accessor.get(IStorageService),
-		IMainProcessService: accessor.get(IMainProcessService),
-
-	} as const
-	return reactAccessor
-}
+const getReactAccessor = (accessor: ServicesAccessor) => ({
+	IModelService: accessor.get(IModelService),
+	IClipboardService: accessor.get(IClipboardService),
+	IContextViewService: accessor.get(IContextViewService),
+	IContextMenuService: accessor.get(IContextMenuService),
+	IFileService: accessor.get(IFileService),
+	IHoverService: accessor.get(IHoverService),
+	IThemeService: accessor.get(IThemeService),
+	ILLMMessageService: accessor.get(ILLMMessageService),
+	IRefreshModelService: accessor.get(IRefreshModelService),
+	IVoidSettingsService: accessor.get(IVoidSettingsService),
+	IEditCodeService: accessor.get(IEditCodeService),
+	IChatThreadService: accessor.get(IChatThreadService),
+	IInstantiationService: accessor.get(IInstantiationService),
+	ICodeEditorService: accessor.get(ICodeEditorService),
+	ICommandService: accessor.get(ICommandService),
+	IContextKeyService: accessor.get(IContextKeyService),
+	INotificationService: accessor.get(INotificationService),
+	IAccessibilityService: accessor.get(IAccessibilityService),
+	ILanguageConfigurationService: accessor.get(ILanguageConfigurationService),
+	ILanguageDetectionService: accessor.get(ILanguageDetectionService),
+	ILanguageFeaturesService: accessor.get(ILanguageFeaturesService),
+	IKeybindingService: accessor.get(IKeybindingService),
+	ISearchService: accessor.get(ISearchService),
+	IExplorerService: accessor.get(IExplorerService),
+	IEnvironmentService: accessor.get(IEnvironmentService),
+	IConfigurationService: accessor.get(IConfigurationService),
+	IPathService: accessor.get(IPathService),
+	IMetricsService: accessor.get(IMetricsService),
+	ITerminalToolService: accessor.get(ITerminalToolService),
+	ILanguageService: accessor.get(ILanguageService),
+	IVoidModelService: accessor.get(IVoidModelService),
+	IWorkspaceContextService: accessor.get(IWorkspaceContextService),
+	IVoidCommandBarService: accessor.get(IVoidCommandBarService),
+	INativeHostService: accessor.get(INativeHostService),
+	IToolsService: accessor.get(IToolsService),
+	IConvertToLLMMessageService: accessor.get(IConvertToLLMMessageService),
+	ITerminalService: accessor.get(ITerminalService),
+	IExtensionManagementService: accessor.get(IExtensionManagementService),
+	IExtensionTransferService: accessor.get(IExtensionTransferService),
+	IMCPService: accessor.get(IMCPService),
+	ISkillsService: accessor.get(ISkillsService),
+	IStorageService: accessor.get(IStorageService),
+	IMainProcessService: accessor.get(IMainProcessService),
+} as const)
 
 type ReactAccessor = ReturnType<typeof getReactAccessor>
-
-
 let reactAccessor_: ReactAccessor | null = null
+
 const _registerAccessor = (accessor: ServicesAccessor) => {
-	const reactAccessor = getReactAccessor(accessor)
-	reactAccessor_ = reactAccessor
+	reactAccessor_ = getReactAccessor(accessor)
 }
 
-// -- services --
 export const useAccessor = () => {
-	if (!reactAccessor_) {
-		throw new Error(`⚠️ Void useAccessor was called before _registerServices!`)
-	}
-
-	return { get: <S extends keyof ReactAccessor,>(service: S): ReactAccessor[S] => reactAccessor_![service] }
+	if (!reactAccessor_) throw new Error('Forge useAccessor was called before _registerServices.')
+	return { get: <S extends keyof ReactAccessor>(service: S): ReactAccessor[S] => reactAccessor_![service] }
 }
-
-
-
-// -- state of services --
 
 export const useSettingsState = () => {
-	const [s, ss] = useState(settingsState)
+	const [state, setState] = useState(settingsState)
 	useEffect(() => {
-		ss(settingsState)
-		settingsStateListeners.add(ss)
-		return () => { settingsStateListeners.delete(ss) }
-	}, [ss])
-	return s
+		setState(settingsState)
+		settingsStateListeners.add(setState)
+		return () => { settingsStateListeners.delete(setState) }
+	}, [setState])
+	return state
 }
 
 export const useChatThreadsState = () => {
-	const [s, ss] = useState(chatThreadsState)
+	const [state, setState] = useState(chatThreadsState)
 	useEffect(() => {
-		ss(chatThreadsState)
-		chatThreadsStateListeners.add(ss)
-		return () => { chatThreadsStateListeners.delete(ss) }
-	}, [ss])
-	return s
-	// allow user to set state natively in react
-	// const ss: React.Dispatch<React.SetStateAction<ThreadsState>> = (action)=>{
-	// 	_ss(action)
-	// 	if (typeof action === 'function') {
-	// 		const newState = action(chatThreadsState)
-	// 		chatThreadsState = newState
-	// 	} else {
-	// 		chatThreadsState = action
-	// 	}
-	// }
-	// return [s, ss] as const
+		setState(chatThreadsState)
+		chatThreadsStateListeners.add(setState)
+		return () => { chatThreadsStateListeners.delete(setState) }
+	}, [setState])
+	return state
 }
 
-
-
-
 export const useChatThreadsStreamState = (threadId: string) => {
-	const [s, ss] = useState<ThreadStreamState[string] | undefined>(chatThreadsStreamState[threadId])
+	const [state, setState] = useState<ThreadStreamState[string] | undefined>(chatThreadsStreamState[threadId])
 	useEffect(() => {
-		ss(chatThreadsStreamState[threadId])
-		const listener = (threadId_: string) => {
-			if (threadId_ !== threadId) return
-			ss(chatThreadsStreamState[threadId])
+		setState(chatThreadsStreamState[threadId])
+		const listener = (changedThreadId: string) => {
+			if (changedThreadId === threadId) setState(chatThreadsStreamState[threadId])
 		}
 		chatThreadsStreamStateListeners.add(listener)
 		return () => { chatThreadsStreamStateListeners.delete(listener) }
-	}, [ss, threadId])
-	return s
+	}, [threadId])
+	return state
 }
 
 export const useFullChatThreadsStreamState = () => {
-	const [s, ss] = useState(chatThreadsStreamState)
+	const [state, setState] = useState(chatThreadsStreamState)
 	useEffect(() => {
-		ss(chatThreadsStreamState)
-		const listener = () => { ss(chatThreadsStreamState) }
+		setState(chatThreadsStreamState)
+		const listener = () => setState(chatThreadsStreamState)
 		chatThreadsStreamStateListeners.add(listener)
 		return () => { chatThreadsStreamStateListeners.delete(listener) }
-	}, [ss])
-	return s
+	}, [])
+	return state
 }
-
-
 
 export const useRefreshModelState = () => {
-	const [s, ss] = useState(refreshModelState)
+	const [state, setState] = useState(refreshModelState)
 	useEffect(() => {
-		ss(refreshModelState)
-		refreshModelStateListeners.add(ss)
-		return () => { refreshModelStateListeners.delete(ss) }
-	}, [ss])
-	return s
+		setState(refreshModelState)
+		refreshModelStateListeners.add(setState)
+		return () => { refreshModelStateListeners.delete(setState) }
+	}, [setState])
+	return state
 }
 
-
-export const useRefreshModelListener = (listener: (providerName: RefreshableProviderName, s: RefreshModelStateOfProvider) => void) => {
+export const useRefreshModelListener = (listener: (providerName: RefreshableProviderName, state: RefreshModelStateOfProvider) => void) => {
 	useEffect(() => {
 		refreshModelProviderListeners.add(listener)
 		return () => { refreshModelProviderListeners.delete(listener) }
-	}, [listener, refreshModelProviderListeners])
+	}, [listener])
 }
 
-export const useCtrlKZoneStreamingState = (listener: (diffareaid: number, s: boolean) => void) => {
+export const useCtrlKZoneStreamingState = (listener: (diffareaid: number, streaming: boolean) => void) => {
 	useEffect(() => {
 		ctrlKZoneStreamingStateListeners.add(listener)
 		return () => { ctrlKZoneStreamingStateListeners.delete(listener) }
-	}, [listener, ctrlKZoneStreamingStateListeners])
+	}, [listener])
 }
 
 export const useIsDark = () => {
-	const [s, ss] = useState(colorThemeState)
+	const [state, setState] = useState(colorThemeState)
 	useEffect(() => {
-		ss(colorThemeState)
-		colorThemeStateListeners.add(ss)
-		return () => { colorThemeStateListeners.delete(ss) }
-	}, [ss])
-
-	// s is the theme, return isDark instead of s
-	const isDark = s === ColorScheme.DARK || s === ColorScheme.HIGH_CONTRAST_DARK
-	return isDark
+		setState(colorThemeState)
+		colorThemeStateListeners.add(setState)
+		return () => { colorThemeStateListeners.delete(setState) }
+	}, [setState])
+	return state === ColorScheme.DARK || state === ColorScheme.HIGH_CONTRAST_DARK
 }
 
 export const useCommandBarURIListener = (listener: (uri: URI) => void) => {
 	useEffect(() => {
-		commandBarURIStateListeners.add(listener);
-		return () => { commandBarURIStateListeners.delete(listener) };
-	}, [listener]);
-};
+		commandBarURIStateListeners.add(listener)
+		return () => { commandBarURIStateListeners.delete(listener) }
+	}, [listener])
+}
+
 export const useCommandBarState = () => {
-	const accessor = useAccessor()
-	const commandBarService = accessor.get('IVoidCommandBarService')
-	const [s, ss] = useState({ stateOfURI: commandBarService.stateOfURI, sortedURIs: commandBarService.sortedURIs });
+	const commandBarService = useAccessor().get('IVoidCommandBarService')
+	const [state, setState] = useState({ stateOfURI: commandBarService.stateOfURI, sortedURIs: commandBarService.sortedURIs })
 	const listener = useCallback(() => {
-		ss({ stateOfURI: commandBarService.stateOfURI, sortedURIs: commandBarService.sortedURIs });
+		setState({ stateOfURI: commandBarService.stateOfURI, sortedURIs: commandBarService.sortedURIs })
 	}, [commandBarService])
 	useCommandBarURIListener(listener)
-
-	return s;
+	return state
 }
 
-
-
-// roughly gets the active URI - this is used to get the history of recent URIs
 export const useActiveURI = () => {
-	const accessor = useAccessor()
-	const commandBarService = accessor.get('IVoidCommandBarService')
-	const [s, ss] = useState(commandBarService.activeURI)
+	const commandBarService = useAccessor().get('IVoidCommandBarService')
+	const [state, setState] = useState(commandBarService.activeURI)
 	useEffect(() => {
-		const listener = () => { ss(commandBarService.activeURI) }
-		activeURIListeners.add(listener);
-		return () => { activeURIListeners.delete(listener) };
-	}, [])
-	return { uri: s }
+		const listener = () => setState(commandBarService.activeURI)
+		activeURIListeners.add(listener)
+		return () => { activeURIListeners.delete(listener) }
+	}, [commandBarService])
+	return { uri: state }
 }
-
-
-
 
 export const useMCPServiceState = () => {
-	const accessor = useAccessor()
-	const mcpService = accessor.get('IMCPService')
-	const [s, ss] = useState(mcpService.state)
+	const mcpService = useAccessor().get('IMCPService')
+	const [state, setState] = useState(mcpService.state)
 	useEffect(() => {
-		const listener = () => { ss(mcpService.state) }
-		mcpListeners.add(listener);
-		return () => { mcpListeners.delete(listener) };
-	}, []);
-	return s
+		const listener = () => setState(mcpService.state)
+		mcpListeners.add(listener)
+		return () => { mcpListeners.delete(listener) }
+	}, [mcpService])
+	return state
 }
 
-
-
 export const useIsOptedOut = () => {
-	const accessor = useAccessor()
-	const storageService = accessor.get('IStorageService')
-
-	const getVal = useCallback(() => {
-		return storageService.getBoolean(OPT_OUT_KEY, StorageScope.APPLICATION, false)
-	}, [storageService])
-
-	const [s, ss] = useState(getVal())
-
+	const storageService = useAccessor().get('IStorageService')
+	const getValue = useCallback(() => storageService.getBoolean(OPT_OUT_KEY, StorageScope.APPLICATION, false), [storageService])
+	const [state, setState] = useState(getValue())
 	useEffect(() => {
-		const disposables = new DisposableStore();
-		const d = storageService.onDidChangeValue(StorageScope.APPLICATION, OPT_OUT_KEY, disposables)(e => {
-			ss(getVal())
-		})
-		disposables.add(d)
+		const disposables = new DisposableStore()
+		const disposable = storageService.onDidChangeValue(StorageScope.APPLICATION, OPT_OUT_KEY, disposables)(() => setState(getValue()))
+		disposables.add(disposable)
 		return () => disposables.clear()
-	}, [storageService, getVal])
-
-	return s
+	}, [storageService, getValue])
+	return state
 }
