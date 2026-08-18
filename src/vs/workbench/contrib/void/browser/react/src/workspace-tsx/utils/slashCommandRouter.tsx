@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------------------------
  *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
- *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
+ *  Licensed under the Apache License, Version 2.0 See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -18,7 +18,7 @@ import { IChatThreadService } from '../../../chatThreadService.js';
 import { ISkillsService } from '../../../skillsService.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IMCPService } from '../../../../../common/mcpService.js';
-import { ForgeEventBus } from '../../../../forge/events/forgeEventBus.js';
+import { ISemanticSearchService } from '../../../../../common/forge/contracts/ISemanticSearchService.js';
 
 export interface SlashCommand {
 	readonly name: string;
@@ -108,9 +108,9 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 
 		{ name: '/workflow,start', label: 'Start Workflow', category: 'Workflow', description: 'Plan and execute a multi-step task', icon: <Play size={14} />, execute() { sendMessage(`Run this as a Forge workflow. Plan, implement, verify, fix failures, and review the final result. ${ctx.args}`.trim()); } },
 		{ name: '/workflow,stop', label: 'Stop Workflow', category: 'Workflow', description: 'Abort the active agent/workflow run', icon: <Square size={14} />, async execute() {
-			ForgeEventBus.getInstance().publish('CANCEL_WORKFLOW', {});
 			const threadId = chatThreadsService.state.currentThreadId;
-			if (threadId) await chatThreadsService.abortRunning(threadId);
+			if (!threadId) { notify(accessor, 'There is no active workflow thread.', 'warn'); return; }
+			await chatThreadsService.abortRunning(threadId);
 			notify(accessor, 'Active workflow/agent run stopped.');
 		} },
 
@@ -178,7 +178,14 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 
 		{ name: '/memory,show', label: 'Show Memory', category: 'Memory', description: 'Inspect relevant workspace memory', icon: <Brain size={14} />, execute() { sendMessage('Show the relevant remembered workspace context for the current task, and distinguish stored facts from fresh code inspection.'); } },
 		{ name: '/memory,save', label: 'Save Memory', category: 'Memory', description: 'Save durable workspace findings', icon: <Brain size={14} />, execute() { sendMessage('Save only durable, useful workspace findings from this task to memory. Avoid transient logs or secrets.'); } },
-		{ name: '/workspace,index', label: 'Reindex Workspace', category: 'Memory', description: 'Rebuild the workspace semantic index', icon: <HardDrive size={14} />, execute() { ForgeEventBus.getInstance().publish('REINDEX_WORKSPACE', {}); notify(accessor, 'Workspace reindex requested.'); } },
+		{ name: '/workspace,index', label: 'Refresh Code Index', category: 'Memory', description: 'Refresh the local CocoIndex semantic index', icon: <HardDrive size={14} />, async execute() {
+			try {
+				const stats = await accessor.get(ISemanticSearchService).indexWorkspace();
+				notify(accessor, `Code index refreshed: ${stats.totalFiles} files, ${stats.totalChunks} chunks.`);
+			} catch (error) {
+				notify(accessor, `Code index refresh failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
+			}
+		} },
 
 		{ name: '/skill', label: 'Search Skills', category: 'Skills', description: 'Search the 333-skill registry locally', icon: <BookOpen size={14} />, async execute() {
 			const query = ctx.args.trim();
@@ -196,7 +203,7 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/models', label: 'Select Model', category: 'System', description: 'Open Forge provider/model settings', icon: <Sparkles size={14} />, execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/settings', label: 'Settings', category: 'System', description: 'Open Forge settings', icon: <Settings size={14} />, shortcut: 'Ctrl+,', execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/help', label: 'Help', category: 'System', description: 'Show core Forge command groups locally', icon: <HelpCircle size={14} />, execute() {
-			notify(accessor, 'Forge commands: Agent /agent,* · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · System /models /settings. Type 2+ letters after / to autocomplete registry skills.');
+			notify(accessor, 'Forge commands: Agent /agent,* · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings. Type 2+ letters after / to autocomplete registry skills.');
 		} },
 	];
 }
