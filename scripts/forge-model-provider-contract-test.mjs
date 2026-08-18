@@ -9,17 +9,19 @@ const capabilities = read('src/vs/workbench/contrib/void/common/modelCapabilitie
 const settingsTypes = read('src/vs/workbench/contrib/void/common/voidSettingsTypes.ts');
 const transport = read('src/vs/workbench/contrib/void/electron-main/llmMessage/sendLLMMessage.impl.ts');
 
-const objectKeys = (source, startMarker, endMarker) => {
+const keysBetween = (source, startMarker, endMarker, valueOpener) => {
   const start = source.indexOf(startMarker);
   const end = source.indexOf(endMarker, start + startMarker.length);
   if (start < 0 || end < 0) throw new Error(`Could not locate ${startMarker}`);
   const body = source.slice(start + startMarker.length, end);
-  return [...body.matchAll(/^\s*([A-Za-z][A-Za-z0-9]*):\s*\{/gm)].map(match => match[1]);
+  const escaped = valueOpener.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^\\s*([A-Za-z][A-Za-z0-9]*):\\s*${escaped}`, 'gm');
+  return [...body.matchAll(pattern)].map(match => match[1]);
 };
 
-const providerSettings = objectKeys(capabilities, 'export const defaultProviderSettings = {', '} as const');
-const defaultModels = objectKeys(capabilities, 'export const defaultModelsOfProvider = {', '} as const satisfies Record<ProviderName, string[]>');
-const implementations = objectKeys(transport, 'export const sendLLMMessageToProviderImplementation = {', '} satisfies CallFnOfProvider');
+const providerSettings = keysBetween(capabilities, 'export const defaultProviderSettings = {', '} as const', '{');
+const defaultModels = keysBetween(capabilities, 'export const defaultModelsOfProvider = {', '} as const satisfies Record<ProviderName, string[]>', '[');
+const implementations = keysBetween(transport, 'export const sendLLMMessageToProviderImplementation = {', '} satisfies CallFnOfProvider', '{');
 
 const unique = values => [...new Set(values)];
 const sorted = values => unique(values).sort();
@@ -28,8 +30,8 @@ const checks = [];
 const check = (name, ok, detail) => checks.push({ name, ok: !!ok, detail });
 
 check('provider registry is non-empty', providerSettings.length >= 15, `Found ${providerSettings.length} providers.`);
-check('default-model registry parity', sameSet(providerSettings, defaultModels), 'Every configured provider must have a default/autodetected/custom model registry entry.');
-check('chat transport registry parity', sameSet(providerSettings, implementations), 'Every configured provider must have a chat transport implementation.');
+check('default-model registry parity', sameSet(providerSettings, defaultModels), `Settings=${providerSettings.length}, model registries=${defaultModels.length}.`);
+check('chat transport registry parity', sameSet(providerSettings, implementations), `Settings=${providerSettings.length}, transports=${implementations.length}.`);
 check('provider display parity', providerSettings.every(name => settingsTypes.includes(`providerName === '${name}'`)), 'Every provider must have a settings/display path.');
 
 const nativeProviders = new Set(['anthropic', 'gemini']);
