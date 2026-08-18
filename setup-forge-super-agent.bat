@@ -16,15 +16,14 @@ echo.
 
 echo [1/6] Checking required commands...
 where node >nul 2>&1 || goto :missing_node
+where npm >nul 2>&1 || goto :missing_npm
 where git >nul 2>&1 || goto :missing_git
 
-if not exist "node_modules" (
-  echo [2/6] Installing Forge dependencies with npm ci...
-  call npm ci
-  if errorlevel 1 goto :failed
-) else (
-  echo [2/6] Forge node_modules already exists - skipping npm ci.
-)
+echo [2/6] Installing deterministic Forge dependencies with npm ci...
+rem Setup is an explicit repair/install command, so always reconcile node_modules
+rem to package-lock.json instead of trusting a possibly stale or partial directory.
+call npm ci
+if errorlevel 1 goto :failed
 
 echo [3/6] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
 rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
@@ -52,6 +51,8 @@ if errorlevel 1 goto :failed
 echo [6/6] Verifying runtime and Super Agent integration state...
 call node scripts\forge-runtime-guard.mjs
 if errorlevel 1 goto :failed
+call node scripts\forge-integrations.mjs verify active
+if errorlevel 1 goto :failed
 call node scripts\forge-integrations.mjs doctor
 if errorlevel 1 goto :failed
 call node scripts\forge-super-agent-self-test.mjs
@@ -68,6 +69,8 @@ echo.
 echo Agent Lightning source is present, but GPU/RL training remains deferred.
 echo Start Forge with:
 echo   run-forge-ide.bat
+echo Final release smoke with:
+echo   smoke-forge-windows.bat
 
 echo.
 popd
@@ -75,6 +78,10 @@ exit /b 0
 
 :missing_node
 echo ERROR: Node.js is not available on PATH.
+goto :failed
+
+:missing_npm
+echo ERROR: npm is not available on PATH.
 goto :failed
 
 :missing_git
