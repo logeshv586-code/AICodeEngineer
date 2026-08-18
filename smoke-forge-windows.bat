@@ -41,6 +41,8 @@ if errorlevel 1 goto :failed
 echo [3/4] Verifying runtime, integrations, and Super Agent state...
 call node scripts\forge-runtime-guard.mjs
 if errorlevel 1 goto :failed
+call node scripts\forge-integrations.mjs verify active
+if errorlevel 1 goto :failed
 call node scripts\forge-integrations.mjs doctor
 if errorlevel 1 goto :failed
 call node scripts\forge-super-agent-self-test.mjs
