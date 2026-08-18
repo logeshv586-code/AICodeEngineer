@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback } from 'react';
-import { Plus, ChevronDown, Sparkles, Network, ListChecks, Palette, Activity, Settings } from 'lucide-react';
+import { Plus, ChevronDown, Network, ListChecks, Palette, Activity, Settings, Globe } from 'lucide-react';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IMCPService } from '../../../../../common/mcpService.js';
 import { ThreadList, ThreadItem } from './ThreadList';
+import { ForgeBrandMark } from './ForgeBrandMark';
 import type { SlashCommandContext } from '../utils/slashCommandRouter';
 
 export interface SimpleSidebarProps {
@@ -49,7 +50,7 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 			const notification = slashContext.accessor.get(INotificationService);
 			const installedTool = mcp.getMCPTools()?.find(tool => tool.name === toolName && tool.mcpServerName === 'forge-super-agent');
 			if (!installedTool) {
-				notification.warn('Forge Super Agent MCP is not ready. Restart Forge after running the bootstrap command.');
+				notification.warn('Forge Super Agent MCP is not ready. Run setup-forge-super-agent.bat and restart Forge.');
 				return;
 			}
 			const { result } = await mcp.callMCPTool({ serverName: 'forge-super-agent', toolName, params });
@@ -62,52 +63,55 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 		}
 	}, [slashContext]);
 
+	const inspectBrowser = useCallback(() => { void runLocalForgeTool('forge_browser', { action: 'snapshot' }, 'Browser'); }, [runLocalForgeTool]);
 	const inspectCodeGraph = useCallback(() => {
 		if (!slashContext) return;
-		const folders = slashContext.accessor.get(IWorkspaceContextService).getWorkspace().folders;
-		const workspace = folders[0]?.uri.fsPath;
+		const workspace = slashContext.accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri.fsPath;
 		void runLocalForgeTool('forge_understand', { action: 'status', ...(workspace ? { workspace } : {}) }, 'Code graph');
 	}, [runLocalForgeTool, slashContext]);
-	const inspectWorkMode = useCallback(() => { void runLocalForgeTool('forge_workflow', { action: 'list' }, 'Work Mode'); }, [runLocalForgeTool]);
+	const inspectWorkMode = useCallback(() => { void runLocalForgeTool('forge_workflow', { action: 'status' }, 'Work Mode'); }, [runLocalForgeTool]);
 	const inspectDesignRuntime = useCallback(() => { void runLocalForgeTool('forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design'); }, [runLocalForgeTool]);
 	const inspectIntegrations = useCallback(() => { void runLocalForgeTool('forge_integrations', { action: 'doctor' }, 'Integrations'); }, [runLocalForgeTool]);
 
 	if (isCollapsed) {
 		return (
-			<div className={`w-10 bg-zinc-900/80 border-r border-zinc-800/60 flex flex-col items-center py-2 gap-1 shrink-0 ${className}`}>
-				<button type='button' onClick={() => setIsCollapsed(false)} className='w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-800/60 border border-zinc-700/40 text-zinc-400 cursor-pointer hover:bg-zinc-700/60 hover:text-zinc-300 transition-colors' title='Forge Assistant'><Sparkles size={14} /></button>
-				<button type='button' onClick={handleNewThread} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='New Chat'><Plus size={16} /></button>
-				{slashContext && <button type='button' onClick={inspectWorkMode} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Work Mode'><ListChecks size={14} /></button>}
-				<button type='button' onClick={() => setIsCollapsed(false)} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer mt-auto' title='Expand sidebar'><ChevronDown size={14} className='rotate-[-90deg]' /></button>
+			<div className={`w-12 forge-brand-sidebar flex flex-col items-center py-2 gap-1 shrink-0 ${className}`}>
+				<button type='button' onClick={() => setIsCollapsed(false)} className='w-9 h-9 flex items-center justify-center rounded-xl forge-brand-tool cursor-pointer' title='Expand Forge'><ForgeBrandMark size={26} /></button>
+				<button type='button' onClick={handleNewThread} className='w-9 h-9 flex items-center justify-center rounded-lg forge-brand-tool cursor-pointer' title='New conversation'><Plus size={15} /></button>
+				{slashContext && <>
+					<button type='button' onClick={inspectBrowser} className='w-9 h-9 flex items-center justify-center rounded-lg forge-brand-tool cursor-pointer' title='Browser'><Globe size={14} /></button>
+					<button type='button' onClick={inspectWorkMode} className='w-9 h-9 flex items-center justify-center rounded-lg forge-brand-tool cursor-pointer' title='Work Mode'><ListChecks size={14} /></button>
+				</>}
+				<button type='button' onClick={openSettings} className='w-9 h-9 flex items-center justify-center rounded-lg forge-brand-tool cursor-pointer mt-auto' title='Forge settings'><Settings size={14} /></button>
+				<button type='button' onClick={() => setIsCollapsed(false)} className='w-9 h-9 flex items-center justify-center rounded-lg forge-brand-tool cursor-pointer' title='Expand sidebar'><ChevronDown size={14} className='rotate-[-90deg]' /></button>
 			</div>
 		);
 	}
 
 	const quickButtons = slashContext ? [
-		{ id: 'understand', title: 'Code graph status', icon: <Network size={12} />, action: inspectCodeGraph, busy: busyAction === 'forge_understand' },
-		{ id: 'work', title: 'Work Mode automations', icon: <ListChecks size={12} />, action: inspectWorkMode, busy: busyAction === 'forge_workflow' },
-		{ id: 'design', title: 'Open Design runtime', icon: <Palette size={12} />, action: inspectDesignRuntime, busy: busyAction === 'forge_sidecar' },
-		{ id: 'health', title: 'Integration health', icon: <Activity size={12} />, action: inspectIntegrations, busy: busyAction === 'forge_integrations' },
+		{ id: 'browser', title: 'Browser', icon: <Globe size={13} />, action: inspectBrowser, busy: busyAction === 'forge_browser' },
+		{ id: 'understand', title: 'Graph', icon: <Network size={13} />, action: inspectCodeGraph, busy: busyAction === 'forge_understand' },
+		{ id: 'work', title: 'Work', icon: <ListChecks size={13} />, action: inspectWorkMode, busy: busyAction === 'forge_workflow' },
+		{ id: 'design', title: 'Design', icon: <Palette size={13} />, action: inspectDesignRuntime, busy: busyAction === 'forge_sidecar' },
+		{ id: 'health', title: 'Health', icon: <Activity size={13} />, action: inspectIntegrations, busy: busyAction === 'forge_integrations' },
 	] : [];
 
 	return (
-		<div className={`w-56 bg-zinc-900/90 border-r border-zinc-800/60 flex flex-col shrink-0 ${className}`}>
-			<div className='px-2.5 py-2 border-b border-zinc-800/60 shrink-0'>
-				<div className='flex items-center gap-2 mb-2'>
-					<div className='w-7 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center'><Sparkles size={14} className='text-zinc-400' /></div>
-					<div className='flex-1 min-w-0'><div className='text-[11px] font-semibold text-zinc-300'>Forge Assistant</div><div className='text-[9px] text-zinc-600'>Code · Browser · Work · Design</div></div>
+		<div className={`forge-brand-sidebar forge-brand-sidebar-expanded w-60 flex flex-col shrink-0 ${className}`}>
+			<div className='forge-brand-sidebar-header px-3 py-3 shrink-0'>
+				<div className='flex items-center justify-between gap-2 mb-3'>
+					<ForgeBrandMark size={30} withWordmark />
+					<button type='button' onClick={() => setIsCollapsed(true)} className='w-7 h-7 flex items-center justify-center rounded-lg forge-brand-tool cursor-pointer' title='Collapse sidebar'><ChevronDown size={13} className='rotate-90' /></button>
 				</div>
-				<button type='button' onClick={handleNewThread} className='w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-zinc-800/60 hover:bg-zinc-700/60 border border-zinc-700/40 text-[11px] text-zinc-300 font-medium transition-colors cursor-pointer'><Plus size={12} /> New Chat</button>
+				<button type='button' onClick={handleNewThread} className='forge-brand-primary w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-semibold cursor-pointer'><Plus size={13} /> New conversation</button>
 			</div>
 
-			<div className='flex-1 overflow-hidden'><ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={onSelectThread} onNewThread={handleNewThread} onDeleteThread={onDeleteThread} /></div>
+			<div className='px-3 pt-3 pb-1 flex items-center justify-between'><span className='text-[9px] uppercase tracking-[0.16em] text-[var(--forge-muted-2)]'>Recent work</span><span className='text-[9px] text-[var(--forge-muted-2)]'>{threads.length}</span></div>
+			<div className='flex-1 min-h-0 overflow-hidden'><ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={onSelectThread} onNewThread={handleNewThread} onDeleteThread={onDeleteThread} /></div>
 
-			<div className='px-2 py-2 border-t border-zinc-800/60 shrink-0'>
-				{quickButtons.length > 0 && <div className='grid grid-cols-4 gap-1 mb-1.5'>{quickButtons.map(button => <button key={button.id} type='button' onClick={button.action} disabled={!!busyAction} className={`h-7 flex items-center justify-center rounded-md border border-zinc-800/60 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70 transition-colors disabled:opacity-40 ${button.busy ? 'animate-pulse text-emerald-400' : ''}`} title={button.title} aria-label={button.title}>{button.icon}</button>)}</div>}
-				<div className='flex items-center justify-between'>
-					<button type='button' onClick={openSettings} className='w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Forge settings' aria-label='Forge settings'><Settings size={13} /></button>
-					<button type='button' onClick={() => setIsCollapsed(true)} className='w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Collapse sidebar'><ChevronDown size={13} className='rotate-90' /></button>
-				</div>
+			<div className='px-2.5 py-2.5 border-t border-[var(--forge-line)] shrink-0'>
+				{quickButtons.length > 0 && <div className='grid grid-cols-5 gap-1 mb-2'>{quickButtons.map(button => <button key={button.id} type='button' onClick={button.action} disabled={!!busyAction} className={`forge-brand-tool h-8 flex flex-col items-center justify-center rounded-lg cursor-pointer disabled:opacity-40 ${button.busy ? 'animate-pulse !text-[var(--forge-cyan)]' : ''}`} title={button.title} aria-label={button.title}>{button.icon}</button>)}</div>}
+				<button type='button' onClick={openSettings} className='forge-brand-tool w-full h-8 flex items-center justify-center gap-1.5 rounded-lg text-[10px] cursor-pointer' title='Forge settings'><Settings size={12} /> Preferences</button>
 			</div>
 		</div>
 	);
