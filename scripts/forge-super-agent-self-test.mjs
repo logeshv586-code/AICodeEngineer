@@ -4,10 +4,10 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ACTIVE_INTEGRATION_IDS, doctor, verifyIntegrations } from './forge-integrations.mjs';
+import { runUiContractTest } from './forge-ui-contract-test.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-
 const check = (name, ok, detail) => ({ name, ok: !!ok, detail });
 
 export const runSelfTest = (options = {}) => {
@@ -38,8 +38,7 @@ export const runSelfTest = (options = {}) => {
 
   const workspaceSkillsDir = path.join(repoRoot, '.agents', 'skills');
   try {
-    const active = fs.readdirSync(workspaceSkillsDir, { withFileTypes: true })
-      .filter(entry => entry.isDirectory() || entry.name.endsWith('.md'));
+    const active = fs.readdirSync(workspaceSkillsDir, { withFileTypes: true }).filter(entry => entry.isDirectory() || entry.name.endsWith('.md'));
     checks.push(check('state-2 workspace skills', active.length === 7, `${active.length}/7 active skills`));
   } catch (error) {
     checks.push(check('state-2 workspace skills', false, error instanceof Error ? error.message : String(error)));
@@ -55,6 +54,13 @@ export const runSelfTest = (options = {}) => {
         ? 'not installed (required now)'
         : 'deferred until Agent Lightning phase';
     checks.push(check(`integration:${item.id}`, ok, detail));
+  }
+
+  try {
+    const ui = runUiContractTest();
+    for (const item of ui.checks) checks.push(check(`ui:${item.name}`, item.ok, item.detail));
+  } catch (error) {
+    checks.push(check('ui contracts', false, error instanceof Error ? error.message : String(error)));
   }
 
   const failed = checks.filter(item => !item.ok);
@@ -75,9 +81,7 @@ export const runSelfTest = (options = {}) => {
 const main = () => {
   const requireAll = process.argv.includes('--require-all');
   const result = runSelfTest({ requireAll, requireActive: !requireAll || process.argv.includes('--require-active') });
-  for (const item of result.checks) {
-    console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(28)} ${item.detail || ''}`);
-  }
+  for (const item of result.checks) console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(40)} ${item.detail || ''}`);
   console.log(`\nIntegration root: ${result.integrationsRoot}`);
   console.log(`Active now: ${result.activeIntegrationIds.join(', ')}`);
   console.log('Deferred: agent-lightning');
