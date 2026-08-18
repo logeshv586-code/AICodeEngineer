@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { openDesignRuntimeStatus } from './forge-node24-runtime.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lockPath = path.join(repoRoot, 'forge-integrations.lock.json');
@@ -10,6 +11,7 @@ const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
 const integrationsRoot = path.resolve(process.env.FORGE_INTEGRATIONS_HOME || path.join(os.homedir(), '.forge', 'integrations'));
 const forgeDataRoot = path.resolve(process.env.FORGE_DATA_HOME || path.join(os.homedir(), '.forge-ai-editor'));
 const installManifestPath = path.join(integrationsRoot, '.forge-integrations.json');
+const node24RuntimeScript = path.join(repoRoot, 'scripts', 'forge-node24-runtime.mjs');
 
 export const ACTIVE_INTEGRATION_IDS = Object.keys(lock.integrations).filter(id => id !== 'agent-lightning');
 
@@ -58,6 +60,12 @@ const runPnpm = (args, cwd) => {
   if (!invocation) throw new Error('pnpm is required for this integration. Install pnpm or enable Corepack.');
   return run(invocation.command, [...invocation.prefix, ...args], { cwd, shell: false });
 };
+
+const runOpenDesignPnpm = (args, cwd) => run(process.execPath, [node24RuntimeScript, 'pnpm', '--cwd', cwd, '--', ...args], {
+  cwd: repoRoot,
+  shell: false,
+  timeout: 30 * 60_000,
+});
 
 const currentCommit = dir => {
   if (!fs.existsSync(path.join(dir, '.git'))) return null;
@@ -110,7 +118,8 @@ const setupIntegration = id => {
   }
 
   if (id === 'open-design') {
-    runPnpm(['install', '--frozen-lockfile'], dir);
+    console.log('[forge-integrations] Open Design requires Node 24; Forge will use its isolated verified runtime under ~/.forge/runtimes.');
+    runOpenDesignPnpm(['install', '--frozen-lockfile'], dir);
     return;
   }
 
@@ -309,6 +318,7 @@ export const doctor = () => ({
     pnpm: commandExists('pnpm'),
     corepack: commandExists('corepack'),
   },
+  openDesignRuntime: openDesignRuntimeStatus(),
   mcp: mcpRegistrationStatus(),
   integrations: integrationStatus(),
 });
