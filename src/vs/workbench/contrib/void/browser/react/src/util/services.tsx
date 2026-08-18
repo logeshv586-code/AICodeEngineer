@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import { useState, useEffect, useCallback } from 'react'
-import { MCPUserState, RefreshableProviderName, SettingsOfProvider } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js'
+import { RefreshableProviderName } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js'
 import { DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js'
 import { VoidSettingsState } from '../../../../../../../workbench/contrib/void/common/voidSettingsService.js'
 import { ColorScheme } from '../../../../../../../platform/theme/common/theme.js'
@@ -270,6 +270,14 @@ export const useRefreshModelState = () => {
 	return state
 }
 
+/** Subscribe to provider refresh transitions without owning the state. */
+export const useRefreshModelListener = (listener: (providerName: RefreshableProviderName, state: RefreshModelStateOfProvider) => void) => {
+	useEffect(() => {
+		refreshModelProviderListeners.add(listener)
+		return () => { refreshModelProviderListeners.delete(listener) }
+	}, [listener])
+}
+
 export const useRefreshModelProviderState = (providerName: RefreshableProviderName) => {
 	const [state, setState] = useState(() => refreshModelState?.[providerName])
 	useEffect(() => {
@@ -293,6 +301,14 @@ export const useIsDark = () => {
 	return isDark
 }
 
+/** Compatibility listener used by Quick Edit's ref-based streaming UI. */
+export const useCtrlKZoneStreamingState = (listener: (diffareaid: number, state: boolean) => void) => {
+	useEffect(() => {
+		ctrlKZoneStreamingStateListeners.add(listener)
+		return () => { ctrlKZoneStreamingStateListeners.delete(listener) }
+	}, [listener])
+}
+
 export const useCtrlKZoneStreaming = (diffareaid: number) => {
 	const accessor = useAccessor()
 	const [isStreaming, setIsStreaming] = useState(() => accessor.get('IEditCodeService').isCtrlKZoneStreaming({ diffareaid }))
@@ -304,6 +320,14 @@ export const useCtrlKZoneStreaming = (diffareaid: number) => {
 		return () => { ctrlKZoneStreamingStateListeners.delete(listener) }
 	}, [diffareaid])
 	return isStreaming
+}
+
+/** Subscribe to command-bar URI changes for apply-block streaming state. */
+export const useCommandBarURIListener = (listener: (uri: URI) => void) => {
+	useEffect(() => {
+		commandBarURIStateListeners.add(listener)
+		return () => { commandBarURIStateListeners.delete(listener) }
+	}, [listener])
 }
 
 export const useCommandBarState = () => {
@@ -336,6 +360,9 @@ export const useMCPState = () => {
 	return service.state
 }
 
+/** Backwards-compatible name retained for the settings surface. */
+export const useMCPServiceState = useMCPState
+
 export const useStorageBoolean = (key: string, defaultValue: boolean) => {
 	const accessor = useAccessor()
 	const service = accessor.get('IStorageService')
@@ -348,3 +375,28 @@ export const useStorageBoolean = (key: string, defaultValue: boolean) => {
 }
 
 export const useOptOut = () => useStorageBoolean(OPT_OUT_KEY, false)
+
+/**
+ * Legacy read-only telemetry opt-out hook used by Settings. Keep APPLICATION
+ * scope to preserve the historical single-install preference semantics.
+ */
+export const useIsOptedOut = () => {
+	const accessor = useAccessor()
+	const storageService = accessor.get('IStorageService')
+	const getValue = useCallback(
+		() => storageService.getBoolean(OPT_OUT_KEY, StorageScope.APPLICATION, false),
+		[storageService]
+	)
+	const [value, setValue] = useState(getValue)
+
+	useEffect(() => {
+		const disposables = new DisposableStore()
+		const disposable = storageService.onDidChangeValue(StorageScope.APPLICATION, OPT_OUT_KEY, disposables)(() => {
+			setValue(getValue())
+		})
+		disposables.add(disposable)
+		return () => disposables.clear()
+	}, [storageService, getValue])
+
+	return value
+}
