@@ -29,8 +29,11 @@ const coreRuntimeFiles = [
 const requiredSuperAgentFiles = [
 	'forge-integrations.lock.json',
 	'install-forge-super-agent.bat',
+	'setup-forge-super-agent.bat',
 	'scripts/forge-super-agent-bootstrap.mjs',
 	'scripts/forge-super-agent-self-test.mjs',
+	'scripts/forge-ui-contract-test.mjs',
+	'scripts/forge-work-self-test.mjs',
 	'scripts/forge-mcp-server.mjs',
 	'scripts/forge-integrations.mjs',
 	'scripts/forge-work.mjs',
@@ -83,7 +86,6 @@ if (missingSuperAgent.length > 0) {
 	process.exit(1);
 }
 
-// Verify skill registry and library assets.
 const registryFile = path.join(workspaceRoot, 'skill_registry.json');
 if (!fs.existsSync(registryFile)) {
 	console.error('[forge-guard] Missing skill_registry.json at application root.');
