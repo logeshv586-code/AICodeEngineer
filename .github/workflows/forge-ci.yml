@@ -121,13 +121,13 @@ jobs:
         run: node scripts/forge-runtime-guard.mjs
 
   windows-electron:
-    name: Windows Electron build gate
-    runs-on: windows-2022
-    timeout-minutes: 45
-    env:
-      npm_config_msvs_version: '2022'
-      npm_package_config_node_gyp_msvs_version: '2022'
-      GYP_MSVS_VERSION: '2022'
+    name: Windows Electron build gate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -139,12 +139,9 @@ jobs:
           cache: npm
           package-manager-cache: false
 
-      - name: Windows native toolchain preflight
+      - name: Prepare native toolchain and install dependencies
         shell: pwsh
-        run: ./scripts/forge-windows-native-preflight.ps1 -RepoRoot $PWD
-
-      - name: Install dependencies
-        run: npm ci
+        run: ./scripts/forge-windows-native-preflight.ps1 -RepoRoot $PWD -InstallDependencies
 
       - name: Brand and Windows launcher contracts
         run: node scripts/forge-brand-contract-test.mjs
