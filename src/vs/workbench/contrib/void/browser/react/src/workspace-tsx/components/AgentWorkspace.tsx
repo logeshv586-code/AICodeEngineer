@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback } from 'react';
-import { useForgeBridge, ForgeState } from '../hooks/useForgeBridge';
+import { useForgeBridge } from '../hooks/useForgeBridge';
+import { useAccessor } from '../../util/services.tsx';
 import { TopBar } from './TopBar';
 import { LeftToolbar } from './LeftToolbar';
 import { RightPanel, RightPanelTab } from './RightPanel';
@@ -13,41 +14,20 @@ import { AgentsView } from './AgentsView';
 import { WorkflowsView } from './WorkflowsView';
 import { PlanViewInWorkspace } from './PlanViewInWorkspace';
 
-const ToolsView: React.FC<{ state: ForgeState; bridge: ReturnType<typeof useForgeBridge> }> = ({ bridge }) => (
-	<AgentsView
-		agents={bridge.state.agents}
-		selectedAgentId={bridge.state.selectedAgentId}
-		workflows={bridge.state.workflows}
-		onSelectAgent={bridge.selectAgent}
-		onCreateAgent={bridge.createAgent}
-		onDeleteAgent={bridge.deleteAgent}
-		onStartWorkflow={bridge.startWorkflow}
-		onCancelWorkflow={bridge.cancelWorkflow}
-	/>
-);
-
-const SubWorkflowsView: React.FC<{ state: ForgeState; bridge: ReturnType<typeof useForgeBridge> }> = ({ bridge }) => (
-	<WorkflowsView
-		workflows={bridge.state.workflows}
-		activeWorkflowId={bridge.state.activeWorkflowId}
-		planMode={bridge.state.planMode}
-		onStartWorkflow={bridge.startWorkflow}
-		onCancelWorkflow={bridge.cancelWorkflow}
-		onDeleteWorkflow={bridge.deleteWorkflow}
-		onSetActiveWorkflow={bridge.setActiveWorkflow}
-	/>
-);
-
-const SubPlanView: React.FC<{ state: ForgeState; bridge: ReturnType<typeof useForgeBridge> }> = ({ bridge }) => (
-	<PlanViewInWorkspace plan={bridge.activeWorkflow?.plan ?? null} />
-);
-
 export const AgentWorkspace: React.FC = () => {
 	const bridge = useForgeBridge();
+	const accessor = useAccessor();
 	const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('agents');
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 	const [activeTool, setActiveTool] = useState<'agents' | 'workflows' | 'plan'>('agents');
 	const [activeFeature, setActiveFeature] = useState('Agent');
+
+	const notify = useCallback((message: string, error = false) => {
+		try {
+			const notifications = accessor.get('INotificationService');
+			if (error) notifications.error(message); else notifications.info(message);
+		} catch { /* optional during shutdown */ }
+	}, [accessor]);
 
 	const handleToolChange = useCallback((tool: string) => {
 		if (tool !== 'agents' && tool !== 'workflows' && tool !== 'plan') return;
@@ -55,6 +35,41 @@ export const AgentWorkspace: React.FC = () => {
 		setRightPanelTab(tool);
 		setIsRightPanelOpen(true);
 	}, []);
+
+	const handleStartWorkflow = useCallback((name: string, description: string, goal: string) => {
+		bridge.startWorkflow(name, description, goal);
+		handleToolChange('plan');
+
+		const chat = accessor.get('IChatThreadService');
+		let threadId = chat.state.currentThreadId;
+		if (!threadId) threadId = chat.createNewThread();
+		const prompt = [
+			`Run this as a Forge workflow: ${name}.`,
+			description ? `Description: ${description}` : '',
+			`Goal: ${goal}`,
+			'Create an executable plan, inspect the minimum necessary workspace context, implement the task with tools, run targeted verification, fix failures, review the final diff, and continue until the goal is materially complete. Use browser/design/Work Mode integrations only when the task requires them.',
+		].filter(Boolean).join('\n\n');
+
+		void chat.addUserMessageAndStreamResponse({ threadId, userMessage: prompt })
+			.then(() => notify(`Workflow "${name}" finished its current agent run.`))
+			.catch(error => notify(`Workflow "${name}" failed to start: ${error instanceof Error ? error.message : String(error)}`, true));
+		void chat.focusCurrentChat();
+	}, [accessor, bridge, handleToolChange, notify]);
+
+	const handleCancelWorkflow = useCallback((workflowId: string) => {
+		bridge.cancelWorkflow(workflowId);
+		const chat = accessor.get('IChatThreadService');
+		const threadId = chat.state.currentThreadId;
+		if (threadId) {
+			void chat.abortRunning(threadId).catch(error => notify(`Could not stop the active agent run: ${error instanceof Error ? error.message : String(error)}`, true));
+		}
+	}, [accessor, bridge, notify]);
+
+	const rerunActivePlan = useCallback(() => {
+		const workflow = bridge.activeWorkflow;
+		if (!workflow) return;
+		handleStartWorkflow(workflow.name, workflow.description, workflow.plan?.goal || workflow.description || workflow.name);
+	}, [bridge.activeWorkflow, handleStartWorkflow]);
 
 	const handleFeatureChange = useCallback((feature: string) => {
 		setActiveFeature(feature);
@@ -74,9 +89,12 @@ export const AgentWorkspace: React.FC = () => {
 
 	const renderMainContent = () => {
 		switch (activeTool) {
-			case 'agents': return <ToolsView state={bridge.state} bridge={bridge} />;
-			case 'workflows': return <SubWorkflowsView state={bridge.state} bridge={bridge} />;
-			case 'plan': return <SubPlanView state={bridge.state} bridge={bridge} />;
+			case 'agents':
+				return <AgentsView agents={bridge.state.agents} selectedAgentId={bridge.state.selectedAgentId} workflows={bridge.state.workflows} onSelectAgent={bridge.selectAgent} onCreateAgent={bridge.createAgent} onDeleteAgent={bridge.deleteAgent} onStartWorkflow={handleStartWorkflow} onCancelWorkflow={handleCancelWorkflow} />;
+			case 'workflows':
+				return <WorkflowsView workflows={bridge.state.workflows} activeWorkflowId={bridge.state.activeWorkflowId} planMode={bridge.state.planMode} onStartWorkflow={handleStartWorkflow} onCancelWorkflow={handleCancelWorkflow} onDeleteWorkflow={bridge.deleteWorkflow} onSetActiveWorkflow={bridge.setActiveWorkflow} />;
+			case 'plan':
+				return <PlanViewInWorkspace plan={bridge.activeWorkflow?.plan ?? bridge.state.plan ?? null} onRerun={bridge.activeWorkflow ? rerunActivePlan : undefined} />;
 		}
 	};
 
