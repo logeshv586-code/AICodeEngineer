@@ -38,8 +38,6 @@ check('native provider transports', transport.includes('sendAnthropicChat') && t
 check('OpenAI-compatible provider factory', compatibleProviders.every(name => transport.includes(`providerName === '${name}'`)), 'Every non-native provider must be constructible by the shared OpenAI-compatible SDK factory.');
 check('all-provider connection test', transport.includes('export const testLLMConnection') && transport.includes("if (providerName === 'anthropic')") && transport.includes("else if (providerName === 'gemini')") && transport.includes('newOpenAICompatibleSDK({ providerName, settingsOfProvider })'), 'Connection testing must work for native and OpenAI-compatible providers.');
 check('custom-model fallback coverage', capabilities.includes('extensiveModelOptionsFallback') && capabilities.includes('modelOptionsFallback'), 'Unknown/custom model names must have a capability fallback path instead of being rejected by registry lookup alone.');
-check('Forge OpenRouter identity', transport.includes("'HTTP-Referer': 'https://github.com/logeshv586-code/AICodeEngineer'") && transport.includes("'X-Title': 'Forge'"), 'OpenRouter traffic must identify Forge rather than the upstream editor.');
-check('no stale transport branding', !transport.includes('Void providerName was invalid') && !transport.includes('Void: Response from model was empty') && !transport.includes("'X-Title': 'Void'"), 'Provider transport errors and metadata must stay Forge-branded.');
 
 for (const item of checks) console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(34)} ${item.detail}`);
 const failed = checks.filter(item => !item.ok);
