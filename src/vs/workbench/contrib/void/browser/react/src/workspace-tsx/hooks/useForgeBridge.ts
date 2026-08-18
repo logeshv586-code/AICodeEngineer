@@ -58,6 +58,7 @@ export interface ForgeState {
 export type ForgeAction =
 	| { type: 'selectAgent'; agentId: string }
 	| { type: 'createAgent'; name: string; role?: AgentRole }
+	| { type: 'deleteAgent'; agentId: string }
 	| { type: 'updateAgentState'; agentId: string; state: AgentState; progress?: number; currentTask?: string }
 	| { type: 'startWorkflow'; name: string; description: string; goal: string }
 	| { type: 'cancelWorkflow'; workflowId: string }
@@ -67,99 +68,66 @@ export type ForgeAction =
 	| { type: 'setPlanMode'; mode: PlanMode };
 
 const initialState: ForgeState = {
-	planMode: 'idle',
-	events: [],
-	plan: null,
-	agents: [],
-	workflows: [],
-	activeWorkflowId: null,
-	selectedAgentId: null,
-	isBrainActive: false,
+	planMode: 'idle', events: [], plan: null, agents: [], workflows: [], activeWorkflowId: null, selectedAgentId: null, isBrainActive: false,
 };
 
 export function forgeReducer(state: ForgeState, action: ForgeAction): ForgeState {
 	switch (action.type) {
 		case 'selectAgent':
-			return { ...state, selectedAgentId: action.agentId };
+			return state.agents.some(agent => agent.id === action.agentId) ? { ...state, selectedAgentId: action.agentId } : state;
 
 		case 'createAgent': {
 			const id = `agent-${Date.now()}`;
 			const newAgent: ForgeAgentInfo = {
-				id,
-				name: action.name,
-				role: action.role ?? 'CodeEngineer',
-				state: 'idle',
-				capabilities: ['read_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal'],
-				progress: 0,
-				createdAt: Date.now(),
+				id, name: action.name, role: action.role ?? 'CodeEngineer', state: 'idle', capabilities: ['read_file', 'edit_file', 'rewrite_file', 'semantic_search', 'terminal'], progress: 0, createdAt: Date.now(),
 			};
-			return {
-				...state,
-				agents: [...state.agents, newAgent],
-				selectedAgentId: state.selectedAgentId ?? id,
-			};
+			return { ...state, agents: [...state.agents, newAgent], selectedAgentId: id };
+		}
+
+		case 'deleteAgent': {
+			if (action.agentId === 'forge-agent') return state;
+			const target = state.agents.find(agent => agent.id === action.agentId);
+			if (!target || target.state === 'running' || target.state === 'planning') return state;
+			const agents = state.agents.filter(agent => agent.id !== action.agentId);
+			const selectedAgentId = state.selectedAgentId === action.agentId ? agents.find(agent => agent.id === 'forge-agent')?.id ?? agents[0]?.id ?? null : state.selectedAgentId;
+			return { ...state, agents, selectedAgentId };
 		}
 
 		case 'updateAgentState':
-			return {
-				...state,
-				agents: state.agents.map(agent => agent.id === action.agentId
-					? { ...agent, state: action.state, progress: action.progress ?? agent.progress, currentTask: action.currentTask ?? agent.currentTask }
-					: agent),
-			};
+			return { ...state, agents: state.agents.map(agent => agent.id === action.agentId ? { ...agent, state: action.state, progress: action.progress ?? agent.progress, currentTask: action.currentTask ?? agent.currentTask } : agent) };
 
 		case 'startWorkflow': {
 			const id = `workflow-${Date.now()}`;
-			const workflow: ForgeWorkflowInfo = {
-				id,
-				name: action.name,
-				description: action.description,
-				status: 'planning',
-				plan: null,
-				steps: [],
-				createdAt: Date.now(),
-				startedAt: Date.now(),
-			};
-			return {
-				...state,
-				workflows: [workflow, ...state.workflows],
-				activeWorkflowId: id,
-				planMode: 'planning',
-				isBrainActive: true,
-			};
+			const workflow: ForgeWorkflowInfo = { id, name: action.name, description: action.description, status: 'planning', plan: null, steps: [], createdAt: Date.now(), startedAt: Date.now() };
+			return { ...state, workflows: [workflow, ...state.workflows], activeWorkflowId: id, planMode: 'planning', isBrainActive: true };
 		}
 
 		case 'cancelWorkflow': {
-			const workflows = state.workflows.map(workflow => workflow.id === action.workflowId
-				? { ...workflow, status: 'cancelled' as const, completedAt: Date.now() }
-				: workflow);
+			const workflows = state.workflows.map(workflow => workflow.id === action.workflowId ? { ...workflow, status: 'cancelled' as const, completedAt: Date.now() } : workflow);
 			const otherActive = workflows.some(workflow => workflow.id !== action.workflowId && (workflow.status === 'running' || workflow.status === 'planning'));
 			return { ...state, workflows, planMode: otherActive ? state.planMode : 'idle', isBrainActive: otherActive };
 		}
 
 		case 'deleteWorkflow': {
+			const target = state.workflows.find(workflow => workflow.id === action.workflowId);
+			if (!target || target.status === 'running' || target.status === 'planning' || target.status === 'awaiting_approval') return state;
 			const workflows = state.workflows.filter(workflow => workflow.id !== action.workflowId);
 			const nextActive = state.activeWorkflowId === action.workflowId ? workflows[0]?.id ?? null : state.activeWorkflowId;
 			const activeWorkflow = workflows.find(workflow => workflow.id === nextActive);
-			const activeMode = activeWorkflow?.status ?? 'idle';
 			return {
 				...state,
 				workflows,
 				activeWorkflowId: nextActive,
 				plan: activeWorkflow?.plan ?? (nextActive ? state.plan : null),
-				planMode: activeMode,
+				planMode: activeWorkflow?.status ?? 'idle',
 				isBrainActive: workflows.some(workflow => workflow.status === 'running' || workflow.status === 'planning'),
 			};
 		}
 
 		case 'setActiveWorkflow': {
 			const workflow = state.workflows.find(item => item.id === action.workflowId);
-			return {
-				...state,
-				activeWorkflowId: action.workflowId,
-				plan: workflow?.plan ?? state.plan,
-				planMode: workflow?.status ?? state.planMode,
-			};
+			if (!workflow) return state;
+			return { ...state, activeWorkflowId: action.workflowId, plan: workflow.plan ?? state.plan, planMode: workflow.status };
 		}
 
 		case 'updateWorkflowStep': {
@@ -178,9 +146,6 @@ export function forgeReducer(state: ForgeState, action: ForgeAction): ForgeState
 
 		case 'setPlanMode':
 			return { ...state, planMode: action.mode };
-
-		default:
-			return state;
 	}
 }
 
@@ -199,32 +164,19 @@ export function useForgeBridge() {
 	}, []);
 
 	useEffect(() => {
-		const bus = ForgeEventBus.getInstance();
-		const listener = bus.onEvent((event: ForgeEvent) => {
+		const listener = ForgeEventBus.getInstance().onEvent((event: ForgeEvent) => {
 			setState(previous => {
 				const events = [event, ...previous.events].slice(0, 200);
 				let plan = previous.plan;
 				let planMode = previous.planMode;
 				let isBrainActive = previous.isBrainActive;
 
-				if (event.type === 'PLAN_CREATED') {
-					plan = event.payload.plan as PlannerOutput;
-					planMode = 'running';
-					isBrainActive = true;
-				} else if (event.type === 'PLAN_STEP_UPDATED' && plan) {
-					const updatedSteps = plan.steps.map((step: PlanStep) => step.id === (event.payload as any).stepId ? (event.payload as any).step : step);
-					plan = { ...plan, steps: updatedSteps };
-				} else if (event.type === 'RUN_COMPLETED') {
-					planMode = 'completed';
-					isBrainActive = false;
-				} else if (event.type === 'RUN_FAILED') {
-					planMode = 'failed';
-					isBrainActive = false;
-				} else if (event.type === 'AGENT_STARTED') {
-					isBrainActive = true;
-				} else if (event.type === 'AGENT_FINISHED' || event.type === 'AGENT_FAILED') {
-					isBrainActive = previous.agents.some(agent => agent.state === 'running' || agent.state === 'queued');
-				}
+				if (event.type === 'PLAN_CREATED') { plan = event.payload.plan as PlannerOutput; planMode = 'running'; isBrainActive = true; }
+				else if (event.type === 'PLAN_STEP_UPDATED' && plan) { plan = { ...plan, steps: plan.steps.map((step: PlanStep) => step.id === (event.payload as any).stepId ? (event.payload as any).step : step) }; }
+				else if (event.type === 'RUN_COMPLETED') { planMode = 'completed'; isBrainActive = false; }
+				else if (event.type === 'RUN_FAILED') { planMode = 'failed'; isBrainActive = false; }
+				else if (event.type === 'AGENT_STARTED') { isBrainActive = true; }
+				else if (event.type === 'AGENT_FINISHED' || event.type === 'AGENT_FAILED') { isBrainActive = previous.agents.some(agent => agent.state === 'running' || agent.state === 'queued'); }
 
 				const workflows = previous.workflows.map(workflow => {
 					if (event.type === 'PLAN_CREATED' && workflow.status === 'planning') {
@@ -232,15 +184,11 @@ export function useForgeBridge() {
 						const steps: WorkflowStepInfo[] = newPlan.steps.map((step: PlanStep) => ({ id: step.id, title: step.title, description: step.description, status: step.status, stage: step.stage }));
 						return { ...workflow, plan: newPlan, steps, status: 'running' as const };
 					}
-					if (event.type === 'PLAN_STEP_UPDATED' && workflow.id === previous.activeWorkflowId) {
-						const steps = workflow.steps.map(step => step.id === (event.payload as any).stepId ? { ...step, ...(event.payload as any).step } : step);
-						return { ...workflow, steps };
-					}
+					if (event.type === 'PLAN_STEP_UPDATED' && workflow.id === previous.activeWorkflowId) return { ...workflow, steps: workflow.steps.map(step => step.id === (event.payload as any).stepId ? { ...step, ...(event.payload as any).step } : step) };
 					if ((event.type === 'TASK_COMPLETED' || event.type === 'RUN_COMPLETED') && workflow.id === previous.activeWorkflowId) return { ...workflow, status: 'completed' as const, completedAt: Date.now() };
 					if ((event.type === 'TASK_FAILED' || event.type === 'RUN_FAILED') && workflow.id === previous.activeWorkflowId) return { ...workflow, status: 'failed' as const, completedAt: Date.now() };
 					return workflow;
 				});
-
 				return { ...previous, events, plan, planMode, workflows, isBrainActive };
 			});
 		});
@@ -250,6 +198,7 @@ export function useForgeBridge() {
 	const dispatch = useCallback((action: ForgeAction) => setState(previous => forgeReducer(previous, action)), []);
 	const selectAgent = useCallback((agentId: string) => dispatch({ type: 'selectAgent', agentId }), [dispatch]);
 	const createAgent = useCallback((name: string, role?: AgentRole) => dispatch({ type: 'createAgent', name, role }), [dispatch]);
+	const deleteAgent = useCallback((agentId: string) => dispatch({ type: 'deleteAgent', agentId }), [dispatch]);
 	const updateAgentState = useCallback((agentId: string, agentState: AgentState, progress?: number, currentTask?: string) => dispatch({ type: 'updateAgentState', agentId, state: agentState, progress, currentTask }), [dispatch]);
 	const startWorkflow = useCallback((name: string, description: string, goal: string) => dispatch({ type: 'startWorkflow', name, description, goal }), [dispatch]);
 	const cancelWorkflow = useCallback((workflowId: string) => dispatch({ type: 'cancelWorkflow', workflowId }), [dispatch]);
@@ -261,18 +210,5 @@ export function useForgeBridge() {
 	const activeWorkflow = state.workflows.find(workflow => workflow.id === state.activeWorkflowId) ?? state.workflows[0] ?? null;
 	const selectedAgent = state.agents.find(agent => agent.id === state.selectedAgentId) ?? state.agents[0] ?? null;
 
-	return {
-		state,
-		activeWorkflow,
-		selectedAgent,
-		selectAgent,
-		createAgent,
-		updateAgentState,
-		startWorkflow,
-		cancelWorkflow,
-		deleteWorkflow,
-		setActiveWorkflow,
-		updateWorkflowStep,
-		setPlanMode,
-	};
+	return { state, activeWorkflow, selectedAgent, selectAgent, createAgent, deleteAgent, updateAgentState, startWorkflow, cancelWorkflow, deleteWorkflow, setActiveWorkflow, updateWorkflowStep, setPlanMode };
 }
