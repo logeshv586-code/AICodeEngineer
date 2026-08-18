@@ -18,7 +18,8 @@ if errorlevel 1 goto :missing_npm
 
 if not exist "node_modules" (
     echo [forge-smoke] Dependencies are not installed.
-    echo [forge-smoke] Run setup-forge-super-agent.bat first.
+    echo [forge-smoke] PowerShell: .\setup-forge-super-agent.bat
+    echo [forge-smoke] Command Prompt: setup-forge-super-agent.bat
     goto :failed
 )
 
@@ -26,6 +27,8 @@ echo [1/4] Running Forge contracts and skill validation...
 call node scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-ui-contract-test.mjs
+if errorlevel 1 goto :failed
+call node scripts\forge-react-service-export-contract.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-model-provider-contract-test.mjs
 if errorlevel 1 goto :failed
@@ -67,7 +70,7 @@ echo.
 echo ============================================================
 echo   FINAL MANUAL RELEASE CHECKLIST
 echo ============================================================
-echo   1. Confirm a Chat model is selected; use Test API for the provider/model you want to run.
+echo   1. Confirm a Chat model is selected. Use Test API for the provider/model you want to run.
 echo   2. Send a normal coding task and confirm a response/run starts.
 echo   3. Attach a file and an image; confirm both remain staged and are used.
 echo   4. Start a task, press Stop, and confirm the active run aborts.
@@ -76,6 +79,7 @@ echo   6. Run /work and confirm Work Mode responds without a dead command.
 echo   7. Run /design and confirm the design workflow responds.
 echo   8. Confirm the Forge icon/identity is correct in the window and Windows taskbar.
 echo.
+echo React service import/export parity was checked automatically before the build.
 echo Provider/model registry, transport, and Test API UI wiring were checked automatically.
 echo Live API success still depends on valid credentials, endpoint access, and the selected model being available from that provider.
 echo Keep this terminal open while you perform the checklist.
@@ -90,12 +94,12 @@ exit /b 0
 
 :missing_node
 echo [forge-smoke] Node.js is not available on PATH.
-echo [forge-smoke] Install the repository Node.js version, then run setup-forge-super-agent.bat.
+echo [forge-smoke] Install the repository Node.js version, then run .\setup-forge-super-agent.bat from PowerShell.
 goto :failed
 
 :missing_npm
 echo [forge-smoke] npm is not available on PATH.
-echo [forge-smoke] Install the repository Node.js version, then run setup-forge-super-agent.bat.
+echo [forge-smoke] Install the repository Node.js version, then run .\setup-forge-super-agent.bat from PowerShell.
 goto :failed
 
 :failed
@@ -103,6 +107,6 @@ echo.
 echo ============================================================
 echo   Forge Windows release smoke FAILED.
 echo ============================================================
-echo Fix the first failing check above and run smoke-forge-windows.bat again.
+echo Fix the first failing check above and run .\smoke-forge-windows.bat again from PowerShell.
 popd
 exit /b 1
