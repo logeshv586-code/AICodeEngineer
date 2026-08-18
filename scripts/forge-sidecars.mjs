@@ -4,18 +4,22 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const integrationsRoot = path.resolve(process.env.FORGE_INTEGRATIONS_HOME || path.join(os.homedir(), '.forge', 'integrations'));
 const stateRoot = path.join(os.homedir(), '.forge', 'sidecars');
+const node24RuntimeScript = path.join(scriptsRoot, 'forge-node24-runtime.mjs');
 
 const sidecars = {
   'open-design': {
     cwd: path.join(integrationsRoot, 'open-design'),
+    runtime: 'node24',
     startArgs: ['tools-dev', 'start', 'web'],
     stopArgs: ['tools-dev', 'stop'],
     statusArgs: ['tools-dev', 'status'],
   },
   'aionui': {
     cwd: path.join(integrationsRoot, 'aionui'),
+    runtime: 'ambient',
     startArgs: ['webui'],
     remoteArgs: ['webui:remote'],
     stopArgs: null,
@@ -32,10 +36,19 @@ const commandExists = command => {
 const pnpmInvocation = () => {
   if (commandExists('pnpm')) return { command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', prefix: [] };
   if (commandExists('corepack')) return { command: process.platform === 'win32' ? 'corepack.cmd' : 'corepack', prefix: ['pnpm'] };
-  throw new Error('pnpm is unavailable. Install pnpm or enable Corepack before starting Open Design/AionUi.');
+  throw new Error('pnpm is unavailable. Install pnpm or enable Corepack before starting AionUi. Open Design uses its own Forge-managed Node 24/pnpm runtime.');
 };
 
 const runPnpm = (args, options = {}) => {
+  if (options.runtime === 'node24') {
+    return spawnSync(process.execPath, [node24RuntimeScript, 'pnpm', '--cwd', options.cwd, '--', ...args], {
+      cwd: scriptsRoot,
+      encoding: 'utf8',
+      shell: false,
+      stdio: options.stdio || 'pipe',
+      timeout: options.timeout,
+    });
+  }
   const invocation = pnpmInvocation();
   return spawnSync(invocation.command, [...invocation.prefix, ...args], {
     cwd: options.cwd,
@@ -87,12 +100,13 @@ export const sidecarStatus = name => {
   const state = readState(name);
   let nativeStatus;
   if (spec.statusArgs) {
-    const result = runPnpm(spec.statusArgs, { cwd: spec.cwd, timeout: 30_000 });
+    const result = runPnpm(spec.statusArgs, { cwd: spec.cwd, runtime: spec.runtime, timeout: 30_000 });
     nativeStatus = { exitCode: result.status, stdout: String(result.stdout || '').slice(-8000), stderr: String(result.stderr || '').slice(-4000) };
   }
   return {
     name,
     path: spec.cwd,
+    runtime: spec.runtime,
     process: state ? { ...state, alive: processAlive(state.pid) } : null,
     nativeStatus,
   };
@@ -101,9 +115,10 @@ export const sidecarStatus = name => {
 export const startSidecar = (name, options = {}) => {
   const spec = specOf(name);
   if (name === 'open-design') {
-    const result = runPnpm(spec.startArgs, { cwd: spec.cwd, timeout: 120_000 });
+    const result = runPnpm(spec.startArgs, { cwd: spec.cwd, runtime: spec.runtime, timeout: 120_000 });
     if (result.error) throw result.error;
-    return { name, exitCode: result.status, stdout: String(result.stdout || '').slice(-12000), stderr: String(result.stderr || '').slice(-6000) };
+    if (result.status !== 0) throw new Error(`Open Design failed to start: ${String(result.stderr || result.stdout || '').slice(-6000)}`);
+    return { name, runtime: spec.runtime, exitCode: result.status, stdout: String(result.stdout || '').slice(-12000), stderr: String(result.stderr || '').slice(-6000) };
   }
 
   const child = spawnPnpm(options.remote ? spec.remoteArgs : spec.startArgs, {
@@ -138,8 +153,9 @@ const killProcessTree = pid => {
 export const stopSidecar = name => {
   const spec = specOf(name);
   if (spec.stopArgs) {
-    const result = runPnpm(spec.stopArgs, { cwd: spec.cwd, timeout: 60_000 });
-    return { name, exitCode: result.status, stdout: String(result.stdout || '').slice(-8000), stderr: String(result.stderr || '').slice(-4000) };
+    const result = runPnpm(spec.stopArgs, { cwd: spec.cwd, runtime: spec.runtime, timeout: 60_000 });
+    if (result.error) throw result.error;
+    return { name, runtime: spec.runtime, exitCode: result.status, stdout: String(result.stdout || '').slice(-8000), stderr: String(result.stderr || '').slice(-4000) };
   }
   const state = readState(name);
   if (!state?.pid) return { name, stopped: false, reason: 'No managed PID found.' };
