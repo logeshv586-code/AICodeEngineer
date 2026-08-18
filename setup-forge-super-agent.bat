@@ -37,6 +37,8 @@ call node scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-ui-contract-test.mjs
 if errorlevel 1 goto :failed
+call node scripts\forge-model-provider-contract-test.mjs
+if errorlevel 1 goto :failed
 call node scripts\forge-work-self-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\manage-skills.mjs validate
@@ -65,6 +67,7 @@ echo ============================================================
 echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
 echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
+echo Provider/model routing: registry, transport and connection-test coverage verified.
 echo.
 echo Agent Lightning source is present, but GPU/RL training remains deferred.
 echo Start Forge with:
