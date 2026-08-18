@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+const readBuffer = relative => fs.readFileSync(path.join(repoRoot, relative));
 const exists = relative => fs.existsSync(path.join(repoRoot, relative));
 const size = relative => exists(relative) ? fs.statSync(path.join(repoRoot, relative)).size : 0;
 const contains = (text, all) => all.every(token => text.includes(token));
+const sha256 = buffer => createHash('sha256').update(buffer).digest('hex');
 
 const files = {
 	product: read('product.json'),
@@ -47,8 +50,19 @@ const nativeAssets = [
 	'resources/win32/code_70x70.png',
 	'resources/linux/code.png',
 	'resources/darwin/code.icns',
+	'resources/forge/forge-mark-150.png',
 ];
-check('native icon assets present', nativeAssets.every(asset => size(asset) > 1024), 'Platform icon files must remain present for Windows, Linux, and macOS packaging.');
+check('native icon assets present', nativeAssets.every(asset => size(asset) > 1024), 'Platform icon files must remain present for Windows, Linux, macOS, and the canonical Forge raster source.');
+
+const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const linuxIcon = readBuffer('resources/linux/code.png');
+const win70 = readBuffer('resources/win32/code_70x70.png');
+const win150 = readBuffer('resources/win32/code_150x150.png');
+const canonicalRaster = readBuffer('resources/forge/forge-mark-150.png');
+const winIco = readBuffer('resources/win32/code.ico');
+const macIcns = readBuffer('resources/darwin/code.icns');
+check('native icon file signatures', linuxIcon.subarray(0, 8).equals(pngSignature) && win70.subarray(0, 8).equals(pngSignature) && win150.subarray(0, 8).equals(pngSignature) && winIco[0] === 0 && winIco[1] === 0 && winIco[2] === 1 && winIco[3] === 0 && macIcns.subarray(0, 4).toString('ascii') === 'icns', 'Native package icons must remain valid PNG, ICO, and ICNS files.');
+check('native raster uses Forge mark', sha256(linuxIcon) === sha256(canonicalRaster) && sha256(win150) === sha256(canonicalRaster), 'Linux and Windows 150px package icons must use the canonical Forge raster mark.');
 
 for (const item of checks) console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(32)} ${item.detail}`);
 const failed = checks.filter(item => !item.ok);
