@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------*/
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, ListChecks, Network, Palette, Plus, Settings, Sparkles } from 'lucide-react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
+import { Activity, Globe, ListChecks, Network, Palette, Plus, Settings, Sparkles } from 'lucide-react';
 import { useAccessor, useIsDark } from '../util/services.tsx';
 import '../styles.css';
 import { SidebarChat } from './SidebarChat.tsx';
@@ -79,6 +80,13 @@ export const Sidebar = ({ className }: { className: string }) => {
 			run: () => accessor.get('IChatThreadService').createNewThread(),
 		},
 		{
+			id: 'forge_browser',
+			label: 'Browser',
+			title: 'Inspect the persistent Forge browser',
+			icon: <Globe size={12} />,
+			run: () => runForgeTool('forge_browser', { action: 'snapshot' }, 'Browser'),
+		},
+		{
 			id: 'forge_understand',
 			label: 'Graph',
 			title: 'Inspect code graph status',
@@ -120,7 +128,7 @@ export const Sidebar = ({ className }: { className: string }) => {
 		return '';
 	}, []);
 
-	const handleResponseActionCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+	const handleResponseActionCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
 		const target = event.target as HTMLElement | null;
 		const button = target?.closest<HTMLButtonElement>('button[title]');
 		if (!button || !ACTION_TITLES.has(button.title)) return;
