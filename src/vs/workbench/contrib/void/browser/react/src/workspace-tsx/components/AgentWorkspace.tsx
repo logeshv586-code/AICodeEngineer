@@ -1,11 +1,12 @@
 /*--------------------------------------------------------------------------------------
  *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
- *  Licensed under the Apache License, Version 2.0 See LICENSE.txt for more information.
+ *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useForgeBridge } from '../hooks/useForgeBridge';
-import { useAccessor } from '../../util/services.tsx';
+import { useAccessor, useSettingsState } from '../../util/services.tsx';
+import { getCapabilityManifest, ModelCapability } from '../utils/modelCapabilityManifest.js';
 import { TopBar } from './TopBar';
 import { LeftToolbar } from './LeftToolbar';
 import { RightPanel, RightPanelTab } from './RightPanel';
@@ -14,13 +15,37 @@ import { AgentsView } from './AgentsView';
 import { WorkflowsView } from './WorkflowsView';
 import { PlanViewInWorkspace } from './PlanViewInWorkspace';
 
+const noModelCapabilities: ModelCapability = {
+	canReason: false,
+	canEdit: false,
+	canUseTools: false,
+	canAcceptAttachments: true,
+	canUseVoice: false,
+	canUseImages: false,
+	canUseArt: false,
+	canUseCodeExecution: false,
+	maxContextTokens: null,
+	supportsStreaming: false,
+	supportsMultiAgent: false,
+	supportsTaskMode: false,
+	reasoningBudgetSlider: null,
+	reasoningEffortOptions: null,
+};
+
 export const AgentWorkspace: React.FC = () => {
 	const bridge = useForgeBridge();
 	const accessor = useAccessor();
+	const settingsState = useSettingsState();
 	const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('agents');
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 	const [activeTool, setActiveTool] = useState<'agents' | 'workflows' | 'plan'>('agents');
 	const [activeFeature, setActiveFeature] = useState('Agent');
+
+	const chatModel = settingsState.modelSelectionOfFeature.Chat;
+	const modelCapabilities = useMemo(() => chatModel
+		? getCapabilityManifest(chatModel.providerName, chatModel.modelName, settingsState.overridesOfModel)
+		: noModelCapabilities,
+	[chatModel, settingsState.overridesOfModel]);
 
 	const notify = useCallback((message: string, error = false) => {
 		try {
@@ -60,9 +85,7 @@ export const AgentWorkspace: React.FC = () => {
 		bridge.cancelWorkflow(workflowId);
 		const chat = accessor.get('IChatThreadService');
 		const threadId = chat.state.currentThreadId;
-		if (threadId) {
-			void chat.abortRunning(threadId).catch(error => notify(`Could not stop the active agent run: ${error instanceof Error ? error.message : String(error)}`, true));
-		}
+		if (threadId) void chat.abortRunning(threadId).catch(error => notify(`Could not stop the active agent run: ${error instanceof Error ? error.message : String(error)}`, true));
 	}, [accessor, bridge, notify]);
 
 	const rerunActivePlan = useCallback(() => {
@@ -100,7 +123,15 @@ export const AgentWorkspace: React.FC = () => {
 
 	return (
 		<div className='flex flex-col h-full bg-void-bg-2 text-void-fg-1'>
-			<TopBar providerName={null} modelName='Forge' capabilities={{ canReason: true, canUseTools: true, canUseVoice: false, canUseImages: false }} isConnected={true} isStreaming={bridge.state.planMode === 'running'} activeFeature={activeFeature} onFeatureChange={handleFeatureChange} />
+			<TopBar
+				providerName={chatModel?.providerName ?? null}
+				modelName={chatModel?.modelName ?? 'No model'}
+				capabilities={modelCapabilities}
+				isConnected={!!chatModel}
+				isStreaming={bridge.state.planMode === 'running'}
+				activeFeature={activeFeature}
+				onFeatureChange={handleFeatureChange}
+			/>
 
 			<div className='flex flex-1 overflow-hidden'>
 				<LeftToolbar activeTool={activeTool} onToolChange={handleToolChange} hasActiveThread={!!bridge.activeWorkflow} threadCount={bridge.state.workflows.length} isRightPanelOpen={isRightPanelOpen} onToggleRightPanel={() => setIsRightPanelOpen(value => !value)} />
@@ -124,12 +155,12 @@ export const AgentWorkspace: React.FC = () => {
 					onClose={() => setIsRightPanelOpen(false)}
 					agents={bridge.state.agents}
 					activeAgentName={bridge.state.selectedAgentId ? bridge.state.agents.find(agent => agent.id === bridge.state.selectedAgentId)?.name : undefined}
-					providerName='Forge'
-					modelName={bridge.selectedAgent?.name ?? 'Forge Agent'}
+					providerName={chatModel?.providerName ?? 'No provider'}
+					modelName={chatModel?.modelName ?? 'No model'}
 				/>
 			</div>
 
-			<BottomStatusBar contextTokens={0} maxContextTokens={null} gpuMemoryUsage={null} gpuMemoryTotal={null} cpuUsage={null} latencyMs={null} isRunning={bridge.state.planMode === 'running'} activeTool={activeTool} threadId={bridge.state.activeWorkflowId ?? undefined} />
+			<BottomStatusBar contextTokens={0} maxContextTokens={modelCapabilities.maxContextTokens} gpuMemoryUsage={null} gpuMemoryTotal={null} cpuUsage={null} latencyMs={null} isRunning={bridge.state.planMode === 'running'} activeTool={activeTool} threadId={bridge.state.activeWorkflowId ?? undefined} />
 		</div>
 	);
 };
