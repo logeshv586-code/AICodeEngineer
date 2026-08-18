@@ -11,7 +11,8 @@ pushd "%~dp0"
 where node >nul 2>&1
 if errorlevel 1 (
     echo [forge] Node.js is not available on PATH.
-    echo [forge] Install the repository Node.js version, then run setup-forge-super-agent.bat.
+    echo [forge] Install the repository Node.js version.
+    echo [forge] Run setup-forge-super-agent.bat from Command Prompt, or .\setup-forge-super-agent.bat from PowerShell.
     popd
     exit /b 1
 )
@@ -47,13 +48,15 @@ rem until the later GPU/RL training phase and is not required for normal startup
 call node "%~dp0scripts\forge-integrations.mjs" verify active >nul 2>&1
 if errorlevel 1 (
     echo [forge-super-agent] Active integrations are not fully installed.
-    echo [forge-super-agent] Run setup-forge-super-agent.bat once to install them under %%USERPROFILE%%\.forge\integrations.
+    echo [forge-super-agent] Run setup-forge-super-agent.bat from Command Prompt, or .\setup-forge-super-agent.bat from PowerShell.
+    echo [forge-super-agent] Integrations install under %%USERPROFILE%%\.forge\integrations.
 )
 
 rem Validate and self-repair all core, Forge, React, skill, and Super Agent runtime artifacts before launch.
 call node "%~dp0scripts\forge-runtime-guard.mjs"
 if errorlevel 1 (
     echo [forge-guard] Build validation failed. Electron will not be launched.
+    echo [forge-guard] From PowerShell, repair with: .\setup-forge-super-agent.bat
     popd
     exit /b 1
 )
@@ -61,7 +64,7 @@ if errorlevel 1 (
 set "FORGE_ELECTRON=%~dp0node_modules\electron\dist\electron.exe"
 if not exist "%FORGE_ELECTRON%" (
     echo [forge] Electron runtime is missing: %FORGE_ELECTRON%
-    echo [forge] Run setup-forge-super-agent.bat to restore dependencies and validate the build.
+    echo [forge] Run setup-forge-super-agent.bat from Command Prompt, or .\setup-forge-super-agent.bat from PowerShell.
     popd
     exit /b 1
 )
