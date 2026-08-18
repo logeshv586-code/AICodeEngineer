@@ -10,6 +10,19 @@ on:
       - 'skill_library/**'
       - 'skill_registry.json'
       - 'forge-integrations.lock.json'
+      - 'product.json'
+      - 'resources/forge/**'
+      - 'resources/win32/VisualElementsManifest.xml'
+      - 'resources/win32/code.ico'
+      - 'resources/win32/code_150x150.png'
+      - 'resources/win32/code_70x70.png'
+      - 'resources/linux/code.png'
+      - 'resources/linux/code.desktop'
+      - 'resources/linux/code-url-handler.desktop'
+      - 'resources/linux/code.appdata.xml'
+      - 'resources/darwin/code.icns'
+      - 'setup-forge-super-agent.bat'
+      - 'run-forge-ide.bat'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/forge-ci.yml'
@@ -22,6 +35,19 @@ on:
       - 'skill_library/**'
       - 'skill_registry.json'
       - 'forge-integrations.lock.json'
+      - 'product.json'
+      - 'resources/forge/**'
+      - 'resources/win32/VisualElementsManifest.xml'
+      - 'resources/win32/code.ico'
+      - 'resources/win32/code_150x150.png'
+      - 'resources/win32/code_70x70.png'
+      - 'resources/linux/code.png'
+      - 'resources/linux/code.desktop'
+      - 'resources/linux/code-url-handler.desktop'
+      - 'resources/linux/code.appdata.xml'
+      - 'resources/darwin/code.icns'
+      - 'setup-forge-super-agent.bat'
+      - 'run-forge-ide.bat'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/forge-ci.yml'
@@ -52,6 +78,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Brand and desktop contract test
+        run: node scripts/forge-brand-contract-test.mjs
 
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
