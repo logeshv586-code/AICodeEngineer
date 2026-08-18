@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Activity, Globe, ListChecks, Network, Palette, Plus, Settings, Sparkles } from 'lucide-react';
 import { useAccessor, useIsDark } from '../util/services.tsx';
@@ -13,10 +13,23 @@ import ErrorBoundary from './ErrorBoundary.tsx';
 
 const ACTION_TITLES = new Set(['Like', 'Dislike', 'Copy response', 'Fork / Branch thread']);
 
+type PendingWorkItem = {
+	id: string;
+	workflowId: string;
+	kind: 'prompt' | 'command';
+	title: string;
+	prompt?: string;
+	command?: string;
+	cwd?: string;
+	scheduledFor?: string;
+	status: 'agent_required' | 'approval_required';
+};
+
 export const Sidebar = ({ className }: { className: string }) => {
 	const isDark = useIsDark();
 	const accessor = useAccessor();
 	const [busyAction, setBusyAction] = useState<string | null>(null);
+	const seenApprovalIds = useRef(new Set<string>());
 
 	useEffect(() => {
 		const workbench = document.querySelector<HTMLElement>('.monaco-workbench');
@@ -52,13 +65,34 @@ export const Sidebar = ({ className }: { className: string }) => {
 		}
 	}, [accessor]);
 
+	const getForgeMcp = useCallback(() => {
+		const mcp = accessor.get('IMCPService');
+		const ready = mcp.getMCPTools()?.some(item => item.mcpServerName === 'forge-super-agent');
+		return ready ? mcp : null;
+	}, [accessor]);
+
+	const callForgeToolJson = useCallback(async <T,>(toolName: string, params: Record<string, unknown>): Promise<T | null> => {
+		const mcp = getForgeMcp();
+		if (!mcp) return null;
+		const installed = mcp.getMCPTools()?.some(item => item.mcpServerName === 'forge-super-agent' && item.name === toolName);
+		if (!installed) return null;
+		const { result } = await mcp.callMCPTool({ serverName: 'forge-super-agent', toolName, params });
+		const text = mcp.stringifyResult(result).trim();
+		try { return JSON.parse(text) as T; }
+		catch { return null; }
+	}, [getForgeMcp]);
+
 	const runForgeTool = useCallback(async (toolName: string, params: Record<string, unknown>, label: string) => {
 		setBusyAction(toolName);
 		try {
-			const mcp = accessor.get('IMCPService');
+			const mcp = getForgeMcp();
+			if (!mcp) {
+				notify('warn', 'Forge Super Agent MCP is not ready. Run the bootstrap command and restart Forge.');
+				return;
+			}
 			const tool = mcp.getMCPTools()?.find(item => item.mcpServerName === 'forge-super-agent' && item.name === toolName);
 			if (!tool) {
-				notify('warn', 'Forge Super Agent MCP is not ready. Run the bootstrap command and restart Forge.');
+				notify('warn', `Forge tool ${toolName} is not available.`);
 				return;
 			}
 			const { result } = await mcp.callMCPTool({ serverName: 'forge-super-agent', toolName, params });
@@ -69,7 +103,75 @@ export const Sidebar = ({ className }: { className: string }) => {
 		} finally {
 			setBusyAction(null);
 		}
-	}, [accessor, notify]);
+	}, [getForgeMcp, notify]);
+
+	// Work Mode's scheduler daemon persists due prompt work into a pending queue.
+	// Drain that queue only while Forge is open. Prompt jobs run sequentially in
+	// dedicated chat threads; command jobs remain pending until explicitly approved.
+	useEffect(() => {
+		let disposed = false;
+		let polling = false;
+
+		const poll = async () => {
+			if (disposed || polling) return;
+			polling = true;
+			try {
+				const pending = await callForgeToolJson<PendingWorkItem[]>('forge_workflow', { action: 'pending' });
+				if (!pending || !Array.isArray(pending)) return;
+
+				for (const item of pending) {
+					if (disposed) return;
+					if (item.status === 'approval_required') {
+						if (!seenApprovalIds.current.has(item.id)) {
+							seenApprovalIds.current.add(item.id);
+							notify('warn', `Work Mode task "${item.title}" is waiting for command approval. Open Work Mode to review it.`);
+						}
+						continue;
+					}
+					if (item.status !== 'agent_required' || !item.prompt) continue;
+
+					const chat = accessor.get('IChatThreadService');
+					const threadId = chat.createNewThread();
+					const scheduledPrompt = [
+						`Scheduled Work Mode task: ${item.title}`,
+						item.scheduledFor ? `Scheduled for: ${item.scheduledFor}` : '',
+						item.prompt,
+						'Complete this task autonomously using the normal Forge safety and approval boundaries. Inspect only the context you need, use tools, verify the outcome, and report what changed.',
+					].filter(Boolean).join('\n\n');
+
+					try {
+						notify('info', `Work Mode started: ${item.title}`);
+						await chat.addUserMessageAndStreamResponse({ threadId, userMessage: scheduledPrompt });
+						await callForgeToolJson('forge_workflow', {
+							action: 'ack',
+							pendingId: item.id,
+							result: { status: 'completed', completedAt: new Date().toISOString(), threadId },
+						});
+						notify('info', `Work Mode completed: ${item.title}`);
+					} catch (error) {
+						await callForgeToolJson('forge_workflow', {
+							action: 'ack',
+							pendingId: item.id,
+							result: { status: 'failed', completedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error), threadId },
+						});
+						notify('error', `Work Mode failed: ${item.title} — ${error instanceof Error ? error.message : String(error)}`);
+					}
+				}
+			} catch (error) {
+				console.warn('[Forge Work Mode] Pending-work poll failed:', error);
+			} finally {
+				polling = false;
+			}
+		};
+
+		const initialTimer = window.setTimeout(() => { void poll(); }, 5_000);
+		const interval = window.setInterval(() => { void poll(); }, 60_000);
+		return () => {
+			disposed = true;
+			window.clearTimeout(initialTimer);
+			window.clearInterval(interval);
+		};
+	}, [accessor, callForgeToolJson, notify]);
 
 	const quickActions = useMemo(() => [
 		{
@@ -101,7 +203,7 @@ export const Sidebar = ({ className }: { className: string }) => {
 			label: 'Work',
 			title: 'Inspect Work Mode automations',
 			icon: <ListChecks size={12} />,
-			run: () => runForgeTool('forge_workflow', { action: 'list' }, 'Work Mode'),
+			run: () => runForgeTool('forge_workflow', { action: 'status' }, 'Work Mode'),
 		},
 		{
 			id: 'forge_sidecar',
