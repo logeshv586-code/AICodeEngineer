@@ -12,6 +12,8 @@ import { SidebarChat } from './SidebarChat.tsx';
 import ErrorBoundary from './ErrorBoundary.tsx';
 
 const ACTION_TITLES = new Set(['Like', 'Dislike', 'Copy response', 'Fork / Branch thread']);
+const WORK_CLAIM_LEASE_MS = 60 * 60_000;
+const WORK_CLAIM_RENEW_MS = 10 * 60_000;
 
 type PendingWorkItem = {
 	id: string;
@@ -80,23 +82,16 @@ export const Sidebar = ({ className }: { className: string }) => {
 		if (!installed) return null;
 		const { result } = await mcp.callMCPTool({ serverName: 'forge-super-agent', toolName, params });
 		const text = mcp.stringifyResult(result).trim();
-		try { return JSON.parse(text) as T; }
-		catch { return null; }
+		try { return JSON.parse(text) as T; } catch { return null; }
 	}, [getForgeMcp]);
 
 	const runForgeTool = useCallback(async (toolName: string, params: Record<string, unknown>, label: string) => {
 		setBusyAction(toolName);
 		try {
 			const mcp = getForgeMcp();
-			if (!mcp) {
-				notify('warn', 'Forge Super Agent MCP is not ready. Run the bootstrap command and restart Forge.');
-				return;
-			}
+			if (!mcp) { notify('warn', 'Forge Super Agent MCP is not ready. Run the bootstrap command and restart Forge.'); return; }
 			const tool = mcp.getMCPTools()?.find(item => item.mcpServerName === 'forge-super-agent' && item.name === toolName);
-			if (!tool) {
-				notify('warn', `Forge tool ${toolName} is not available.`);
-				return;
-			}
+			if (!tool) { notify('warn', `Forge tool ${toolName} is not available.`); return; }
 			const { result } = await mcp.callMCPTool({ serverName: 'forge-super-agent', toolName, params });
 			const text = mcp.stringifyResult(result).replace(/\s+/g, ' ').trim();
 			notify('info', `${label}: ${text.slice(0, 900) || 'OK'}`);
@@ -107,12 +102,19 @@ export const Sidebar = ({ className }: { className: string }) => {
 		}
 	}, [getForgeMcp, notify]);
 
-	// The daemon persists due prompt workflows into a queue. Every Forge window
-	// can inspect that queue, but only the window that obtains the leased claim
-	// executes the prompt. This prevents duplicate scheduled agent runs.
 	useEffect(() => {
 		let disposed = false;
 		let polling = false;
+
+		const renewClaim = async (id: string) => {
+			const renewed = await callForgeToolJson<PendingWorkItem>('forge_workflow', {
+				action: 'claim',
+				id,
+				claimant: workModeConsumerId.current,
+				leaseMs: WORK_CLAIM_LEASE_MS,
+			});
+			if (!renewed) throw new Error('Work Mode claim lease could not be renewed.');
+		};
 
 		const poll = async () => {
 			if (disposed || polling) return;
@@ -136,7 +138,7 @@ export const Sidebar = ({ className }: { className: string }) => {
 						action: 'claim',
 						id: queuedItem.id,
 						claimant: workModeConsumerId.current,
-						leaseMs: 60 * 60_000,
+						leaseMs: WORK_CLAIM_LEASE_MS,
 					});
 					if (!item || item.status !== 'agent_required' || !item.prompt) continue;
 
@@ -149,22 +151,20 @@ export const Sidebar = ({ className }: { className: string }) => {
 						'Complete this task autonomously using the normal Forge safety and approval boundaries. Inspect only the context you need, use tools, verify the outcome, and report what changed.',
 					].filter(Boolean).join('\n\n');
 
+					let renewalTimer: number | undefined;
 					try {
 						notify('info', `Work Mode started: ${item.title}`);
+						renewalTimer = window.setInterval(() => {
+							void renewClaim(item.id).catch(error => console.warn(`[Forge Work Mode] ${error instanceof Error ? error.message : String(error)}`));
+						}, WORK_CLAIM_RENEW_MS);
 						await chat.addUserMessageAndStreamResponse({ threadId, userMessage: scheduledPrompt });
-						await callForgeToolJson('forge_workflow', {
-							action: 'ack',
-							id: item.id,
-							result: { status: 'completed', completedAt: new Date().toISOString(), threadId, claimant: workModeConsumerId.current },
-						});
+						await callForgeToolJson('forge_workflow', { action: 'ack', id: item.id, result: { status: 'completed', completedAt: new Date().toISOString(), threadId, claimant: workModeConsumerId.current } });
 						notify('info', `Work Mode completed: ${item.title}`);
 					} catch (error) {
-						await callForgeToolJson('forge_workflow', {
-							action: 'ack',
-							id: item.id,
-							result: { status: 'failed', completedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error), threadId, claimant: workModeConsumerId.current },
-						});
+						await callForgeToolJson('forge_workflow', { action: 'ack', id: item.id, result: { status: 'failed', completedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error), threadId, claimant: workModeConsumerId.current } });
 						notify('error', `Work Mode failed: ${item.title} — ${error instanceof Error ? error.message : String(error)}`);
+					} finally {
+						if (renewalTimer !== undefined) window.clearInterval(renewalTimer);
 					}
 				}
 			} catch (error) {
@@ -184,33 +184,12 @@ export const Sidebar = ({ className }: { className: string }) => {
 	}, [accessor, callForgeToolJson, notify]);
 
 	const quickActions = useMemo(() => [
-		{
-			id: 'new-chat', label: 'New', title: 'New Forge chat', icon: <Plus size={12} />,
-			run: () => accessor.get('IChatThreadService').createNewThread(),
-		},
-		{
-			id: 'forge_browser', label: 'Browser', title: 'Inspect the persistent Forge browser', icon: <Globe size={12} />,
-			run: () => runForgeTool('forge_browser', { action: 'snapshot' }, 'Browser'),
-		},
-		{
-			id: 'forge_understand', label: 'Graph', title: 'Inspect code graph status', icon: <Network size={12} />,
-			run: () => {
-				const workspace = accessor.get('IWorkspaceContextService').getWorkspace().folders[0]?.uri.fsPath;
-				return runForgeTool('forge_understand', { action: 'status', ...(workspace ? { workspace } : {}) }, 'Code graph');
-			},
-		},
-		{
-			id: 'forge_workflow', label: 'Work', title: 'Inspect Work Mode automations', icon: <ListChecks size={12} />,
-			run: () => runForgeTool('forge_workflow', { action: 'status' }, 'Work Mode'),
-		},
-		{
-			id: 'forge_sidecar', label: 'Design', title: 'Inspect Open Design runtime', icon: <Palette size={12} />,
-			run: () => runForgeTool('forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design'),
-		},
-		{
-			id: 'forge_integrations', label: 'Health', title: 'Inspect Forge integration health', icon: <Activity size={12} />,
-			run: () => runForgeTool('forge_integrations', { action: 'doctor' }, 'Integrations'),
-		},
+		{ id: 'new-chat', label: 'New', title: 'New Forge chat', icon: <Plus size={12} />, run: () => accessor.get('IChatThreadService').createNewThread() },
+		{ id: 'forge_browser', label: 'Browser', title: 'Inspect the persistent Forge browser', icon: <Globe size={12} />, run: () => runForgeTool('forge_browser', { action: 'snapshot' }, 'Browser') },
+		{ id: 'forge_understand', label: 'Graph', title: 'Inspect code graph status', icon: <Network size={12} />, run: () => { const workspace = accessor.get('IWorkspaceContextService').getWorkspace().folders[0]?.uri.fsPath; return runForgeTool('forge_understand', { action: 'status', ...(workspace ? { workspace } : {}) }, 'Code graph'); } },
+		{ id: 'forge_workflow', label: 'Work', title: 'Inspect Work Mode automations', icon: <ListChecks size={12} />, run: () => runForgeTool('forge_workflow', { action: 'status' }, 'Work Mode') },
+		{ id: 'forge_sidecar', label: 'Design', title: 'Inspect Open Design runtime', icon: <Palette size={12} />, run: () => runForgeTool('forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design') },
+		{ id: 'forge_integrations', label: 'Health', title: 'Inspect Forge integration health', icon: <Activity size={12} />, run: () => runForgeTool('forge_integrations', { action: 'doctor' }, 'Integrations') },
 	], [accessor, runForgeTool]);
 
 	const findAssistantText = useCallback((button: HTMLButtonElement): string => {
@@ -233,62 +212,31 @@ export const Sidebar = ({ className }: { className: string }) => {
 		if (title === 'Copy response') {
 			const text = findAssistantText(button);
 			if (!text) return notify('warn', 'Could not locate this response text.');
-			void navigator.clipboard.writeText(text)
-				.then(() => notify('info', 'Response copied.'))
-				.catch(error => notify('error', `Copy failed: ${error instanceof Error ? error.message : String(error)}`));
+			void navigator.clipboard.writeText(text).then(() => notify('info', 'Response copied.')).catch(error => notify('error', `Copy failed: ${error instanceof Error ? error.message : String(error)}`));
 			return;
 		}
-
 		if (title === 'Fork / Branch thread') {
-			try {
-				const threads = accessor.get('IChatThreadService');
-				threads.duplicateThread(threads.state.currentThreadId);
-				notify('info', 'Thread duplicated.');
-			} catch (error) {
-				notify('error', `Could not duplicate thread: ${error instanceof Error ? error.message : String(error)}`);
-			}
+			try { const threads = accessor.get('IChatThreadService'); threads.duplicateThread(threads.state.currentThreadId); notify('info', 'Thread duplicated.'); }
+			catch (error) { notify('error', `Could not duplicate thread: ${error instanceof Error ? error.message : String(error)}`); }
 			return;
 		}
-
 		const rating = title === 'Like' ? 'positive' : 'negative';
 		try {
 			accessor.get('IMetricsService').capture('Forge Assistant Response Feedback', { rating, source: 'compact-sidebar' });
 			button.setAttribute('aria-pressed', 'true');
 			button.classList.add(rating === 'positive' ? 'text-emerald-400' : 'text-red-400');
 			notify('info', rating === 'positive' ? 'Feedback recorded.' : 'Feedback recorded. Forge will use validated outcomes for future improvement.');
-		} catch (error) {
-			notify('error', `Could not record feedback: ${error instanceof Error ? error.message : String(error)}`);
-		}
+		} catch (error) { notify('error', `Could not record feedback: ${error instanceof Error ? error.message : String(error)}`); }
 	}, [accessor, findAssistantText, notify]);
 
-	return <div
-		className={`@@void-scope ${isDark ? 'dark' : ''}`}
-		style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}
-		onClickCapture={handleResponseActionCapture}
-	>
+	return <div className={`@@void-scope ${isDark ? 'dark' : ''}`} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }} onClickCapture={handleResponseActionCapture}>
 		<div className='w-full h-full min-w-0 min-h-0 overflow-hidden bg-void-bg-2 text-void-fg-1 flex flex-col'>
 			<div className='shrink-0 flex items-center gap-1 px-2 py-1.5 border-b border-zinc-800/60 bg-zinc-950/50'>
-				<div className='flex items-center gap-1.5 min-w-0 mr-auto'>
-					<Sparkles size={13} className='text-emerald-400 shrink-0' />
-					<span className='text-[10px] font-semibold text-zinc-300 truncate'>Forge Super Agent</span>
-				</div>
-				{quickActions.map(action => (
-					<button
-						key={action.id}
-						type='button'
-						onClick={() => { void Promise.resolve(action.run()); }}
-						disabled={!!busyAction && action.id !== 'new-chat'}
-						className={`h-6 px-1.5 flex items-center gap-1 rounded border border-zinc-800/60 text-[9px] text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/70 transition-colors disabled:opacity-35 ${busyAction === action.id ? 'text-emerald-400 animate-pulse' : ''}`}
-						title={action.title}
-					>
-						{action.icon}<span className='hidden 2xl:inline'>{action.label}</span>
-					</button>
-				))}
+				<div className='flex items-center gap-1.5 min-w-0 mr-auto'><Sparkles size={13} className='text-emerald-400 shrink-0' /><span className='text-[10px] font-semibold text-zinc-300 truncate'>Forge Super Agent</span></div>
+				{quickActions.map(action => <button key={action.id} type='button' onClick={() => { void Promise.resolve(action.run()); }} disabled={!!busyAction && action.id !== 'new-chat'} className={`h-6 px-1.5 flex items-center gap-1 rounded border border-zinc-800/60 text-[9px] text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/70 transition-colors disabled:opacity-35 ${busyAction === action.id ? 'text-emerald-400 animate-pulse' : ''}`} title={action.title}>{action.icon}<span className='hidden 2xl:inline'>{action.label}</span></button>)}
 				<button type='button' onClick={() => { void accessor.get('ICommandService').executeCommand('workbench.action.openVoidSettings'); }} className='h-6 w-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70' title='Forge settings' aria-label='Forge settings'><Settings size={12} /></button>
 			</div>
-			<div className={`w-full flex-1 min-h-0 ${className}`}>
-				<ErrorBoundary><SidebarChat /></ErrorBoundary>
-			</div>
+			<div className={`w-full flex-1 min-h-0 ${className}`}><ErrorBoundary><SidebarChat /></ErrorBoundary></div>
 		</div>
 	</div>;
 };
