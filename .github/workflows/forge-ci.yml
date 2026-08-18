@@ -106,3 +106,58 @@ jobs:
 
       - name: Verify runtime artifacts
         run: node scripts/forge-runtime-guard.mjs
+
+  windows-electron:
+    name: Windows Electron build gate
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use repository Node version
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Brand and Windows launcher contracts
+        run: node scripts/forge-brand-contract-test.mjs
+
+      - name: UI contract test
+        run: node scripts/forge-ui-contract-test.mjs
+
+      - name: Work Mode queue and claim test
+        run: node scripts/forge-work-self-test.mjs
+
+      - name: Validate 333-skill library
+        run: node scripts/manage-skills.mjs validate
+
+      - name: Compile core TypeScript
+        run: npm run compile
+
+      - name: Build Forge React UI
+        run: npm run buildreact
+
+      - name: Verify runtime artifacts
+        run: node scripts/forge-runtime-guard.mjs
+
+      - name: Verify Windows Electron executable
+        shell: pwsh
+        run: |
+          $electron = Join-Path $PWD 'node_modules\electron\dist\electron.exe'
+          if (-not (Test-Path $electron)) {
+            throw "Forge Electron executable was not installed at $electron"
+          }
+          $version = & $electron --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Forge Electron executable failed with exit code $LASTEXITCODE"
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw 'Forge Electron executable returned an empty version.'
+          }
+          Write-Host "Forge Windows Electron runtime: $version"
