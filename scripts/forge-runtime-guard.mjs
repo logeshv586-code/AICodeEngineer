@@ -33,6 +33,7 @@ const requiredSuperAgentFiles = [
 	'scripts/forge-super-agent-bootstrap.mjs',
 	'scripts/forge-super-agent-self-test.mjs',
 	'scripts/forge-ui-contract-test.mjs',
+	'scripts/forge-brand-contract-test.mjs',
 	'scripts/forge-work-self-test.mjs',
 	'scripts/forge-mcp-server.mjs',
 	'scripts/forge-integrations.mjs',
@@ -43,6 +44,12 @@ const requiredSuperAgentFiles = [
 	'scripts/forge-learning.mjs',
 	'scripts/forge-sidecars.mjs',
 	'scripts/lib/forge-browser-controller.mjs',
+	'resources/forge/forge-mark.svg',
+	'resources/win32/code.ico',
+	'resources/win32/code_150x150.png',
+	'resources/win32/code_70x70.png',
+	'resources/linux/code.png',
+	'resources/darwin/code.icns',
 ];
 
 const missingFiles = () => requiredRuntimeFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
@@ -62,6 +69,7 @@ const run = (command, args) => {
 };
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const nodeCommand = process.execPath;
 const initialMissing = coreRuntimeFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
 
 if (initialMissing.length > 0) {
@@ -82,8 +90,13 @@ if (remainingMissing.length > 0) {
 
 const missingSuperAgent = requiredSuperAgentFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
 if (missingSuperAgent.length > 0) {
-	console.error('[forge-guard] Refusing to launch: Super Agent source assets are missing.');
+	console.error('[forge-guard] Refusing to launch: Super Agent or Forge brand assets are missing.');
 	missingSuperAgent.forEach(file => console.error(`  - ${file}`));
+	process.exit(1);
+}
+
+if (run(nodeCommand, ['scripts/forge-brand-contract-test.mjs']) !== 0) {
+	console.error('[forge-guard] Refusing to launch: Forge brand/product contract failed.');
 	process.exit(1);
 }
 
@@ -145,4 +158,4 @@ try {
 	process.exit(1);
 }
 
-console.log('[forge-guard] Runtime artifacts, 333-skill library, and Super Agent assets verified.');
+console.log('[forge-guard] Runtime artifacts, Forge brand, 333-skill library, and Super Agent assets verified.');
