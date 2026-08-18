@@ -41,19 +41,23 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Use repository Node version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
           cache: npm
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
 
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
+
+      - name: Work Mode queue and claim test
+        run: node scripts/forge-work-self-test.mjs
 
       - name: Validate 333-skill library
         run: node scripts/manage-skills.mjs validate
