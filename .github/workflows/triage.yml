@@ -1,9 +1,12 @@
-name: Issue Triage to Wiki
+name: Forge Issue Triage to Wiki
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'    # every 6 hrs (UTC)
+    - cron: '0 */6 * * *'
+
+permissions:
+  contents: read
 
 jobs:
   roadmap:
@@ -17,53 +20,53 @@ jobs:
           WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
         run: |
           if [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo "OPENAI_API_KEY is not set - skipping triage run."
+            echo "OPENAI_API_KEY is not set - skipping Forge triage run."
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit
           fi
           if [ -z "${WIKI_TOKEN:-}" ]; then
-            echo "WIKI_TOKEN is not set - skipping triage run."
+            echo "WIKI_TOKEN is not set - skipping Forge triage run."
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
-      # 1️⃣ Check out code (so the script and cache files are present)
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 1    # shallow clone
 
-      # 2️⃣ Set up Python
+      - name: Checkout Forge
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Set up Python
         if: steps.secrets.outputs.ready == 'true'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      # 3️⃣ Install dependencies
       - name: Install Python dependencies
         if: steps.secrets.outputs.ready == 'true'
-        run: |
-          pip install openai requests
+        run: python -m pip install --disable-pip-version-check openai requests
 
-      # 4️⃣ Clone your fork’s Wiki
-      - name: Clone your fork's Wiki
+      - name: Clone Forge Wiki
         if: steps.secrets.outputs.ready == 'true'
-        run: |
-          git clone "https://x-access-token:${{ secrets.WIKI_TOKEN }}@github.com/logeshv586-code/AICodeEngineer.wiki.git" wiki
+        env:
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
+        run: git clone "https://x-access-token:${WIKI_TOKEN}@github.com/logeshv586-code/AICodeEngineer.wiki.git" wiki
 
-      # 5️⃣ (Optional) Show repo tree for debugging
-      - name: Show repo tree (debug)
+      - name: Show Forge triage inputs
         if: steps.secrets.outputs.ready == 'true'
         run: |
           echo "PWD: $(pwd)"
-          ls -al
-          ls -al .github/scripts || true
-          ls -al void/.github/scripts || true
+          ls -al .github/scripts
+          test -f .github/scripts/issue_triage.py
 
-      # 6️⃣ Generate roadmap and push only if it changed
-      - name: Generate roadmap directly into wiki
+      - name: Generate Forge roadmap and push if changed
         if: steps.secrets.outputs.ready == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.WIKI_TOKEN }}
+          FORGE_TRIAGE_REPO: logeshv586-code/AICodeEngineer
         run: |
           python .github/scripts/issue_triage.py > wiki/_new.md
           if ! cmp -s wiki/_new.md wiki/Issue-Categories.md ; then
@@ -72,11 +75,9 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add Issue-Categories.md
-            git commit -m "Auto-update Issue-Categories.md from GPT triage"
+            git commit -m "Auto-update Forge Issue-Categories.md"
             git push
           else
-            echo "No content change – skipping wiki update"
+            rm -f wiki/_new.md
+            echo "No Forge roadmap change - skipping wiki update"
           fi
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN:   ${{ secrets.WIKI_TOKEN }}
