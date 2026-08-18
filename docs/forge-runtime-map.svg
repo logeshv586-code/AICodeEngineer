@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title desc">
+  <title id="title">Forge Runtime Map</title>
+  <desc id="desc">Architecture map of Forge UI, orchestration, provider routing, tools, skills and verification gates.</desc>
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#101B30"/><stop offset="1" stop-color="#0A1323"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8B8DFF"/><stop offset="0.5" stop-color="#55D8FF"/><stop offset="1" stop-color="#F4C668"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.28"/></filter>
+  </defs>
+  <rect width="1500" height="760" rx="32" fill="#07111F"/>
+  <text x="750" y="70" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="36" font-weight="800" fill="#F7FAFF">Forge runtime: one intent, many verified execution paths</text>
+  <rect x="130" y="108" width="1240" height="4" rx="2" fill="url(#accent)"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif" filter="url(#shadow)">
+    <g transform="translate(85 160)"><rect width="285" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#55D8FF">1 · Forge UI</text><text x="26" y="78" font-size="17" fill="#C8D5E9">Chat • attachments • history</text><text x="26" y="105" font-size="17" fill="#C8D5E9">Stop/abort • slash commands</text><text x="26" y="132" font-size="17" fill="#C8D5E9">Settings • model selection</text></g>
+    <g transform="translate(410 160)"><rect width="285" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#8B8DFF">2 · Super Agent</text><text x="26" y="78" font-size="17" fill="#C8D5E9">Intent + context routing</text><text x="26" y="105" font-size="17" fill="#C8D5E9">Workflows • approvals</text><text x="26" y="132" font-size="17" fill="#C8D5E9">MCP + built-in tools</text></g>
+    <g transform="translate(735 160)"><rect width="285" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#F4C668">3 · Model Router</text><text x="26" y="78" font-size="17" fill="#C8D5E9">Native + OAI-compatible</text><text x="26" y="105" font-size="17" fill="#C8D5E9">Custom model fallback</text><text x="26" y="132" font-size="17" fill="#C8D5E9">Connection verification</text></g>
+    <g transform="translate(1060 160)"><rect width="355" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#55D8FF">4 · Providers</text><text x="26" y="78" font-size="16" fill="#C8D5E9">OpenAI • Anthropic • Gemini • NVIDIA</text><text x="26" y="104" font-size="16" fill="#C8D5E9">OpenRouter • Groq • DeepSeek • xAI • Mistral</text><text x="26" y="130" font-size="16" fill="#C8D5E9">Ollama • vLLM • LM Studio • LiteLLM • Azure • Vertex</text></g>
+  </g>
+
+  <g stroke="#55D8FF" stroke-width="4" fill="none" opacity="0.7"><path d="M370 235H410"/><path d="M695 235H735"/><path d="M1020 235H1060"/></g>
+  <g fill="#55D8FF"><path d="M400 228l14 7-14 7z"/><path d="M725 228l14 7-14 7z"/><path d="M1050 228l14 7-14 7z"/></g>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif" filter="url(#shadow)">
+    <g transform="translate(145 390)"><rect width="330" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#8B8DFF">Tools + 333 Skills</text><text x="26" y="78" font-size="17" fill="#C8D5E9">Code • Git • browser • design</text><text x="26" y="105" font-size="17" fill="#C8D5E9">Testing • debugging • work mode</text><text x="26" y="132" font-size="17" fill="#C8D5E9">Dynamic registry + scoped loading</text></g>
+    <g transform="translate(585 390)"><rect width="330" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#55D8FF">Runtime Integrations</text><text x="26" y="78" font-size="17" fill="#C8D5E9">Playwright Chromium</text><text x="26" y="105" font-size="17" fill="#C8D5E9">Open Design • Work daemon</text><text x="26" y="132" font-size="17" fill="#C8D5E9">Pinned local integrations</text></g>
+    <g transform="translate(1025 390)"><rect width="330" height="150" rx="24" fill="url(#panel)" stroke="#334A73"/><text x="26" y="42" font-size="22" font-weight="700" fill="#F4C668">Verification Gates</text><text x="26" y="78" font-size="17" fill="#C8D5E9">UI + brand contracts</text><text x="26" y="105" font-size="17" fill="#C8D5E9">Compile • React build • runtime guard</text><text x="26" y="132" font-size="17" fill="#C8D5E9">Linux CI • Windows Electron smoke</text></g>
+  </g>
+
+  <g stroke="#8B8DFF" stroke-width="3" fill="none" opacity="0.55"><path d="M552 310V350H310V390"/><path d="M552 310V350H750V390"/><path d="M877 310V350H1190V390"/></g>
+
+  <g transform="translate(250 610)" font-family="Inter,Segoe UI,Arial,sans-serif">
+    <rect width="1000" height="92" rx="24" fill="#0D1628" stroke="#2B4167"/>
+    <circle cx="60" cy="46" r="13" fill="#54E38E"/><text x="88" y="54" font-size="20" fill="#E8EEFA">Goal</text>
+    <path d="M165 46H260" stroke="#55D8FF" stroke-width="3"/><path d="M248 38l18 8-18 8z" fill="#55D8FF"/>
+    <text x="292" y="54" font-size="20" fill="#E8EEFA">Plan</text>
+    <path d="M382 46H477" stroke="#55D8FF" stroke-width="3"/><path d="M465 38l18 8-18 8z" fill="#55D8FF"/>
+    <text x="505" y="54" font-size="20" fill="#E8EEFA">Execute</text>
+    <path d="M612 46H707" stroke="#55D8FF" stroke-width="3"/><path d="M695 38l18 8-18 8z" fill="#55D8FF"/>
+    <text x="735" y="54" font-size="20" fill="#E8EEFA">Verify</text>
+    <path d="M825 46H900" stroke="#55D8FF" stroke-width="3"/><path d="M888 38l18 8-18 8z" fill="#55D8FF"/>
+    <text x="925" y="54" font-size="20" font-weight="700" fill="#54E38E">Ship</text>
+  </g>
+</svg>
