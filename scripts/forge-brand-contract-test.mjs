@@ -21,6 +21,7 @@ const files = {
 	linuxDesktop: read('resources/linux/code.desktop'),
 	linuxHandler: read('resources/linux/code-url-handler.desktop'),
 	linuxAppdata: read('resources/linux/code.appdata.xml'),
+	windowsLauncher: read('run-forge-ide.bat'),
 };
 
 const product = JSON.parse(files.product);
@@ -40,6 +41,8 @@ check('reduced motion support', contains(files.brandCss, ['prefers-reduced-motio
 check('Forge mark consistency', contains(files.brandMark, ['#8B8DFF', '#55D8FF', '#F4C668']) && contains(files.brandSvg, ['#8B8DFF', '#55D8FF', '#F4C668']), 'Reusable UI mark and standalone vector asset must share the same identity colors.');
 
 check('Windows tile brand', contains(files.winManifest, ['BackgroundColor="#0D1628"', 'ForegroundText="light"', 'ShortDisplayName="Forge"']), 'Windows tile metadata must display Forge on the premium dark background.');
+check('Windows launcher setup recovery', contains(files.windowsLauncher, ['Run setup-forge-super-agent.bat', 'set "FORGE_ELECTRON=', 'if not exist "%FORGE_ELECTRON%"']) && !files.windowsLauncher.includes('install-forge-super-agent.bat'), 'Windows startup must point to the real setup entrypoint and block cleanly when Electron is absent.');
+check('Windows launcher optional Docker', contains(files.windowsLauncher, ['where docker >nul 2>&1', 'optional Crawl4AI service skipped', 'built-in Playwright browser runtime']), 'Missing Docker must not prevent Forge from starting because Playwright Chromium is the supported browser runtime.');
 check('Linux desktop brand', contains(files.linuxDesktop, ['AI Development Environment', 'Keywords=forge;ai;agent;coding;automation;development;ide;']) && !files.linuxDesktop.includes('Keywords=vscode'), 'Linux launcher metadata must identify Forge rather than VS Code.');
 check('Linux URL handler brand', contains(files.linuxHandler, ['Open Forge AI Engineering Studio', 'Keywords=forge;ai;agent;coding;ide;']) && !files.linuxHandler.includes('Code Editing. Redefined.'), 'Deep-link launcher metadata must be Forge-specific.');
 check('Linux app-store brand', contains(files.linuxAppdata, [expectedRepo, 'Forge is an AI engineering studio', 'adaptive AI model routing']) && !files.linuxAppdata.includes('Visual Studio Code'), 'AppStream metadata must describe Forge rather than the upstream editor.');
