@@ -126,6 +126,8 @@ jobs:
     timeout-minutes: 45
     env:
       npm_config_msvs_version: '2022'
+      npm_package_config_node_gyp_msvs_version: '2022'
+      GYP_MSVS_VERSION: '2022'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -136,6 +138,10 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
           package-manager-cache: false
+
+      - name: Windows native toolchain preflight
+        shell: pwsh
+        run: ./scripts/forge-windows-native-preflight.ps1 -RepoRoot $PWD
 
       - name: Install dependencies
         run: npm ci
