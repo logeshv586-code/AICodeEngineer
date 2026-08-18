@@ -1,4 +1,4 @@
-/* Forge premium brand system — deep-blue, iris and arctic-cyan. */
+/* Forge premium brand system — obsidian, iris, arctic-cyan and a warm craft ember. */
 
 .forge-premium-shell {
 	--forge-bg-0: #080d19;
@@ -8,7 +8,7 @@
 	--forge-card: rgba(18, 29, 50, 0.72);
 	--forge-card-strong: rgba(20, 31, 54, 0.92);
 	--forge-line: rgba(137, 151, 190, 0.14);
-	--forge-line-strong: rgba(128, 139, 255, 0.28);
+	--forge-line-strong: rgba(128, 139, 255, 0.34);
 	--forge-text: #eef3ff;
 	--forge-text-2: #c8d1e6;
 	--forge-muted: #8793ac;
@@ -18,8 +18,11 @@
 	--forge-cyan: #58d9ff;
 	--forge-cyan-soft: rgba(88, 217, 255, 0.12);
 	--forge-iris-soft: rgba(123, 127, 255, 0.14);
+	--forge-ember: #f4c668;
+	--forge-ember-soft: rgba(244, 198, 104, 0.12);
 	--forge-success: #62e6bd;
 	--forge-danger: #ff738a;
+	--forge-focus-ring: rgba(143, 232, 255, 0.72);
 	--forge-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 	background:
 		radial-gradient(900px 520px at 72% -12%, rgba(102, 112, 255, 0.12), transparent 55%),
@@ -30,6 +33,16 @@
 }
 
 .forge-premium-shell * { box-sizing: border-box; }
+.forge-premium-shell ::selection { background: rgba(123, 127, 255, 0.34); color: #fff; }
+
+.forge-premium-shell button:focus-visible,
+.forge-premium-shell [role='button']:focus-visible,
+.forge-premium-shell textarea:focus-visible,
+.forge-premium-shell input:focus-visible,
+.forge-premium-shell a:focus-visible {
+	outline: 2px solid var(--forge-focus-ring);
+	outline-offset: 2px;
+}
 
 .forge-brand-aurora {
 	position: absolute;
@@ -184,6 +197,8 @@
 	--vscode-button-background: #7478f2;
 	--vscode-button-foreground: #ffffff;
 	--vscode-button-hoverBackground: #8588ff;
+	--vscode-textLink-foreground: #70ddff;
+	--vscode-textLink-activeForeground: #a9eeff;
 	--vscode-widget-border: #26324a;
 	--vscode-input-background: #0e1728;
 	--vscode-input-foreground: #e9effb;
@@ -204,4 +219,15 @@
 	.forge-brand-tool,
 	.forge-brand-suggestion,
 	.forge-brand-thread { transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease, filter 160ms ease; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.forge-premium-shell *,
+	.forge-premium-shell *::before,
+	.forge-premium-shell *::after {
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+	}
 }
