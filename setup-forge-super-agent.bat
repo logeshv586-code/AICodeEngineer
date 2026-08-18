@@ -26,10 +26,11 @@ if not exist "node_modules" (
   echo [2/6] Forge node_modules already exists - skipping npm ci.
 )
 
-echo [3/6] Cloning pinned open-source integrations and installing supported dependencies...
+echo [3/6] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
 rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
+rem --browser installs the Chromium runtime used by Forge's Playwright browser agent.
 rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
-call node scripts\forge-super-agent-bootstrap.mjs --full --setup
+call node scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
 if errorlevel 1 goto :failed
 
 echo [4/6] Running fast local contract tests...
@@ -60,6 +61,7 @@ echo   Forge Super Agent setup completed successfully.
 echo ============================================================
 echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
+echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
 echo.
 echo Agent Lightning source is present, but GPU/RL training remains deferred.
 echo Start Forge with:
