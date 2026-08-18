@@ -36,6 +36,7 @@ const requiredSuperAgentFiles = [
 	'scripts/forge-work-self-test.mjs',
 	'scripts/forge-mcp-server.mjs',
 	'scripts/forge-integrations.mjs',
+	'scripts/forge-node24-runtime.mjs',
 	'scripts/forge-work.mjs',
 	'scripts/forge-work-daemon.mjs',
 	'scripts/forge-understand.mjs',
