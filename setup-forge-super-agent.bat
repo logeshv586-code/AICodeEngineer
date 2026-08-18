@@ -37,6 +37,8 @@ call node scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-ui-contract-test.mjs
 if errorlevel 1 goto :failed
+call node scripts\forge-react-service-export-contract.mjs
+if errorlevel 1 goto :failed
 call node scripts\forge-model-provider-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-work-self-test.mjs
@@ -67,12 +69,16 @@ echo ============================================================
 echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
 echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
+echo React service bridge: every named hook import has a real export.
 echo Provider/model routing: registry, transport and connection-test coverage verified.
 echo.
 echo Agent Lightning source is present, but GPU/RL training remains deferred.
-echo Start Forge with:
+echo.
+echo PowerShell commands:
+echo   .\run-forge-ide.bat
+echo   .\smoke-forge-windows.bat
+echo Command Prompt commands:
 echo   run-forge-ide.bat
-echo Final release smoke with:
 echo   smoke-forge-windows.bat
 
 echo.
@@ -93,6 +99,7 @@ goto :failed
 
 :failed
 echo.
-echo Forge Super Agent setup failed. Review the command output above.
+echo Forge Super Agent setup failed. Review the first failing command above.
+echo If you are starting setup from PowerShell, run: .\setup-forge-super-agent.bat
 popd
 exit /b 1
