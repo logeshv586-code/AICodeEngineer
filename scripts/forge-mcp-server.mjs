@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ForgeBrowserController } from './lib/forge-browser-controller.mjs';
-import { ackPendingWork, addWorkflow, listPendingWork, listWorkflows, removeWorkflow, runWorkflow, tickWorkflows } from './forge-work.mjs';
+import { ackPendingWork, addWorkflow, claimPendingWork, listPendingWork, listWorkflows, removeWorkflow, runWorkflow, tickWorkflows, workStatus } from './forge-work.mjs';
 import { bootstrapForgeMcp, doctor, installGroup, installIntegration, integrationStatus, verifyIntegrations } from './forge-integrations.mjs';
 import { graphStatus, openViewer, searchGraph, stopViewer, viewerStatus } from './forge-understand.mjs';
 import { sidecarStatus, startSidecar, stopSidecar } from './forge-sidecars.mjs';
@@ -11,7 +11,7 @@ import { runSelfTest } from './forge-super-agent-self-test.mjs';
 
 const browser = new ForgeBrowserController();
 const server = new Server(
-  { name: 'forge-super-agent', version: '1.1.0' },
+  { name: 'forge-super-agent', version: '1.2.0' },
   { capabilities: { tools: {} } },
 );
 
@@ -47,7 +47,7 @@ const tools = [
       type: 'object',
       properties: {
         action: { type: 'string', description: 'status | doctor | verify | install | bootstrap_mcp | self_test' },
-        target: { type: 'string', description: 'core | full | skillopt | understand-anything | agent-lightning | open-design | aionui' },
+        target: { type: 'string', description: 'core | full | active | skillopt | understand-anything | agent-lightning | open-design | aionui' },
         setup: { type: 'boolean' }, force: { type: 'boolean' }, requireAll: { type: 'boolean' },
       },
       required: ['action'],
@@ -80,12 +80,13 @@ const tools = [
   },
   {
     name: 'forge_workflow',
-    description: 'Create and run local Work Mode automations. Scheduled prompt tasks and approval-required commands are queued for Forge/AionUi; unattended shell tasks execute locally through the scheduler.',
+    description: 'Create and run persistent local Work Mode automations. Scheduled prompt tasks are queued for the Forge agent loop. Command workflows remain approval-gated unless unattended=true. Pending work supports leased claims so multiple Forge windows cannot run the same prompt twice.',
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', description: 'list | pending | add | run | ack | remove | tick' },
-        id: { type: 'string' }, approved: { type: 'boolean' }, task: { type: 'object' }, result: { type: 'object' },
+        action: { type: 'string', description: 'status | list | pending | claim | add | run | ack | remove | tick' },
+        id: { type: 'string' }, approved: { type: 'boolean' }, enqueue: { type: 'boolean' }, task: { type: 'object' }, result: { type: 'object' },
+        claimant: { type: 'string' }, leaseMs: { type: 'number' },
       },
       required: ['action'],
     },
@@ -146,7 +147,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
       if (args.action === 'bootstrap_mcp') return textResult({ configFile: bootstrapForgeMcp() });
       if (args.action === 'install') {
         const target = args.target || 'core';
-        return textResult(target === 'core' || target === 'full' || target === 'all'
+        return textResult(target === 'core' || target === 'full' || target === 'active' || target === 'all'
           ? installGroup(target, { setup: args.setup === true, force: args.force === true })
           : installIntegration(target, { setup: args.setup === true, force: args.force === true }));
       }
@@ -171,10 +172,12 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
     }
 
     if (name === 'forge_workflow') {
+      if (args.action === 'status') return textResult(workStatus());
       if (args.action === 'list') return textResult(listWorkflows());
       if (args.action === 'pending') return textResult(listPendingWork());
+      if (args.action === 'claim') return textResult(claimPendingWork(args.id, { claimant: args.claimant, leaseMs: args.leaseMs }));
       if (args.action === 'add') return textResult(addWorkflow(args.task || {}));
-      if (args.action === 'run') return textResult(runWorkflow(args.id, { approved: args.approved === true }));
+      if (args.action === 'run') return textResult(runWorkflow(args.id, { approved: args.approved === true, enqueue: args.enqueue === true }));
       if (args.action === 'ack') return textResult(ackPendingWork(args.id, args.result || {}));
       if (args.action === 'remove') return textResult({ removed: removeWorkflow(args.id) });
       if (args.action === 'tick') return textResult(tickWorkflows());
