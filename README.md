@@ -1,137 +1,501 @@
-# Forge Intelligence Platform & Collaborative Execution Runtime
+<p align="center">
+  <img src="docs/forge-hero.svg" alt="Forge Super Agent" width="100%" />
+</p>
 
-<div align="center">
-  <h3>Autonomous Agentic Development Platform & AI-Native IDE</h3>
-  <p><i>A high-performance VS Code / Void fork powered by React UI and Electron runtime architecture.</i></p>
-</div>
+<h1 align="center">Forge Super Agent</h1>
 
----
+<p align="center">
+  <strong>AI-native engineering studio for coding, browser work, automation, design, repository intelligence, and verified execution.</strong>
+</p>
 
-## 📐 Architectural Overview
+<p align="center">
+  <a href="https://github.com/logeshv586-code/AICodeEngineer/actions/workflows/forge-ci.yml"><img alt="Forge Agent CI" src="https://github.com/logeshv586-code/AICodeEngineer/actions/workflows/forge-ci.yml/badge.svg?branch=main"></a>
+  <img alt="Skills" src="https://img.shields.io/badge/skills-333-55D8FF?style=flat-square">
+  <img alt="Node" src="https://img.shields.io/badge/node-20.18.2-8B8DFF?style=flat-square">
+  <img alt="Electron" src="https://img.shields.io/badge/runtime-Electron-F4C668?style=flat-square">
+  <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-54E38E?style=flat-square">
+</p>
 
-Forge is an **autonomous agentic execution environment** integrated directly into the VS Code workbench architecture. It elevates AI assistance from simple chat prompts into a full-featured **Intelligence Platform**, **Execution Engine**, and **Multi-Agent Collaborative Runtime**.
-
-```
-                                         Forge Platform
-                                               │
- ┌─────────────────────────────────────────────┴─────────────────────────────────────────────┐
- │                                                                                           │
- ▼                                                                                           ▼
-Intelligence Platform (Platform v1)                                                 Execution Platform (Phase 3)
- ├─ WorkspaceModel (AST, Symbol, Import, Call Graphs)                             ├─ Execution Planner & Plan Optimizer
- ├─ BrowserModel (Crawl4AI DOM, Headings, Code Blocks, Tables)                    ├─ Topological Task Graph (DAG Engine)
- ├─ KnowledgeGraph (Directed Entities & Typed Edges)                              ├─ Internal Execution Event Bus
- ├─ MemoryStore & Workspace Health Calculator                                     ├─ Resource Manager & Worker Pool Manager
- └─ Adaptive Context Orchestrator & Token Budget Manager                          ├─ Multi-Stage Review Pipeline Gate
-                                                                                   ├─ Isolated Artifact Store & Execution Memory
-                                                                                   └─ Telemetry Tracker & Span Profiler
- └─────────────────────────────────────────────┬─────────────────────────────────────────────┘
-                                               ▼
-                                 Phase 3.5: Collaborative Execution Runtime
-                     (Coordinator · Shared Blackboard · Consensus Engine · Delegation Manager)
-```
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> ·
+  <a href="#-super-agent-capabilities">Capabilities</a> ·
+  <a href="#-multi-model-provider-runtime">Models</a> ·
+  <a href="#-slash-command-surface">Commands</a> ·
+  <a href="#-verification--release-gates">Verification</a> ·
+  <a href="#-architecture">Architecture</a>
+</p>
 
 ---
 
-## ✨ Key Subsystems & Core Features
+## What is Forge?
 
-### 1. Intelligence Platform
-- **WorkspaceModel (`src/vs/workbench/contrib/void/electron-main/forge/workspace/`)**: Performs AST symbol parsing, extracts import dependencies, constructs call graphs, computes module coupling scores, and maintains incremental disk caches (`.forge-workspace-cache.json`).
-- **BrowserModel (`electron-main/forge/browser/`)**: Integrates local Crawl4AI Docker microservices to capture DOM elements, heading hierarchies, code snippets, and web selection state, cross-indexing live web content with workspace AST symbols.
-- **KnowledgeGraph Engine (`electron-main/forge/knowledge/`)**: Multigraph linking AST code entities and web pages with typed directed edges. Calculates static workspace complexity, circular dependency risks, and health grades (A through F).
-- **Adaptive Context Engine (`browser/forge/context/`)**:
-  - **IntentAnalyzer**: Classifies user queries (`Debug`, `Architecture`, `Documentation`, `TestGeneration`, `ReviewPR`, `Refactor`, `ExplainCode`).
-  - **AdaptiveBudgetManager**: Dynamically allocates provider token budgets per intent.
-  - **RetrievalPlanner**: Filters active context providers and tracks token/latency cost metrics.
-  - **ContextCompressor**: Symbol-first retrieval, progressive staging (Stage 1 to 4), and Git diff compression, delivering **~68% token footprint savings**.
+**Forge** is an AI engineering environment built on the VS Code / Electron workbench architecture. It combines an IDE, conversational agent, tool runtime, browser automation, local integrations, a large skill registry, model/provider routing, execution controls, and release verification into one desktop workspace.
 
-### 2. Execution Platform
-- **Planner & Optimizer (`browser/forge/execution/planner/`, `optimizer/`)**: Decomposes raw user goals into structured execution plans, merges duplicate operations, and validates parallel execution safety.
-- **Task Graph DAG Engine (`graph/`)**: Builds topological directed acyclic task graphs with strict cycle validation (`GraphValidator`).
-- **Internal Execution Event Bus (`bus/`)**: Typed event pub/sub (`PLAN_CREATED`, `TASK_READY`, `WORKER_ASSIGNED`, `CHECKPOINT_SAVED`, `EXECUTION_FINISHED`) decoupling all runtime modules.
-- **Resource Manager & Worker Pool (`scheduler/`, `workers/`)**: Enforces concurrency limits across CPU, LLM tokens, and browser webviews while leasing specialized workers (`WorkspaceWorker`, `BrowserWorker`, `TestingWorker`, `ReviewWorker`).
-- **Artifact Store (`artifacts/`)**: Isolates heavy execution payloads (patches, reports, screenshots, test logs) from execution memory metadata.
-- **Multi-Stage Review Pipeline (`review/`)**: Enforces automated checks (`Lint → Format → Static Analysis → Security → Tests → Approval Gate`).
+Forge is designed around a simple engineering loop:
 
-### 3. Collaborative Execution Runtime
-- **Collaboration Coordinator (`collaboration/coordinator.ts`)**: Orchestration brain delegating sub-tasks, monitoring blackboard state, and triggering multi-agent consensus approvals.
-- **Agent Registry (`agents/`)**: Manages specialized agent descriptors (`Workspace`, `Browser`, `Review`, `Security`, `Testing`), health states, priority levels, and concurrency thresholds.
-- **Shared Blackboard (`blackboard/`)**: Shared state bus where agents publish code patches, test logs, review findings, and deployment status asynchronously.
-- **Consensus Engine (`consensus/`)**: Evaluates multi-agent voting strategies (`Unanimous`, `Majority`, `WeightedConfidence`, `DesignatedAuthority`) before committing code modifications.
+> **Understand the goal → gather context → choose an execution path → use tools → verify the result → keep the user in control.**
 
-### 4. High-Performance Provider Integrations
-- **NVIDIA NIM Integration**: Native support for high-throughput inference endpoints (`https://integrate.api.nvidia.com/v1`). Models include `z-ai/glm-5.2`, `nvidia/llama-3.1-nemotron-70b-instruct`, `meta/llama-3.3-70b-instruct`, and `deepseek-ai/deepseek-r1`.
-- **Multi-Provider Support**: Anthropic Claude, OpenAI GPT-4o, Ollama, Gemini, and custom OpenAI-compatible REST endpoints.
+Instead of treating AI as a side-panel chatbot, Forge wires AI work directly into the editor runtime: files, attachments, browser tasks, work queues, slash commands, model selection, stop/abort, tools, and verification all live in the same application.
 
 ---
 
-## 🛠️ Required Agent & Build Workflow
+## ✨ Super Agent capabilities
 
-> **IMPORTANT**: Generated files under `out/` are derived build artifacts. All source changes MUST take place in `src/`.
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Mandatory Build & Execution Contract
-1. **Core TypeScript / Electron changes**: Run `npm run compile`.
-2. **React UI / Forge Browser changes**: Run `npm run buildreact`.
-3. **Combined build**: Run `npm run build:forge`.
-4. **Launch IDE**: Always launch using `run-forge-ide.bat` (or `npm run forge:verify`), which executes `scripts/forge-runtime-guard.mjs`.
-5. **Runtime Guard Protection**: Never launch Electron if the runtime guard fails. The guard self-repairs missing bundles in `out/` and keeps `out/vs/workbench/contrib/void/browser/react/out` and `void/forge` synchronized.
+### 🧠 Super Agent orchestration
+
+- Goal-oriented task execution
+- Workspace-aware conversation context
+- Adaptive model routing hooks
+- Tool calls and MCP integration
+- Safe stop/abort path for active runs
+- Conversation duplication, history, feedback and recovery
+
+</td>
+<td width="50%" valign="top">
+
+### 🧰 333-skill registry
+
+- 333 registered skills in the library
+- Small active runtime skill set
+- Dynamic skill scoping instead of loading everything into context
+- Validation contract for registry/path integrity
+- Coding, Git, React, Electron, TypeScript, testing and routing skills
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🌐 Browser + research runtime
+
+- Playwright Chromium installed by the Forge setup flow
+- `/browser` Super Agent command path
+- Browser/tool integration inside the desktop workflow
+- Crawl4AI can be used as an **optional** Docker accelerator
+- Docker is not required for Forge to launch
+
+</td>
+<td width="50%" valign="top">
+
+### ⚙️ Work Mode + automation
+
+- Local Work Mode scheduler
+- Prompt/approval workflow queue
+- `/work`, `/work-pending`, `/work-approve`, `/work-remove`
+- PID-based daemon de-duplication
+- Local state under the Forge user directory
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🎨 Design + engineering tools
+
+- `/design` workflow surface
+- Open Design local integration
+- File/image attachments
+- Repository and workspace tooling
+- Git and testing workflows
+
+</td>
+<td width="50%" valign="top">
+
+### 🛡️ Verification-first runtime
+
+- Brand/UI contracts
+- Provider/model routing contract
+- Skill-library validation
+- TypeScript compile gate
+- React build gate
+- Runtime artifact guard
+- Linux CI + Windows Electron CI
+- Final Windows desktop smoke launcher
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 🚀 Quickstart Guide
+## 🚀 Quick Start
 
-### 1. Prerequisites
-- **Node.js**: v18.x or v20.x
-- **Docker** (Optional, for web crawling): Installed and running for Crawl4AI local container (`unclecode/crawl4ai:all-in-one`).
+### Requirements
 
-### 2. Initializing & Launching
+| Requirement | Recommended / required state |
+|---|---|
+| **OS** | Windows for the primary desktop release flow |
+| **Node.js** | `20.18.2` — pinned by `.nvmrc` |
+| **npm** | Installed with Node.js |
+| **Git** | Required for pinned integration setup |
+| **C/C++ build tools** | Required for native Electron/Node modules on Windows |
+| **Docker** | Optional; only used for optional Crawl4AI startup |
+| **Model credentials** | Needed only for the provider(s) you choose to use |
+
+### 1. Clone
+
 ```bash
-# Install dependencies
-npm install
+git clone https://github.com/logeshv586-code/AICodeEngineer.git
+cd AICodeEngineer
+```
 
-# Compile core TypeScript and React UI bundles
-npm run build:forge
+### 2. One-time Forge setup
 
-# Launch Forge IDE with Runtime Guard verification
+On Windows:
+
+```bat
+setup-forge-super-agent.bat
+```
+
+The setup script performs the release-grade local bootstrap:
+
+```text
+npm ci
+  ↓
+pinned integrations + supported dependency setup
+  ↓
+Playwright Chromium installation
+  ↓
+brand / UI / provider-model / Work Mode contracts
+  ↓
+333-skill validation
+  ↓
+TypeScript compile + React build
+  ↓
+runtime guard + active integration verification
+  ↓
+integration doctor + Super Agent self-test
+```
+
+### 3. Launch Forge
+
+```bat
 run-forge-ide.bat
 ```
 
-### 3. Setting Up API Keys
-1. Open Settings in Forge IDE (`Ctrl+,` or Gear Icon).
-2. Navigate to **Providers → NVIDIA API** (or your chosen provider).
-3. Input your API key (e.g., `nvapi-...`).
-4. Select your preferred model (e.g. `z-ai/glm-5.2` or `deepseek-r1`).
+### 4. Final Windows release smoke
+
+```bat
+smoke-forge-windows.bat
+```
+
+This command re-runs the automated gates, verifies the Electron executable, launches Forge, and prints the final interactive desktop checklist.
 
 ---
 
-## 📂 Directory Blueprint
+## 🤖 Multi-model provider runtime
 
+Forge does **not** lock the application to a single vendor or a single hard-coded model. The current provider registry contains **17 provider paths**, and each registered provider is required by contract to have a chat transport implementation.
+
+| Provider path | Runtime style | Model source |
+|---|---|---|
+| Anthropic | Native Anthropic SDK | Defaults + configured models |
+| OpenAI | OpenAI SDK | Defaults + configured models |
+| NVIDIA API | OpenAI-compatible | NVIDIA-hosted models |
+| DeepSeek | OpenAI-compatible | DeepSeek models |
+| Gemini | Native Google GenAI SDK | Gemini models |
+| OpenRouter | OpenAI-compatible | OpenRouter catalog/custom names |
+| Groq | OpenAI-compatible | Groq-hosted models |
+| xAI | OpenAI-compatible | Grok models |
+| Mistral | OpenAI-compatible + Mistral FIM path | Mistral/Codestral models |
+| Ollama | Local OpenAI-compatible + native listing/FIM | Auto-detected local models |
+| vLLM | Local OpenAI-compatible | Auto-detected/custom models |
+| LM Studio | Local OpenAI-compatible | Auto-detected/custom models |
+| LiteLLM | OpenAI-compatible proxy | Proxy-routed models |
+| OpenAI-Compatible | Custom endpoint | User-supplied model names |
+| Google Vertex AI | OpenAI-compatible Vertex path | Project/region models |
+| Microsoft Azure OpenAI | Azure OpenAI client | Deployment/model name |
+| AWS Bedrock | OpenAI-compatible gateway/proxy path | Gateway-routed models |
+
+### “Any model” support — what Forge actually guarantees
+
+Forge has two different levels of model compatibility:
+
+1. **Static routing compatibility** — the provider/model contract verifies that every registered provider has a settings path, model registry entry, chat transport, connection-test route, and custom/unknown-model capability fallback.
+2. **Live model availability** — the selected model must still exist at the provider, your credentials must be valid, the endpoint must be reachable, and the provider must support the requested API behavior.
+
+That distinction matters: CI can prove Forge will route a configured provider/model correctly at the application layer, but CI cannot use or validate your private API keys.
+
+### Before using a model
+
+Inside Forge settings:
+
+1. Configure the provider credentials or local endpoint.
+2. Choose or add a model.
+3. Use the provider/model **connection test** when available in the settings flow.
+4. Select that model for Chat.
+5. Send a small task before starting a long agent run.
+
+---
+
+## 🧭 Slash command surface
+
+Forge exposes Super Agent workflows directly from chat.
+
+| Command | Purpose |
+|---|---|
+| `/browser` | Browser/Playwright workflow |
+| `/graph` | Graph / repository intelligence workflow |
+| `/work` | Work Mode workflow |
+| `/design` | Design workflow |
+| `/health` | Forge health/status path |
+| `/work-pending` | Inspect pending approval-gated Work Mode jobs |
+| `/work-approve` | Approve a queued Work Mode action |
+| `/work-remove` | Remove a queued Work Mode action |
+| `/workflow,stop` | Abort the active Forge run |
+
+The visible Stop control and workflow stop command are guarded to cancel the active run instead of sending another model message.
+
+---
+
+## 📎 Attachments and context
+
+Forge supports staged context in chat, including file and image attachments. The conversation/runtime contracts preserve attachment-only sends so a user can attach context and execute a task without having to type artificial filler text.
+
+The final Windows smoke explicitly checks:
+
+- normal coding request
+- file attachment
+- image attachment
+- active-run stop/abort
+- `/browser`
+- `/work`
+- `/design`
+- Forge desktop identity and taskbar icon
+
+---
+
+## 🏗 Architecture
+
+<p align="center">
+  <img src="docs/forge-runtime-map.svg" alt="Forge runtime architecture" width="100%" />
+</p>
+
+At a high level, Forge is split into five cooperating layers:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                         Forge Desktop UI                        │
+│ Chat • history • attachments • settings • slash commands       │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                    Super Agent / Orchestration                  │
+│ context • tools • MCP • Work Mode • browser • design           │
+└───────────────────┬───────────────────────────┬─────────────────┘
+                    │                           │
+        ┌───────────▼───────────┐   ┌──────────▼───────────┐
+        │ Model / Provider Layer│   │ Skills / Integrations│
+        │ native + OAI-compatible│  │ 333 registry + local │
+        └───────────┬───────────┘   └──────────┬───────────┘
+                    │                           │
+                    └────────────┬──────────────┘
+                                 │
+┌────────────────────────────────▼────────────────────────────────┐
+│                       Verification Layer                        │
+│ contracts • compile • React build • runtime guard • CI • smoke │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### Important source areas
+
+```text
 src/vs/workbench/contrib/void/
 ├── common/
-│   ├── voidSettingsTypes.ts       # Provider & Model Settings Types
-│   ├── modelCapabilities.ts       # Model Capabilities & Context Windows
-│   └── sendLLMMessageTypes.ts     # Provider Message Formats
+│   ├── modelCapabilities.ts        # Provider/model capabilities and fallbacks
+│   ├── voidSettingsTypes.ts        # Provider settings + model state
+│   └── sendLLMMessageTypes.ts      # LLM transport message contracts
 │
-├── electron-main/forge/
-│   ├── workspace/                 # AST Extractor, Import Graph & Symbol Indexes
-│   ├── browser/                   # Crawl4AI Browser Model & Cross-Symbol Matcher
-│   ├── knowledge/                 # Knowledge Graph & Workspace Health Calculator
-│   ├── ipc/                       # Privileged Electron Main IPC Channels
-│   └── llmMessage/                # LLM API Transports (NVIDIA, OpenAI, Anthropic)
+├── electron-main/
+│   ├── llmMessage/                 # Native + OpenAI-compatible model transports
+│   └── forge/                      # Privileged Forge runtime/services
 │
-└── browser/forge/
-    ├── context/                   # Intent Analyzer, Compression Engine, Budget Manager
-    ├── execution/                 # Task DAG Engine, Planner, Event Bus, Worker Pool
-    │   ├── bus/                   # Internal Typed Event Pub/Sub
-    │   ├── planner/ & optimizer/  # Execution Plan Builders
-    │   ├── graph/                 # Topological Task DAG Validator
-    │   ├── scheduler/ & workers/  # Worker Leasing & Concurrency Control
-    │   ├── artifacts/             # Isolated Execution Artifact Store
-    │   ├── review/                # Policy & Multi-Stage Quality Gates
-    │   ├── agents/                # Agent Registry & Health Monitoring
-    │   ├── blackboard/            # Shared Blackboard State Engine
-    │   ├── consensus/             # Voting & Consensus Strategies
-    │   └── collaboration/         # Coordinator & Delegation Engine
-    └── react/src/forge/           # React AgentPanel UI & Subsystem Monitors
+└── browser/react/src/
+    ├── workspace-tsx/              # Forge chat/workspace UI
+    └── void-settings-tsx/          # Provider/model settings UI
+
+scripts/
+├── forge-runtime-guard.mjs
+├── forge-ui-contract-test.mjs
+├── forge-brand-contract-test.mjs
+├── forge-model-provider-contract-test.mjs
+├── forge-work-self-test.mjs
+├── forge-super-agent-self-test.mjs
+├── forge-integrations.mjs
+└── manage-skills.mjs
 ```
+
+---
+
+## 🧩 Pinned local integrations
+
+Forge keeps supported third-party source integrations under:
+
+```text
+%USERPROFILE%\.forge\integrations
+```
+
+The lock file pins exact upstream commits for reproducibility.
+
+| Integration | Role | Current phase |
+|---|---|---|
+| SkillOpt | Skill evolution / offline learning support | Active source integration |
+| Understand Anything | Repository understanding / knowledge workflow | Active |
+| Open Design | Local-first design tooling | Active |
+| AionUi | Automation/cowork workflow integration | Active |
+| Agent Lightning | Offline RL/training source | Source pinned; GPU/RL stack intentionally deferred |
+
+Playwright Chromium is installed separately by the Forge bootstrap and is the supported browser runtime for normal `/browser` work.
+
+---
+
+## ✅ Verification & release gates
+
+Forge treats regressions as contract failures rather than relying only on manual inspection.
+
+### Fast contracts
+
+```bash
+node scripts/forge-brand-contract-test.mjs
+node scripts/forge-ui-contract-test.mjs
+node scripts/forge-model-provider-contract-test.mjs
+node scripts/forge-work-self-test.mjs
+node scripts/manage-skills.mjs validate
+```
+
+### Build verification
+
+```bash
+npm run compile
+npm run buildreact
+node scripts/forge-runtime-guard.mjs
+```
+
+### Integration verification
+
+```bash
+node scripts/forge-integrations.mjs verify active
+node scripts/forge-integrations.mjs doctor
+node scripts/forge-super-agent-self-test.mjs
+```
+
+### GitHub Actions
+
+`Forge Agent CI` runs two release lanes:
+
+- **Ubuntu:** native build prerequisites → `npm ci` → contracts → skills → compile → React build → runtime guard
+- **Windows 2022 / VS2022:** `npm ci` with the supported native toolchain → the same contracts/build → Electron executable version check
+
+The Windows lane is intentionally pinned to the VS2022 runner because the current native dependency chain uses `node-gyp@10.1.0`, which does not correctly identify the newer Visual Studio 2026 image.
+
+---
+
+## 🪟 Windows launcher behavior
+
+`run-forge-ide.bat` performs startup safety checks before launching Electron.
+
+- Node must be available.
+- Forge Super Agent MCP registration is refreshed.
+- Work Mode scheduler is started locally.
+- Active integrations are checked.
+- Runtime artifacts are validated.
+- Missing Electron is treated as a blocking error with a clear setup recovery command.
+- Docker is optional; if it is absent, Forge continues with the built-in Playwright browser path.
+
+---
+
+## 🧪 Development workflow
+
+> Generated files under `out/` are build artifacts. Make source changes under `src/` and rebuild.
+
+For normal Forge changes:
+
+```bash
+npm run compile
+npm run buildreact
+node scripts/forge-runtime-guard.mjs
+```
+
+For provider/model changes, also run:
+
+```bash
+node scripts/forge-model-provider-contract-test.mjs
+```
+
+For skill registry changes:
+
+```bash
+node scripts/manage-skills.mjs validate
+```
+
+For Windows release validation:
+
+```bat
+smoke-forge-windows.bat
+```
+
+---
+
+## 🎯 Release philosophy
+
+Forge uses layered evidence instead of a single “build succeeded” signal:
+
+1. **Source contracts** protect UI wiring, brand identity, provider routing and workflow behavior.
+2. **Compile/build gates** ensure TypeScript and React outputs are valid.
+3. **Runtime guard** ensures generated/runtime artifacts are synchronized.
+4. **Integration checks** validate the local Super Agent dependency state.
+5. **Linux + Windows CI** catch platform-specific native build failures.
+6. **Physical Windows smoke** verifies the final interactive Electron experience with real local credentials and models.
+
+---
+
+## 🗺 Roadmap direction
+
+Current architecture is prepared for continued work in areas such as:
+
+- richer provider/model health diagnostics
+- deeper browser-agent observability
+- stronger automated Electron interaction smoke tests
+- expanded Work Mode scheduling flows
+- improved repository intelligence and graph workflows
+- optional offline learning/training with Agent Lightning
+- packaging/release automation for signed desktop builds
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome. For changes that touch Forge runtime behavior, please include the relevant contract or regression test whenever practical.
+
+Recommended before opening a PR:
+
+```bash
+node scripts/forge-brand-contract-test.mjs
+node scripts/forge-ui-contract-test.mjs
+node scripts/forge-model-provider-contract-test.mjs
+node scripts/forge-work-self-test.mjs
+node scripts/manage-skills.mjs validate
+npm run compile
+npm run buildreact
+node scripts/forge-runtime-guard.mjs
+```
+
+---
+
+## 📜 License
+
+This repository is licensed under the **Apache License 2.0**. See [`LICENSE.txt`](LICENSE.txt).
+
+---
+
+<p align="center">
+  <img src="resources/forge/forge-mark.svg" alt="Forge" width="84" />
+</p>
+
+<p align="center">
+  <strong>Forge — build, reason, browse, edit, verify, ship.</strong>
+</p>
