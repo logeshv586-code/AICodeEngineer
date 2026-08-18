@@ -183,7 +183,7 @@ export const Sidebar = ({ className }: { className: string }) => {
 						{action.icon}<span className='hidden 2xl:inline'>{action.label}</span>
 					</button>
 				))}
-				<button type='button' onClick={() => { void accessor.get('ICommandService').executeCommand('void.openSettings'); }} className='h-6 w-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70' title='Forge settings' aria-label='Forge settings'><Settings size={12} /></button>
+				<button type='button' onClick={() => { void accessor.get('ICommandService').executeCommand('workbench.action.openVoidSettings'); }} className='h-6 w-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70' title='Forge settings' aria-label='Forge settings'><Settings size={12} /></button>
 			</div>
 			<div className={`w-full flex-1 min-h-0 ${className}`}>
 				<ErrorBoundary><SidebarChat /></ErrorBoundary>
