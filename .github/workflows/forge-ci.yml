@@ -99,6 +99,9 @@ jobs:
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
 
+      - name: React service export contract
+        run: node scripts/forge-react-service-export-contract.mjs
+
       - name: Model and provider routing contract
         run: node scripts/forge-model-provider-contract-test.mjs
 
@@ -142,6 +145,9 @@ jobs:
 
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
+
+      - name: React service export contract
+        run: node scripts/forge-react-service-export-contract.mjs
 
       - name: Model and provider routing contract
         run: node scripts/forge-model-provider-contract-test.mjs
