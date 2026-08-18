@@ -23,6 +23,7 @@ type PendingWorkItem = {
 	cwd?: string;
 	scheduledFor?: string;
 	status: 'agent_required' | 'approval_required';
+	claim?: { claimant: string; claimedAt: string; expiresAt: string } | null;
 };
 
 export const Sidebar = ({ className }: { className: string }) => {
@@ -30,6 +31,7 @@ export const Sidebar = ({ className }: { className: string }) => {
 	const accessor = useAccessor();
 	const [busyAction, setBusyAction] = useState<string | null>(null);
 	const seenApprovalIds = useRef(new Set<string>());
+	const workModeConsumerId = useRef(`forge-sidebar-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
 
 	useEffect(() => {
 		const workbench = document.querySelector<HTMLElement>('.monaco-workbench');
@@ -105,9 +107,9 @@ export const Sidebar = ({ className }: { className: string }) => {
 		}
 	}, [getForgeMcp, notify]);
 
-	// Work Mode's scheduler daemon persists due prompt work into a pending queue.
-	// Drain that queue only while Forge is open. Prompt jobs run sequentially in
-	// dedicated chat threads; command jobs remain pending until explicitly approved.
+	// The daemon persists due prompt workflows into a queue. Every Forge window
+	// can inspect that queue, but only the window that obtains the leased claim
+	// executes the prompt. This prevents duplicate scheduled agent runs.
 	useEffect(() => {
 		let disposed = false;
 		let polling = false;
@@ -119,16 +121,24 @@ export const Sidebar = ({ className }: { className: string }) => {
 				const pending = await callForgeToolJson<PendingWorkItem[]>('forge_workflow', { action: 'pending' });
 				if (!pending || !Array.isArray(pending)) return;
 
-				for (const item of pending) {
+				for (const queuedItem of pending) {
 					if (disposed) return;
-					if (item.status === 'approval_required') {
-						if (!seenApprovalIds.current.has(item.id)) {
-							seenApprovalIds.current.add(item.id);
-							notify('warn', `Work Mode task "${item.title}" is waiting for command approval. Open Work Mode to review it.`);
+					if (queuedItem.status === 'approval_required') {
+						if (!seenApprovalIds.current.has(queuedItem.id)) {
+							seenApprovalIds.current.add(queuedItem.id);
+							notify('warn', `Work Mode task "${queuedItem.title}" is waiting for command approval. Use /work-pending and /work-approve <pending-id> to review it.`);
 						}
 						continue;
 					}
-					if (item.status !== 'agent_required' || !item.prompt) continue;
+					if (queuedItem.status !== 'agent_required' || !queuedItem.prompt) continue;
+
+					const item = await callForgeToolJson<PendingWorkItem>('forge_workflow', {
+						action: 'claim',
+						id: queuedItem.id,
+						claimant: workModeConsumerId.current,
+						leaseMs: 60 * 60_000,
+					});
+					if (!item || item.status !== 'agent_required' || !item.prompt) continue;
 
 					const chat = accessor.get('IChatThreadService');
 					const threadId = chat.createNewThread();
@@ -144,15 +154,15 @@ export const Sidebar = ({ className }: { className: string }) => {
 						await chat.addUserMessageAndStreamResponse({ threadId, userMessage: scheduledPrompt });
 						await callForgeToolJson('forge_workflow', {
 							action: 'ack',
-							pendingId: item.id,
-							result: { status: 'completed', completedAt: new Date().toISOString(), threadId },
+							id: item.id,
+							result: { status: 'completed', completedAt: new Date().toISOString(), threadId, claimant: workModeConsumerId.current },
 						});
 						notify('info', `Work Mode completed: ${item.title}`);
 					} catch (error) {
 						await callForgeToolJson('forge_workflow', {
 							action: 'ack',
-							pendingId: item.id,
-							result: { status: 'failed', completedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error), threadId },
+							id: item.id,
+							result: { status: 'failed', completedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error), threadId, claimant: workModeConsumerId.current },
 						});
 						notify('error', `Work Mode failed: ${item.title} — ${error instanceof Error ? error.message : String(error)}`);
 					}
@@ -175,48 +185,30 @@ export const Sidebar = ({ className }: { className: string }) => {
 
 	const quickActions = useMemo(() => [
 		{
-			id: 'new-chat',
-			label: 'New',
-			title: 'New Forge chat',
-			icon: <Plus size={12} />,
+			id: 'new-chat', label: 'New', title: 'New Forge chat', icon: <Plus size={12} />,
 			run: () => accessor.get('IChatThreadService').createNewThread(),
 		},
 		{
-			id: 'forge_browser',
-			label: 'Browser',
-			title: 'Inspect the persistent Forge browser',
-			icon: <Globe size={12} />,
+			id: 'forge_browser', label: 'Browser', title: 'Inspect the persistent Forge browser', icon: <Globe size={12} />,
 			run: () => runForgeTool('forge_browser', { action: 'snapshot' }, 'Browser'),
 		},
 		{
-			id: 'forge_understand',
-			label: 'Graph',
-			title: 'Inspect code graph status',
-			icon: <Network size={12} />,
+			id: 'forge_understand', label: 'Graph', title: 'Inspect code graph status', icon: <Network size={12} />,
 			run: () => {
 				const workspace = accessor.get('IWorkspaceContextService').getWorkspace().folders[0]?.uri.fsPath;
 				return runForgeTool('forge_understand', { action: 'status', ...(workspace ? { workspace } : {}) }, 'Code graph');
 			},
 		},
 		{
-			id: 'forge_workflow',
-			label: 'Work',
-			title: 'Inspect Work Mode automations',
-			icon: <ListChecks size={12} />,
+			id: 'forge_workflow', label: 'Work', title: 'Inspect Work Mode automations', icon: <ListChecks size={12} />,
 			run: () => runForgeTool('forge_workflow', { action: 'status' }, 'Work Mode'),
 		},
 		{
-			id: 'forge_sidecar',
-			label: 'Design',
-			title: 'Inspect Open Design runtime',
-			icon: <Palette size={12} />,
+			id: 'forge_sidecar', label: 'Design', title: 'Inspect Open Design runtime', icon: <Palette size={12} />,
 			run: () => runForgeTool('forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design'),
 		},
 		{
-			id: 'forge_integrations',
-			label: 'Health',
-			title: 'Inspect Forge integration health',
-			icon: <Activity size={12} />,
+			id: 'forge_integrations', label: 'Health', title: 'Inspect Forge integration health', icon: <Activity size={12} />,
 			run: () => runForgeTool('forge_integrations', { action: 'doctor' }, 'Integrations'),
 		},
 	], [accessor, runForgeTool]);
@@ -234,7 +226,6 @@ export const Sidebar = ({ className }: { className: string }) => {
 		const target = event.target as HTMLElement | null;
 		const button = target?.closest<HTMLButtonElement>('button[title]');
 		if (!button || !ACTION_TITLES.has(button.title)) return;
-
 		event.preventDefault();
 		event.stopPropagation();
 		const title = button.title;
