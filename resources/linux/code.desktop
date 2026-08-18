@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=@@NAME_LONG@@
-Comment=Code Editing. Redefined.
-GenericName=Text Editor
+Comment=AI engineering with agentic coding, automation, browser verification, and design workflows.
+GenericName=AI Development Environment
 Exec=@@EXEC@@ %F
 Icon=@@ICON@@
 Type=Application
@@ -10,7 +10,7 @@ StartupWMClass=@@NAME_SHORT@@
 Categories=TextEditor;Development;IDE;
 MimeType=application/x-@@NAME@@-workspace;
 Actions=new-empty-window;
-Keywords=vscode;
+Keywords=forge;ai;agent;coding;automation;development;ide;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window
