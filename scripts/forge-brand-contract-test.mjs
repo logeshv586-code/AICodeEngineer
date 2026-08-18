@@ -44,6 +44,8 @@ check('Linux desktop brand', contains(files.linuxDesktop, ['AI Development Envir
 check('Linux URL handler brand', contains(files.linuxHandler, ['Open Forge AI Engineering Studio', 'Keywords=forge;ai;agent;coding;ide;']) && !files.linuxHandler.includes('Code Editing. Redefined.'), 'Deep-link launcher metadata must be Forge-specific.');
 check('Linux app-store brand', contains(files.linuxAppdata, [expectedRepo, 'Forge is an AI engineering studio', 'adaptive AI model routing']) && !files.linuxAppdata.includes('Visual Studio Code'), 'AppStream metadata must describe Forge rather than the upstream editor.');
 
+// Native packaging still expects historical VS Code-compatible filenames, but the
+// bytes behind those paths must now be Forge-owned brand assets.
 const nativeAssets = [
 	'resources/win32/code.ico',
 	'resources/win32/code_150x150.png',
