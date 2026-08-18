@@ -26,6 +26,17 @@ const coreRuntimeFiles = [
 	'out/vs/workbench/contrib/void/browser/forge/execution/blackboard/blackboard.js',
 	'out/vs/base/common/event.js',
 ];
+const requiredSuperAgentFiles = [
+	'forge-integrations.lock.json',
+	'scripts/forge-super-agent-bootstrap.mjs',
+	'scripts/forge-mcp-server.mjs',
+	'scripts/forge-integrations.mjs',
+	'scripts/forge-work.mjs',
+	'scripts/forge-understand.mjs',
+	'scripts/forge-learning.mjs',
+	'scripts/forge-sidecars.mjs',
+	'scripts/lib/forge-browser-controller.mjs',
+];
 
 const missingFiles = () => requiredRuntimeFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
 
@@ -49,21 +60,24 @@ const initialMissing = coreRuntimeFiles.filter(file => !fs.existsSync(path.join(
 if (initialMissing.length > 0) {
 	console.warn('[forge-guard] Missing runtime artifacts:');
 	initialMissing.forEach(file => console.warn(`  - ${file}`));
-	if (run(npmCommand, ['run', 'compile']) !== 0) {
-		process.exit(1);
-	}
+	if (run(npmCommand, ['run', 'compile']) !== 0) process.exit(1);
 }
 
 // Always rebuild React because it also synchronizes the Forge compatibility
 // paths created by build.js after a clean core compile.
-if (run(npmCommand, ['run', 'buildreact']) !== 0) {
-	process.exit(1);
-}
+if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);
 
 const remainingMissing = missingFiles();
 if (remainingMissing.length > 0) {
 	console.error('[forge-guard] Refusing to launch: runtime artifacts are still missing.');
 	remainingMissing.forEach(file => console.error(`  - ${file}`));
+	process.exit(1);
+}
+
+const missingSuperAgent = requiredSuperAgentFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
+if (missingSuperAgent.length > 0) {
+	console.error('[forge-guard] Refusing to launch: Super Agent source assets are missing.');
+	missingSuperAgent.forEach(file => console.error(`  - ${file}`));
 	process.exit(1);
 }
 
@@ -100,4 +114,22 @@ try {
 	process.exit(1);
 }
 
-console.log('[forge-guard] Runtime artifacts and skill library verified.');
+try {
+	const integrations = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'forge-integrations.lock.json'), 'utf8'));
+	const entries = Object.entries(integrations.integrations || {});
+	if (entries.length !== 5) {
+		console.error(`[forge-guard] Expected 5 pinned Super Agent integrations, found ${entries.length}.`);
+		process.exit(1);
+	}
+	for (const [name, spec] of entries) {
+		if (!/^[0-9a-f]{40}$/i.test(spec.commit || '')) {
+			console.error(`[forge-guard] Integration ${name} is not pinned to a full commit SHA.`);
+			process.exit(1);
+		}
+	}
+} catch (e) {
+	console.error(`[forge-guard] Invalid forge-integrations.lock.json: ${e.message}`);
+	process.exit(1);
+}
+
+console.log('[forge-guard] Runtime artifacts, skill library, and Super Agent assets verified.');

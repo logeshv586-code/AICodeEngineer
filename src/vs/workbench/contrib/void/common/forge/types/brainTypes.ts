@@ -15,7 +15,11 @@ export type AgentRole =
 	| 'ReviewAgent'
 	| 'TestAgent'
 	| 'DeploymentAgent'
-	| 'UIAutomationAgent';
+	| 'UIAutomationAgent'
+	| 'DesignAgent'
+	| 'AutomationAgent'
+	| 'KnowledgeAgent'
+	| 'LearningAgent';
 
 export type AgentState =
 	| 'idle'
@@ -42,9 +46,15 @@ export type AgentCapability =
 	| 'markdown_extraction'
 	| 'screenshot'
 	| 'playwright'
+	| 'browser_control'
 	| 'mcp'
 	| 'read_lint_errors'
-	| 'run_tests';
+	| 'run_tests'
+	| 'code_graph'
+	| 'design_generate'
+	| 'workflow_automation'
+	| 'skill_evolution'
+	| 'rl_trace';
 
 export interface ForgeTaskContext {
 	readonly taskId: string;

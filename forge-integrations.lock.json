@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-18",
+  "installRoot": "~/.forge/integrations",
+  "integrations": {
+    "skillopt": {
+      "repo": "https://github.com/microsoft/SkillOpt.git",
+      "commit": "9c776fcb51ae681c046d6f619b55e5f337d4f900",
+      "license": "MIT",
+      "purpose": "Validated skill evolution and SkillOpt-Sleep offline learning",
+      "tier": "core"
+    },
+    "understand-anything": {
+      "repo": "https://github.com/Egonex-AI/Understand-Anything.git",
+      "commit": "32944829e7a63a9fa9c55d811d7f98a9530c6a6a",
+      "license": "MIT",
+      "purpose": "Incremental multi-language codebase knowledge graph and impact analysis",
+      "tier": "core"
+    },
+    "agent-lightning": {
+      "repo": "https://github.com/microsoft/agent-lightning.git",
+      "commit": "352f1bd7c1a06994c841d86ae7cffd222148824a",
+      "license": "MIT",
+      "purpose": "Optional offline reinforcement learning from sanitized agent traces",
+      "tier": "learning"
+    },
+    "open-design": {
+      "repo": "https://github.com/nexu-io/open-design.git",
+      "commit": "b20d3c6f0665e032369a3c91cc11550c5345c90e",
+      "license": "Apache-2.0",
+      "purpose": "Local-first design studio, templates, design systems and preview daemon",
+      "tier": "creative"
+    },
+    "aionui": {
+      "repo": "https://github.com/iOfficeAI/AionUi.git",
+      "commit": "362122e8b36398c32ed5276dd645cd4853e57b43",
+      "license": "Apache-2.0",
+      "purpose": "Desktop cowork companion and long-running automation workflows",
+      "tier": "automation"
+    }
+  }
+}

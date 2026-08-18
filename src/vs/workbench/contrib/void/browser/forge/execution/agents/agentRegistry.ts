@@ -34,24 +34,61 @@ export class AgentRegistry {
 	}
 
 	private _registerDefaults(): void {
+		const now = Date.now();
 		const defaults: AgentDescriptor[] = [
 			{
 				id: 'agent-workspace-code',
 				name: 'Workspace Code Specialist',
 				role: 'workspace',
-				capabilities: ['workspace_edit', 'ast_inspect'],
+				capabilities: ['workspace_read', 'workspace_edit', 'ast_inspect', 'terminal', 'git', 'semantic_search'],
 				maxConcurrency: 3,
 				priority: 10,
-				health: { isHealthy: true, currentLoad: 15, lastActiveAt: Date.now() }
+				health: { isHealthy: true, currentLoad: 15, lastActiveAt: now }
 			},
 			{
 				id: 'agent-browser-web',
-				name: 'Browser Web Specialist',
+				name: 'Browser & Web Operator',
 				role: 'browser',
-				capabilities: ['web_browse', 'dom_inspect'],
+				capabilities: ['web_browse', 'dom_inspect', 'playwright', 'browser_control', 'screenshot'],
+				maxConcurrency: 2,
+				priority: 9,
+				health: { isHealthy: true, currentLoad: 5, lastActiveAt: now }
+			},
+			{
+				id: 'agent-knowledge-graph',
+				name: 'Codebase Knowledge Specialist',
+				role: 'knowledge',
+				capabilities: ['semantic_search', 'code_graph', 'project_memory_search', 'impact_analysis'],
+				maxConcurrency: 2,
+				priority: 10,
+				health: { isHealthy: true, currentLoad: 0, lastActiveAt: now }
+			},
+			{
+				id: 'agent-design-studio',
+				name: 'Design & Prototype Specialist',
+				role: 'design',
+				capabilities: ['design_generate', 'browser_control', 'screenshot', 'workspace_edit'],
 				maxConcurrency: 2,
 				priority: 8,
-				health: { isHealthy: true, currentLoad: 5, lastActiveAt: Date.now() }
+				health: { isHealthy: true, currentLoad: 0, lastActiveAt: now }
+			},
+			{
+				id: 'agent-work-automation',
+				name: 'Work Mode Automation Specialist',
+				role: 'automation',
+				capabilities: ['workflow_automation', 'terminal', 'browser_control', 'mcp'],
+				maxConcurrency: 2,
+				priority: 8,
+				health: { isHealthy: true, currentLoad: 0, lastActiveAt: now }
+			},
+			{
+				id: 'agent-learning-loop',
+				name: 'Offline Learning & Skill Evolution',
+				role: 'learning',
+				capabilities: ['rl_trace', 'skill_evolution', 'diff_review', 'run_tests'],
+				maxConcurrency: 1,
+				priority: 6,
+				health: { isHealthy: true, currentLoad: 0, lastActiveAt: now }
 			},
 			{
 				id: 'agent-review-gate',
@@ -60,25 +97,25 @@ export class AgentRegistry {
 				capabilities: ['lint_check', 'diff_review'],
 				maxConcurrency: 2,
 				priority: 9,
-				health: { isHealthy: true, currentLoad: 0, lastActiveAt: Date.now() }
+				health: { isHealthy: true, currentLoad: 0, lastActiveAt: now }
 			},
 			{
-				id: 'agent-[#6C5CE7]-security',
+				id: 'agent-security',
 				name: 'Security & Audit Specialist',
 				role: 'security',
-				capabilities: ['security_scan', 'vulnerability_check'],
+				capabilities: ['security_scan', 'vulnerability_check', 'diff_review'],
 				maxConcurrency: 2,
 				priority: 9,
-				health: { isHealthy: true, currentLoad: 0, lastActiveAt: Date.now() }
+				health: { isHealthy: true, currentLoad: 0, lastActiveAt: now }
 			},
 			{
 				id: 'agent-testing-runner',
 				name: 'Testing & Verification Agent',
 				role: 'testing',
-				capabilities: ['unit_test', 'playwright_test'],
+				capabilities: ['unit_test', 'playwright_test', 'lint_check'],
 				maxConcurrency: 2,
 				priority: 8,
-				health: { isHealthy: true, currentLoad: 10, lastActiveAt: Date.now() }
+				health: { isHealthy: true, currentLoad: 10, lastActiveAt: now }
 			}
 		];
 

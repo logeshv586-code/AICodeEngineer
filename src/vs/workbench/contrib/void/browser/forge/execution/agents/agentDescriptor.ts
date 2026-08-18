@@ -14,7 +14,17 @@ export interface AgentHealth {
 export interface AgentDescriptor {
 	readonly id: string;
 	readonly name: string;
-	readonly role: 'workspace' | 'browser' | 'review' | 'security' | 'testing' | 'coordinator';
+	readonly role:
+		| 'workspace'
+		| 'browser'
+		| 'review'
+		| 'security'
+		| 'testing'
+		| 'coordinator'
+		| 'design'
+		| 'automation'
+		| 'knowledge'
+		| 'learning';
 	readonly capabilities: string[];
 	readonly maxConcurrency: number;
 	readonly priority: number;

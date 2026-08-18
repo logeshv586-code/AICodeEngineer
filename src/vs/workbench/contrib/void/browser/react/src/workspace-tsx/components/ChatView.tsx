@@ -9,6 +9,8 @@ import { SlashCommandPalette, SlashCommandContext } from '../utils/slashCommandR
 import { StreamRenderer } from './StreamRenderer';
 import { ComposerControlCenter, Attachment } from './ComposerControlCenter';
 import { useStreamEvents, StreamEvent } from '../utils/streamEvents';
+import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
+import { chooseAdaptiveModel } from '../../../../../common/forge/intelligence/adaptiveModelRouter.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,20 +51,13 @@ const EmptyState: React.FC<{
 	onCommandsClick: (e: React.MouseEvent) => void;
 }> = ({ onSuggestionClick, onCommandsClick }) => (
 	<div className='flex flex-col items-center justify-center h-full select-none'>
-		{/* Logo */}
 		<div className='w-12 h-12 rounded-2xl bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center mb-4'>
 			<Sparkles size={24} className='text-zinc-400' />
 		</div>
-
-		{/* Title */}
-		<div className='text-sm font-medium text-zinc-400 mb-1'>
-			How can I help?
-		</div>
+		<div className='text-sm font-medium text-zinc-400 mb-1'>How can I help?</div>
 		<div className='text-[11px] text-zinc-600 mb-5 max-w-[220px] text-center'>
-			I can write code, review files, run tests, search your workspace, and more.
+			I can write code, review files, run tests, search your workspace, browse the web, and automate work.
 		</div>
-
-		{/* Suggestions */}
 		<div className='flex flex-wrap gap-1.5 justify-center max-w-[340px]'>
 			{[
 				'Explain this codebase',
@@ -91,8 +86,6 @@ const EmptyState: React.FC<{
 				</button>
 			))}
 		</div>
-
-		{/* Commands hint */}
 		<button
 			type='button'
 			onClick={onCommandsClick}
@@ -124,48 +117,30 @@ const MessageActions: React.FC<{ onRevert?: () => void }> = ({ onRevert }) => on
 const UserMessage: React.FC<{ message: ChatViewMessage; onRevert?: () => void }> = ({ message, onRevert }) => (
 	<div className='group relative flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
 		<MessageActions onRevert={onRevert} />
-		{/* Avatar */}
 		<div className='w-7 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center shrink-0 mt-0.5'>
 			<span className='text-[10px] font-bold text-zinc-500'>U</span>
 		</div>
-
-		{/* Content */}
 		<div className='flex-1 min-w-0'>
 			<div className='flex items-center gap-2 mb-0.5'>
 				<span className='text-[11px] font-medium text-zinc-500'>You</span>
 				<span className='text-[9px] text-zinc-700'>
-					{new Date(message.timestamp).toLocaleTimeString(undefined, {
-						hour: '2-digit',
-						minute: '2-digit',
-					})}
+					{new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
 				</span>
 			</div>
-			<div className='text-[13px] leading-relaxed text-zinc-300 whitespace-pre-wrap break-words'>
-				{message.content}
-			</div>
+			<div className='text-[13px] leading-relaxed text-zinc-300 whitespace-pre-wrap break-words'>{message.content}</div>
 		</div>
 	</div>
 );
 
 // ─── Assistant Message ────────────────────────────────────────────────────────
-//
-// The thinking process becomes PART of the reply.
-// Execution steps stream inline, woven with the text response.
-// No separate "Execution Details" panel.
-// No agent names — only human-readable activity labels.
 
 const AssistantMessage: React.FC<{
 	message: ChatViewMessage;
 	streamEvents: StreamEvent[];
 	isStreaming: boolean;
 	onRevert?: () => void;
-	}> = ({ message, streamEvents, isStreaming, onRevert }) => {
-	const timeStr = new Date(message.timestamp).toLocaleTimeString(undefined, {
-		hour: '2-digit',
-		minute: '2-digit',
-	});
-
-	// Deduplicate and filter events for inline display
+}> = ({ message, streamEvents, isStreaming, onRevert }) => {
+	const timeStr = new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 	const displayEvents = useMemo(() => {
 		const seen = new Set<string>();
 		return streamEvents.filter(event => {
@@ -175,50 +150,28 @@ const AssistantMessage: React.FC<{
 			return true;
 		});
 	}, [streamEvents]);
-
-	// Check if we have any active/running events to show inline
 	const hasActiveWork = displayEvents.some(e => e.status === 'active');
 
 	return (
 		<div className='group relative flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
 			<MessageActions onRevert={onRevert} />
-			{/* Avatar */}
 			<div className='w-7 h-7 rounded-lg bg-emerald-600/10 border border-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5'>
 				<Sparkles size={14} className='text-emerald-400' />
 			</div>
-
-			{/* Content */}
 			<div className='flex-1 min-w-0'>
-				{/* Header */}
 				<div className='flex items-center gap-2 mb-1'>
 					<span className='text-[11px] font-medium text-zinc-400'>Assistant</span>
 					<span className='text-[9px] text-zinc-700'>{timeStr}</span>
 				</div>
-
-				{/* Stream events woven into the reply */}
 				{hasActiveWork && (
 					<div className='text-[13px] leading-relaxed text-zinc-500 mb-1.5'>
-						{displayEvents
-							.filter(e => e.status === 'active')
-							.map(e => e.label)
-							.join('...')}
-						...
+						{displayEvents.filter(e => e.status === 'active').map(e => e.label).join('...')}...
 					</div>
 				)}
-
-				{/* Text response */}
 				{message.content && (
-					<div className='text-[13px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-words'>
-						{message.content}
-					</div>
+					<div className='text-[13px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-words'>{message.content}</div>
 				)}
-
-				{/* Inline progress stream — collapsible */}
-				{displayEvents.length > 0 && (
-					<StreamRenderer events={displayEvents} className='mt-2' />
-				)}
-
-				{/* Streaming indicator */}
+				{displayEvents.length > 0 && <StreamRenderer events={displayEvents} className='mt-2' />}
 				{isStreaming && (
 					<div className='flex items-center gap-1.5 mt-2 text-zinc-600'>
 						<Sparkles size={10} className='text-emerald-400 animate-pulse' />
@@ -257,41 +210,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-	// Stream events — scoped to this conversation
-	// NOTE: clearEvents cannot be passed as onRunStart in the same destructuring
-	// call that declares it — that is a temporal dead zone. Instead we use a
-	// stable ref so the hook always calls the latest version of clearEvents.
 	const clearEventsRef = useRef<(() => void) | null>(null);
 	const { state: streamState, clearEvents } = useStreamEvents({
 		maxEvents: 150,
 		resetOnRunStart: true,
 		onRunStart: () => clearEventsRef.current?.(),
 	});
-	// Keep ref up-to-date after every render so the callback above is always current.
 	clearEventsRef.current = clearEvents;
 
-	// Auto-scroll on new messages or stream events
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 	}, [messages, streamState.events.length, isStreaming]);
 
-	// Send message handler
-	const handleSend = useCallback(() => {
+	const sendWithAdaptiveModel = useCallback(async (text: string) => {
+		const trimmed = text.trim();
+		if (!trimmed) return;
+		if (slashContext) {
+			try {
+				const settingsService = slashContext.accessor.get(IVoidSettingsService);
+				if (settingsService.state.globalSettings.autoModelSelection) {
+					const currentSelection = settingsService.state.modelSelectionOfFeature.Chat;
+					const decision = chooseAdaptiveModel({
+						prompt: trimmed,
+						candidates: settingsService.state._modelOptions,
+						currentSelection,
+					});
+					if (decision.selection && (
+						decision.selection.providerName !== currentSelection?.providerName ||
+						decision.selection.modelName !== currentSelection?.modelName
+					)) {
+						await settingsService.setModelSelectionOfFeature('Chat', decision.selection);
+						console.log(`[Forge Model Router] ${decision.reason}`);
+					}
+				}
+			} catch (error) {
+				console.warn('[Forge Model Router] Falling back to current model:', error);
+			}
+		}
+		onSendMessage(trimmed);
+	}, [onSendMessage, slashContext]);
+
+	const handleSend = useCallback(async () => {
 		const text = draftText.trim();
 		if (!text || isStreaming) return;
-		onSendMessage(text);
+		await sendWithAdaptiveModel(text);
 		setDraftText('');
-		if (textareaRef.current) {
-			textareaRef.current.style.height = 'auto';
-		}
-	}, [draftText, isStreaming, onSendMessage]);
+		if (textareaRef.current) textareaRef.current.style.height = 'auto';
+	}, [draftText, isStreaming, sendWithAdaptiveModel]);
 
-	// Suggestion click
 	const handleSuggestion = useCallback((text: string) => {
-		onSendMessage(text);
-	}, [onSendMessage]);
+		void sendWithAdaptiveModel(text);
+	}, [sendWithAdaptiveModel]);
 
-	// Slash command handlers
 	const handleOpenCommands = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
 		const rect = e.currentTarget.getBoundingClientRect();
 		setSlashAnchor(rect);
@@ -303,19 +273,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setSlashAnchor(null);
 		if (cmd.category === 'Skills (Registry)' && !args) {
 			setDraftText(`${cmd.name} `);
-			setTimeout(() => {
-				if (textareaRef.current) {
-					textareaRef.current.focus();
-				}
-			}, 50);
+			setTimeout(() => textareaRef.current?.focus(), 50);
 			return;
 		}
-		if (slashContext) {
-			cmd.execute({ ...slashContext, args });
-		}
+		if (slashContext) cmd.execute({ ...slashContext, args });
 	}, [slashContext]);
 
-	// Keyboard shortcuts
 	const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === '/' && !draftText && !isSlashOpen) {
 			e.preventDefault();
@@ -326,7 +289,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
-			handleSend();
+			void handleSend();
 		}
 		if (e.key === 'Escape' && isSlashOpen) {
 			setIsSlashOpen(false);
@@ -334,7 +297,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	}, [draftText, isSlashOpen, handleSend]);
 
-	// Auto-resize textarea
 	const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		setDraftText(e.target.value);
 		const target = e.target;
@@ -342,15 +304,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		target.style.height = Math.min(target.scrollHeight, 200) + 'px';
 	}, []);
 
-	// Stream events associated with the last assistant message
 	const lastAssistantIndex = [...messages].reverse().findIndex(m => m.role === 'assistant');
-	const streamEventsForLastResponse = lastAssistantIndex >= 0
-		? streamState.events
-		: [];
+	const streamEventsForLastResponse = lastAssistantIndex >= 0 ? streamState.events : [];
 
 	return (
 		<div className={`flex flex-1 min-w-0 min-h-0 flex-col h-full bg-void-bg-1 ${className}`}>
-			{/* Slash command palette */}
 			{slashContext && (
 				<SlashCommandPalette
 					isOpen={isSlashOpen}
@@ -361,13 +319,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				/>
 			)}
 
-			{/* Messages area */}
 			<div className='flex-1 overflow-y-auto'>
 				{messages.length === 0 ? (
-					<EmptyState
-						onSuggestionClick={handleSuggestion}
-						onCommandsClick={handleOpenCommands}
-					/>
+					<EmptyState onSuggestionClick={handleSuggestion} onCommandsClick={handleOpenCommands} />
 				) : (
 					<>
 						{messages.map((message, index) => {
@@ -375,11 +329,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								return <UserMessage key={message.id} message={message}
 									onRevert={message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!)} />;
 							}
-
-							// Associate stream events with the assistant message that follows the user's
 							const isLastAssistant = index === messages.length - 1;
 							const events = isLastAssistant ? streamEventsForLastResponse : [];
-
 							return (
 								<AssistantMessage
 									key={message.id}
@@ -390,26 +341,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								/>
 							);
 						})}
-
-						{/* Streaming placeholder (no text yet, but events coming in) */}
 						{isStreaming && streamState.events.length > 0 && !messages.some(m => m.role === 'assistant' && m.timestamp > Date.now() - 5000) && (
 							<div className='flex gap-3 py-3 px-4'>
 								<div className='w-7 h-7 rounded-lg bg-emerald-600/10 border border-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5'>
 									<Sparkles size={14} className='text-emerald-400' />
 								</div>
-								<div className='flex-1 min-w-0'>
-									<StreamRenderer events={streamEventsForLastResponse} />
-								</div>
+								<div className='flex-1 min-w-0'><StreamRenderer events={streamEventsForLastResponse} /></div>
 							</div>
 						)}
-
-						{/* Scroll anchor */}
 						<div ref={messagesEndRef} />
 					</>
 				)}
 			</div>
 
-			{/* Composer — the control center */}
 			<ComposerControlCenter
 				value={draftText}
 				onChange={handleTextareaChange}
