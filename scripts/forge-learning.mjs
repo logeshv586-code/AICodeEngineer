@@ -4,8 +4,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const integrationsRoot = process.env.FORGE_INTEGRATIONS_HOME || path.join(os.homedir(), '.forge', 'integrations');
-const learningRoot = process.env.FORGE_LEARNING_HOME || path.join(os.homedir(), '.forge', 'learning');
+const integrationsRoot = path.resolve(process.env.FORGE_INTEGRATIONS_HOME || path.join(os.homedir(), '.forge', 'integrations'));
+const learningRoot = path.resolve(process.env.FORGE_LEARNING_HOME || path.join(os.homedir(), '.forge', 'learning'));
 const traceFile = path.join(learningRoot, 'coding-traces.jsonl');
 
 const secretKeyPattern = /(api.?key|token|secret|password|credential|authorization|cookie)/i;
@@ -50,17 +50,31 @@ export const skillOptSleep = (action = 'status', options = {}) => {
   const allowed = new Set(['status', 'dry-run', 'run']);
   if (!allowed.has(action)) throw new Error(`Unsupported SkillOpt-Sleep action: ${action}`);
   const args = [action];
-  if (options.workspace) args.push('--workspace', path.resolve(options.workspace));
+  // SkillOpt-Sleep's pinned CLI uses --project, not --workspace.
+  if (options.workspace) args.push('--project', path.resolve(options.workspace));
+  args.push('--json');
   const result = spawnSync(skillOptExecutable(), args, {
     cwd: options.workspace || process.cwd(),
     encoding: 'utf8',
     shell: process.platform === 'win32',
     timeout: 20 * 60_000,
   });
+  if (result.error) {
+    return {
+      action,
+      exitCode: null,
+      stdout: '',
+      stderr: result.error.message,
+      hint: 'Run install-forge-super-agent.bat setup so the SkillOpt virtual environment contains skillopt-sleep.',
+    };
+  }
+  let parsed;
+  try { parsed = JSON.parse(String(result.stdout || '').trim()); } catch { /* preserve raw output */ }
   return {
     action,
     exitCode: result.status,
-    stdout: String(result.stdout || '').slice(-30_000),
+    result: parsed,
+    stdout: parsed ? undefined : String(result.stdout || '').slice(-30_000),
     stderr: String(result.stderr || '').slice(-12_000),
   };
 };
@@ -71,11 +85,14 @@ export const learningStatus = () => ({
   skillopt: {
     source: path.join(integrationsRoot, 'skillopt'),
     installed: fs.existsSync(path.join(integrationsRoot, 'skillopt')),
+    executable: skillOptExecutable(),
+    policy: 'dry-run/run may stage validated proposals; live adoption remains an explicit human-controlled step.',
   },
   agentLightning: {
     source: path.join(integrationsRoot, 'agent-lightning'),
     installed: fs.existsSync(path.join(integrationsRoot, 'agent-lightning')),
-    note: 'Training is deliberately offline/opt-in because Agent Lightning commonly requires a dedicated GPU training environment.',
+    codingAgentGuide: path.join(integrationsRoot, 'agent-lightning', 'docs', '13-example-coding-agent.md'),
+    note: 'Training is deliberately offline/opt-in because Agent Lightning v1 coding-agent training uses a dedicated GPU/Kubernetes/verl environment.',
   },
 });
 

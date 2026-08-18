@@ -1,85 +1,133 @@
 # Forge Super Agent Runtime
 
-Forge integrates advanced agent capabilities without loading every subsystem into every model prompt.
+Forge integrates advanced coding-agent capabilities without loading every subsystem into every model prompt.
 
-## Architecture
+## Runtime architecture
 
 ```text
 User request
-  -> zero-token task classifier
-  -> adaptive configured-model router
-  -> native 333-skill router (0-3 skill bodies, 4k skill-token cap)
-  -> focused workspace/code-graph discovery
-  -> coding agent loop (read/edit/rewrite/create/delete/terminal/MCP)
-  -> optional browser/design/work-mode tools
-  -> tests + diff review
+  -> zero-token task classification / adaptive model selection
+  -> native 333-skill router (0-3 bodies, 4k skill-token cap)
+  -> CocoIndex + optional Understand Anything graph discovery
+  -> Forge coding loop (read/edit/rewrite/create/delete/terminal/MCP)
+  -> optional persistent browser / Open Design / AionUi / Work Mode tools
+  -> tests + browser verification + diff review
   -> sanitized offline learning trace
+  -> SkillOpt validation / optional Agent Lightning training
 ```
 
-The base IDE remains lightweight. Heavy upstream projects are pinned by exact commit in `forge-integrations.lock.json` and cloned as full local source trees under `~/.forge/integrations` when requested. This avoids embedding multiple independent Electron/GPU toolchains inside the Forge build while still making their complete source available locally.
+The base IDE remains lightweight. Heavy upstream projects are pinned by exact commit in `forge-integrations.lock.json` and downloaded as local source trees under `~/.forge/integrations`. On Windows this resolves to `C:\Users\<user>\.forge\integrations`.
 
-## One-command bootstrap
+## Windows one-click full installation
+
+After pulling Forge, run:
+
+```bat
+install-forge-super-agent.bat
+```
+
+This downloads the complete pinned working source tree for all five integrations and installs Chromium for the persistent Playwright browser agent:
+
+- Microsoft SkillOpt
+- Egonex Understand Anything
+- Microsoft Agent Lightning
+- Nexu Open Design
+- AionUi
+
+The installer uses shallow exact-commit checkouts: every file for the pinned revision is available locally, while unnecessary Git history is not downloaded.
+
+For dependency setup where supported:
+
+```bat
+install-forge-super-agent.bat setup
+```
+
+Agent Lightning GPU/`verl`/vLLM dependencies remain deliberately opt-in because its training environment is substantially heavier than normal IDE inference.
+
+Cross-platform equivalent:
 
 ```bash
-# SkillOpt + Understand Anything source + Forge MCP registration
-node scripts/forge-super-agent-bootstrap.mjs
-
-# All five requested source trees
-node scripts/forge-super-agent-bootstrap.mjs --full
-
-# Also install supported dependency sets where safe
-node scripts/forge-super-agent-bootstrap.mjs --full --setup
+node scripts/forge-super-agent-bootstrap.mjs --full --browser
+node scripts/forge-super-agent-bootstrap.mjs --full --browser --setup
 ```
 
-Restart Forge after MCP bootstrap. The `forge-super-agent` MCP server then exposes browser, integration, code-graph, sidecar, work-mode, and learning tools directly to the existing Forge agent loop.
+## Local source layout
 
-## Adaptive model routing
+```text
+~/.forge/integrations/
+  skillopt/
+  understand-anything/
+  agent-lightning/
+  open-design/
+  aionui/
+  .forge-integrations.json
+```
 
-`common/forge/intelligence/taskProfile.ts` classifies coding/debug/design/browser/automation/security/research tasks without an extra LLM call. `adaptiveModelRouter.ts` scores only models already configured by the user. The current model is retained when it is close to the best fit, reducing provider churn and token/cost overhead. An explicitly named configured model wins.
+`node scripts/forge-integrations.mjs verify full` validates exact commit, upstream remote, and source-license presence for all five checkouts.
 
-The active React chat path applies this decision before sending the user message when `globalSettings.autoModelSelection` is enabled.
+## MCP integration
+
+`run-forge-ide.bat` registers `forge-super-agent` in `~/.forge-ai-editor/mcp.json` every launch. The MCP server exposes:
+
+- `forge_browser` — persistent browser inspection and interaction
+- `forge_integrations` — source install/status/doctor/verify/self-test
+- `forge_understand` — small local `.ua` graph searches and viewer launch
+- `forge_sidecar` — Open Design / AionUi lifecycle
+- `forge_workflow` — local scheduled/manual Work Mode tasks and pending queue
+- `forge_learning` — sanitized traces and SkillOpt-Sleep controls
+
+Run a strict verification with:
+
+```bash
+node scripts/forge-super-agent-self-test.mjs --require-all
+```
 
 ## Browser agent
 
-`forge_browser` uses a persistent local Playwright context. Supported operations include:
+The browser controller keeps one local Playwright profile under `~/.forge/browser-profile`. `snapshot` returns a compact page representation and assigns temporary stable selectors such as:
 
-- open/goto
-- compact DOM snapshot
-- click/fill/type/press
-- bounded waits
-- screenshots stored under `~/.forge/artifacts/browser`
-- batched `run_steps`
+```text
+[data-forge-agent-id="12"]
+```
 
-Arbitrary page evaluation is disabled unless explicitly opted into for a trusted request.
+The agent can then click/fill/type/select/check/hover without guessing DOM selectors. It also supports navigation, tabs, waits, screenshots, batched `run_steps`, and guarded JavaScript evaluation. Browser screenshots are stored under `~/.forge/artifacts/browser`.
+
+Use `FORGE_BROWSER_HEADED=1` when you want the controlled browser visible.
 
 ## Understand Anything
 
-The pinned source is installed locally, while Forge reads `.ua/knowledge-graph.json` on demand through `forge_understand`. Search returns small matching graph slices instead of placing the whole graph in model context. If the graph is absent, the tool tells the agent to run the upstream `/understand` skill; subsequent upstream runs are incremental.
+Forge keeps Understand Anything as a pinned full source checkout and consumes `.ua/knowledge-graph.json` only when useful. `forge_understand search` returns small graph slices rather than injecting the entire graph into the prompt. Initial graph construction remains an explicit upstream operation because it may consume substantial compute/tokens; later updates are incremental.
 
 ## Open Design
 
-Open Design remains a companion sidecar because it has its own daemon/web/desktop architecture and Node/pnpm requirements. `forge_sidecar` can inspect/start/stop the pinned source runtime. The coding agent can combine Open Design with `forge_browser` and normal workspace edits.
+Open Design remains a companion runtime because it has its own daemon/web/desktop architecture. Forge can start, stop and inspect the pinned source through `forge_sidecar`. Design tasks can combine Open Design outputs with normal Forge workspace edits and `forge_browser` verification.
 
-## Work Mode and AionUi
+## Work Mode + AionUi
 
-Forge Work Mode stores local workflow definitions under `~/.forge/work/tasks.json`. It supports manual, one-time, interval, and five-field cron schedules. Prompt workflows are returned to the Forge agent for model/tool execution. Shell workflows require approval unless the creator explicitly marks the task unattended.
+`run-forge-ide.bat` starts the lightweight `forge-work-daemon.mjs` scheduler. Work Mode supports:
 
-AionUi is installed as a pinned companion source tree and can be launched as a desktop/web cowork sidecar for long-running automation and remote access.
+- manual tasks
+- one-time schedules
+- interval schedules (minimum one minute)
+- five-field cron schedules
+- unattended local command tasks
+- approval-required command tasks
+- agent-prompt tasks
 
-## Self-evolution and Agent Lightning
+Scheduled prompts and approval-required commands are de-duplicated into `~/.forge/work/pending.json`; completed/acknowledged work is recorded in `~/.forge/work/history.jsonl`. AionUi can still be launched as the richer local/remote cowork sidecar for long-running automation UI.
 
-Forge deliberately separates **live execution** from **learning**:
+## Self-evolution
 
-- `forge_learning record` writes sanitized JSONL outcomes under `~/.forge/learning`.
-- SkillOpt-Sleep can inspect/replay/consolidate experience behind its validation gate.
-- Agent Lightning source and trace data are available for optional offline RL training.
-- No successful chat turn directly rewrites a live skill or launches GPU training.
+Forge deliberately separates live execution from learning:
 
-This keeps normal inference fast and predictable while still creating an evidence-based path for self-improvement.
+- `forge_learning record` writes sanitized task traces to `~/.forge/learning/coding-traces.jsonl`.
+- SkillOpt-Sleep can replay/consolidate experience behind its validation gates.
+- Agent Lightning source is available locally for optional RL experiments/training.
+- A successful chat turn never directly rewrites a production skill or silently starts GPU training.
 
-## Verification
+This preserves predictable inference behavior while still creating a controlled self-improvement loop.
 
-After changing Super Agent code, run:
+## Verification after pull
 
 ```bash
 npm run compile
@@ -87,6 +135,7 @@ npm run buildreact
 node scripts/forge-runtime-guard.mjs
 node scripts/manage-skills.mjs validate
 node scripts/forge-integrations.mjs doctor
+node scripts/forge-super-agent-self-test.mjs --require-all
 ```
 
-Then restart Forge and verify the MCP tool list includes `forge_browser`, `forge_integrations`, `forge_understand`, `forge_sidecar`, `forge_workflow`, and `forge_learning`.
+Then restart Forge with `run-forge-ide.bat` and verify that the MCP tool list includes all six `forge_*` tools above.

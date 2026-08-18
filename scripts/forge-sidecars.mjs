@@ -4,30 +4,64 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const integrationsRoot = process.env.FORGE_INTEGRATIONS_HOME || path.join(os.homedir(), '.forge', 'integrations');
+const integrationsRoot = path.resolve(process.env.FORGE_INTEGRATIONS_HOME || path.join(os.homedir(), '.forge', 'integrations'));
 const stateRoot = path.join(os.homedir(), '.forge', 'sidecars');
 
 const sidecars = {
   'open-design': {
     cwd: path.join(integrationsRoot, 'open-design'),
-    command: 'pnpm',
     startArgs: ['tools-dev', 'start', 'web'],
     stopArgs: ['tools-dev', 'stop'],
     statusArgs: ['tools-dev', 'status'],
   },
   'aionui': {
     cwd: path.join(integrationsRoot, 'aionui'),
-    command: 'pnpm',
     startArgs: ['webui'],
+    remoteArgs: ['webui:remote'],
     stopArgs: null,
     statusArgs: null,
   },
 };
 
+const commandExists = command => {
+  const checker = process.platform === 'win32' ? 'where' : 'which';
+  const result = spawnSync(checker, [command], { stdio: 'ignore', shell: false });
+  return result.status === 0;
+};
+
+const pnpmInvocation = () => {
+  if (commandExists('pnpm')) return { command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', prefix: [] };
+  if (commandExists('corepack')) return { command: process.platform === 'win32' ? 'corepack.cmd' : 'corepack', prefix: ['pnpm'] };
+  throw new Error('pnpm is unavailable. Install pnpm or enable Corepack before starting Open Design/AionUi.');
+};
+
+const runPnpm = (args, options = {}) => {
+  const invocation = pnpmInvocation();
+  return spawnSync(invocation.command, [...invocation.prefix, ...args], {
+    cwd: options.cwd,
+    encoding: 'utf8',
+    shell: false,
+    stdio: options.stdio || 'pipe',
+    timeout: options.timeout,
+  });
+};
+
+const spawnPnpm = (args, options = {}) => {
+  const invocation = pnpmInvocation();
+  return spawn(invocation.command, [...invocation.prefix, ...args], {
+    cwd: options.cwd,
+    detached: options.detached === true,
+    stdio: options.stdio || 'ignore',
+    shell: false,
+    windowsHide: true,
+    env: { ...process.env, ...(options.env || {}) },
+  });
+};
+
 const specOf = name => {
   const spec = sidecars[name];
   if (!spec) throw new Error(`Unknown sidecar: ${name}`);
-  if (!fs.existsSync(spec.cwd)) throw new Error(`${name} is not installed. Run forge-integrations.mjs install ${name} first.`);
+  if (!fs.existsSync(spec.cwd)) throw new Error(`${name} is not installed. Run install-forge-super-agent.bat first or use forge_integrations install.`);
   return spec;
 };
 
@@ -40,6 +74,9 @@ const readState = name => {
   if (!fs.existsSync(stateFile(name))) return null;
   try { return JSON.parse(fs.readFileSync(stateFile(name), 'utf8')); } catch { return null; }
 };
+const clearState = name => {
+  try { fs.rmSync(stateFile(name), { force: true }); } catch { /* ignore */ }
+};
 const processAlive = pid => {
   if (!pid) return false;
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -50,25 +87,29 @@ export const sidecarStatus = name => {
   const state = readState(name);
   let nativeStatus;
   if (spec.statusArgs) {
-    const result = spawnSync(spec.command, spec.statusArgs, { cwd: spec.cwd, encoding: 'utf8', shell: process.platform === 'win32' });
+    const result = runPnpm(spec.statusArgs, { cwd: spec.cwd, timeout: 30_000 });
     nativeStatus = { exitCode: result.status, stdout: String(result.stdout || '').slice(-8000), stderr: String(result.stderr || '').slice(-4000) };
   }
-  return { name, path: spec.cwd, process: state ? { ...state, alive: processAlive(state.pid) } : null, nativeStatus };
+  return {
+    name,
+    path: spec.cwd,
+    process: state ? { ...state, alive: processAlive(state.pid) } : null,
+    nativeStatus,
+  };
 };
 
 export const startSidecar = (name, options = {}) => {
   const spec = specOf(name);
   if (name === 'open-design') {
-    const result = spawnSync(spec.command, spec.startArgs, { cwd: spec.cwd, encoding: 'utf8', shell: process.platform === 'win32' });
+    const result = runPnpm(spec.startArgs, { cwd: spec.cwd, timeout: 120_000 });
+    if (result.error) throw result.error;
     return { name, exitCode: result.status, stdout: String(result.stdout || '').slice(-12000), stderr: String(result.stderr || '').slice(-6000) };
   }
 
-  const child = spawn(spec.command, options.remote ? ['webui:remote'] : spec.startArgs, {
+  const child = spawnPnpm(options.remote ? spec.remoteArgs : spec.startArgs, {
     cwd: spec.cwd,
     detached: true,
     stdio: 'ignore',
-    shell: process.platform === 'win32',
-    env: { ...process.env },
   });
   child.unref();
   const state = { pid: child.pid, startedAt: new Date().toISOString(), remote: !!options.remote };
@@ -76,20 +117,35 @@ export const startSidecar = (name, options = {}) => {
   return { name, ...state };
 };
 
+const killProcessTree = pid => {
+  if (process.platform === 'win32') {
+    const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { encoding: 'utf8', shell: false });
+    return { ok: result.status === 0, stdout: String(result.stdout || ''), stderr: String(result.stderr || '') };
+  }
+  try {
+    process.kill(-pid, 'SIGTERM');
+    return { ok: true };
+  } catch {
+    try {
+      process.kill(pid, 'SIGTERM');
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+};
+
 export const stopSidecar = name => {
   const spec = specOf(name);
   if (spec.stopArgs) {
-    const result = spawnSync(spec.command, spec.stopArgs, { cwd: spec.cwd, encoding: 'utf8', shell: process.platform === 'win32' });
+    const result = runPnpm(spec.stopArgs, { cwd: spec.cwd, timeout: 60_000 });
     return { name, exitCode: result.status, stdout: String(result.stdout || '').slice(-8000), stderr: String(result.stderr || '').slice(-4000) };
   }
   const state = readState(name);
   if (!state?.pid) return { name, stopped: false, reason: 'No managed PID found.' };
-  try {
-    process.kill(state.pid);
-    return { name, stopped: true, pid: state.pid };
-  } catch (error) {
-    return { name, stopped: false, pid: state.pid, error: error instanceof Error ? error.message : String(error) };
-  }
+  const killed = killProcessTree(state.pid);
+  if (killed.ok) clearState(name);
+  return { name, stopped: killed.ok, pid: state.pid, ...killed };
 };
 
 const main = () => {

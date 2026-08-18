@@ -24,18 +24,21 @@ Forge is designed to complete user tasks rather than only suggest code.
 1. Classify the task locally first. Prefer lean context and fast configured models for simple work; use stronger coding/reasoning/vision models only when task complexity requires them.
 2. For unfamiliar, large, multi-language, or cross-file repositories, use semantic search and the Understand Anything graph when available. Never inject the entire graph into a prompt.
 3. Use workspace read/edit/rewrite/create/delete tools and terminal execution to implement the task. Continue through verification unless user approval is required.
-4. Use `forge_browser` for real browser/DOM validation and screenshots instead of guessing UI state.
+4. Use `forge_browser` for real browser/DOM validation and screenshots instead of guessing UI state. Prefer selectors returned by `snapshot` and batched `run_steps` to keep browser context compact.
 5. Use Open Design only for design/prototype tasks and AionUi/Forge Work Mode only for automation tasks. Heavy integrations stay outside the base prompt.
-6. Record sanitized task outcomes through `forge_learning`; SkillOpt-Sleep and Agent Lightning are offline improvement systems, not permission to mutate live skills without validation.
-7. Do not expose secrets in learning traces, logs, screenshots, or generated workflow definitions.
+6. For Work Mode, use `forge_workflow pending` to inspect scheduled prompt/approval work. Unattended shell tasks may execute in the local scheduler; prompt tasks still flow through the normal Forge model/tool loop.
+7. Record sanitized task outcomes through `forge_learning`; SkillOpt-Sleep and Agent Lightning are offline improvement systems, not permission to mutate live skills without validation.
+8. Do not expose secrets in learning traces, logs, screenshots, generated workflow definitions, or browser snapshots.
 
 ## Local integration commands
 
-- `node scripts/forge-super-agent-bootstrap.mjs` — install core pinned source integrations and register the Forge MCP server.
-- `node scripts/forge-super-agent-bootstrap.mjs --full` — clone the full pinned source trees for SkillOpt, Understand Anything, Agent Lightning, Open Design, and AionUi under `~/.forge/integrations`.
-- Add `--setup` only when dependency installation is desired; heavyweight GPU/design/desktop environments are intentionally opt-in.
+- `install-forge-super-agent.bat` — Windows one-click installer for all five pinned source trees plus Chromium under `%USERPROFILE%\.forge\integrations`.
+- `install-forge-super-agent.bat setup` — additionally install supported local dependency sets.
+- `node scripts/forge-super-agent-bootstrap.mjs --full --browser` — cross-platform full-source equivalent.
+- `node scripts/forge-integrations.mjs verify full` — validate exact commits, remotes, and source licenses.
+- `node scripts/forge-super-agent-self-test.mjs --require-all` — strict Super Agent health check.
 - `node scripts/forge-integrations.mjs doctor` — inspect local integration health.
-- `node scripts/forge-work.mjs list` — inspect Work Mode automations.
+- `node scripts/forge-work.mjs list` / `pending` — inspect Work Mode tasks and queued work.
 
 ## Important runtime paths
 
@@ -46,4 +49,4 @@ must keep both locations synchronized.
 
 The Super Agent MCP server is registered in `~/.forge-ai-editor/mcp.json` and
 uses source integrations under `~/.forge/integrations`. Browser profiles,
-artifacts, workflows, and sanitized learning traces are stored under `~/.forge/`.
+artifacts, workflows, scheduler state, and sanitized learning traces are stored under `~/.forge/`.

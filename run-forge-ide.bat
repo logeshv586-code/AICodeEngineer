@@ -17,6 +17,18 @@ if errorlevel 1 (
     echo [forge-super-agent] MCP bootstrap failed. Continuing with built-in tools only.
 )
 
+rem Start the lightweight local Work Mode scheduler. It de-duplicates itself
+rem with a PID file and queues prompt/approval workflows under %%USERPROFILE%%\.forge\work.
+start "Forge Work Scheduler" /B node "%~dp0scripts\forge-work-daemon.mjs" >nul 2>&1
+
+rem Tell the developer how to install the complete pinned open-source source trees,
+rem but never download multi-GB integrations unexpectedly during IDE startup.
+call node "%~dp0scripts\forge-integrations.mjs" verify full >nul 2>&1
+if errorlevel 1 (
+    echo [forge-super-agent] Optional integrations are not fully installed.
+    echo [forge-super-agent] Run install-forge-super-agent.bat once to download all source to %%USERPROFILE%%\.forge\integrations.
+)
+
 rem Validate and self-repair all core, Forge, React, skill, and Super Agent runtime artifacts before launch.
 call node "%~dp0scripts\forge-runtime-guard.mjs"
 if errorlevel 1 (

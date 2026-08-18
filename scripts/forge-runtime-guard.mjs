@@ -28,10 +28,13 @@ const coreRuntimeFiles = [
 ];
 const requiredSuperAgentFiles = [
 	'forge-integrations.lock.json',
+	'install-forge-super-agent.bat',
 	'scripts/forge-super-agent-bootstrap.mjs',
+	'scripts/forge-super-agent-self-test.mjs',
 	'scripts/forge-mcp-server.mjs',
 	'scripts/forge-integrations.mjs',
 	'scripts/forge-work.mjs',
+	'scripts/forge-work-daemon.mjs',
 	'scripts/forge-understand.mjs',
 	'scripts/forge-learning.mjs',
 	'scripts/forge-sidecars.mjs',
@@ -63,8 +66,7 @@ if (initialMissing.length > 0) {
 	if (run(npmCommand, ['run', 'compile']) !== 0) process.exit(1);
 }
 
-// Always rebuild React because it also synchronizes the Forge compatibility
-// paths created by build.js after a clean core compile.
+// Rebuild React because build.js also synchronizes Forge compatibility paths.
 if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);
 
 const remainingMissing = missingFiles();
@@ -81,7 +83,7 @@ if (missingSuperAgent.length > 0) {
 	process.exit(1);
 }
 
-// Verify skill registry and library assets
+// Verify skill registry and library assets.
 const registryFile = path.join(workspaceRoot, 'skill_registry.json');
 if (!fs.existsSync(registryFile)) {
 	console.error('[forge-guard] Missing skill_registry.json at application root.');
@@ -94,6 +96,10 @@ try {
 
 	if (typeof registry.skillCount === 'number' && registry.skillCount !== skills.length) {
 		console.error(`[forge-guard] Registry count mismatch: expected ${registry.skillCount}, found ${skills.length}`);
+		process.exit(1);
+	}
+	if (skills.length !== 333) {
+		console.error(`[forge-guard] Expected 333 registered skills, found ${skills.length}.`);
 		process.exit(1);
 	}
 
@@ -126,10 +132,14 @@ try {
 			console.error(`[forge-guard] Integration ${name} is not pinned to a full commit SHA.`);
 			process.exit(1);
 		}
+		if (!/^https:\/\/github\.com\//i.test(spec.repo || '')) {
+			console.error(`[forge-guard] Integration ${name} must use an explicit GitHub source URL.`);
+			process.exit(1);
+		}
 	}
 } catch (e) {
 	console.error(`[forge-guard] Invalid forge-integrations.lock.json: ${e.message}`);
 	process.exit(1);
 }
 
-console.log('[forge-guard] Runtime artifacts, skill library, and Super Agent assets verified.');
+console.log('[forge-guard] Runtime artifacts, 333-skill library, and Super Agent assets verified.');
