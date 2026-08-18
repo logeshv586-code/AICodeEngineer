@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Send, Square, Paperclip, Mic, Image as ImageIcon, AtSign, WandSparkles, Code2, Palette, ChevronDown, ChevronUp } from 'lucide-react';
 import { VoidInputBox2, TextAreaFns } from '../../util/inputs.tsx';
 import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
@@ -11,6 +11,8 @@ import { ModelCapability } from '../utils/modelCapabilityManifest.js';
 import { ModelDropdown } from '../../void-settings-tsx/ModelDropdown.tsx';
 import { FeatureName } from '../../../../common/voidSettingsTypes.js';
 import { useAccessor, useSettingsState } from '../../util/services.tsx';
+
+const FILE_ACCEPT = 'image/*,.pdf,.txt,.md,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.json,.jsonl,.css,.scss,.html,.svg,.xml,.yaml,.yml,.toml,.rs,.go,.java,.kt,.kts,.c,.h,.cpp,.hpp,.cs,.php,.rb,.sh,.ps1,.sql';
 
 interface UniversalComposerProps {
 	value: string;
@@ -77,7 +79,22 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 	const [showCodePanel, setShowCodePanel] = useState(false);
 	const [artPrompt, setArtPrompt] = useState('');
 	const [codeSnippet, setCodeSnippet] = useState('');
+	const [attachmentAccept, setAttachmentAccept] = useState(FILE_ACCEPT);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const openAttachmentPicker = useCallback((kind: 'file' | 'image' = 'file') => {
+		setAttachmentAccept(kind === 'image' ? 'image/*' : FILE_ACCEPT);
+		window.setTimeout(() => fileInputRef.current?.click(), 0);
+	}, []);
+
+	useEffect(() => {
+		const handler = (event: Event) => {
+			const detail = (event as CustomEvent<{ kind?: 'file' | 'image' }>).detail;
+			openAttachmentPicker(detail?.kind === 'image' ? 'image' : 'file');
+		};
+		window.addEventListener('forge:open-attachment-picker', handler);
+		return () => window.removeEventListener('forge:open-attachment-picker', handler);
+	}, [openAttachmentPicker]);
 
 	const slashCommands = getSlashCommands();
 	const filteredCommands = slashQuery
@@ -85,31 +102,21 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 		: slashCommands;
 
 	const handleSlashSelect = useCallback(async (command: SlashCommand) => {
-		try {
-			await command.execute('', accessor);
-		} catch (error) {
-			accessor.get('INotificationService').error(`/${command.name} failed: ${error instanceof Error ? error.message : String(error)}`);
-		}
+		try { await command.execute('', accessor); }
+		catch (error) { accessor.get('INotificationService').error(`/${command.name} failed: ${error instanceof Error ? error.message : String(error)}`); }
 		setIsSlashOpen(false);
 		setSlashQuery('');
 	}, [accessor]);
 
 	const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === '/' && !value && !isSlashOpen) {
-			event.preventDefault();
-			setIsSlashOpen(true);
-			setSlashQuery('');
-			return;
+			event.preventDefault(); setIsSlashOpen(true); setSlashQuery(''); return;
 		}
 		if (event.key === 'Escape' && isSlashOpen) {
-			setIsSlashOpen(false);
-			setSlashQuery('');
-			return;
+			setIsSlashOpen(false); setSlashQuery(''); return;
 		}
 		if (isSlashOpen && filteredCommands.length > 0 && event.key === 'Enter') {
-			event.preventDefault();
-			void handleSlashSelect(filteredCommands[0]);
-			return;
+			event.preventDefault(); void handleSlashSelect(filteredCommands[0]); return;
 		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
 			event.preventDefault();
@@ -134,14 +141,11 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 	}, [addFiles]);
 
 	const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-		event.preventDefault();
-		addFiles(Array.from(event.dataTransfer.files || []));
+		event.preventDefault(); addFiles(Array.from(event.dataTransfer.files || []));
 	}, [addFiles]);
 
 	const preparePrompt = useCallback((prompt: string) => {
-		onChange(prompt);
-		textAreaFnsRef.current?.setValue(prompt);
-		textAreaFnsRef.current?.focus();
+		onChange(prompt); textAreaFnsRef.current?.setValue(prompt); textAreaFnsRef.current?.focus();
 	}, [onChange, textAreaFnsRef]);
 
 	const enhancePrompt = useCallback(() => {
@@ -150,33 +154,27 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 	}, [preparePrompt, value]);
 
 	const prepareArtTask = useCallback(() => {
-		const prompt = artPrompt.trim();
-		if (!prompt) return;
+		const prompt = artPrompt.trim(); if (!prompt) return;
 		preparePrompt(`Create this visual/design task using Open Design and the available Forge design/browser tools. Keep editable source artifacts in the workspace, preview the result, and verify it visually:\n\n${prompt}`);
-		setArtPrompt('');
-		setShowArtPanel(false);
+		setArtPrompt(''); setShowArtPanel(false);
 	}, [artPrompt, preparePrompt]);
 
 	const prepareCodeRun = useCallback(() => {
-		const code = codeSnippet.trim();
-		if (!code) return;
+		const code = codeSnippet.trim(); if (!code) return;
 		preparePrompt(`Execute and verify the following code using the appropriate terminal/runtime tools. Do not use unsafe in-renderer evaluation. Explain any failure, fix it if appropriate, and show the verified result:\n\n\`\`\`\n${code}\n\`\`\``);
-		setCodeSnippet('');
-		setShowCodePanel(false);
+		setCodeSnippet(''); setShowCodePanel(false);
 	}, [codeSnippet, preparePrompt]);
 
 	const canSubmit = !isDisabled && (value.trim().length > 0 || attachments.length > 0);
 
 	return (
 		<div className='relative w-full forge-coco-composer' onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
-			<input ref={fileInputRef} type='file' multiple accept='image/*,.pdf,.txt,.md,.js,.mjs,.ts,.tsx,.jsx,.py,.json,.css,.html,.svg,.yaml,.yml,.rs,.go,.java,.c,.cpp,.cs,.sql' className='hidden' onChange={handleFileInput} />
+			<input ref={fileInputRef} type='file' multiple accept={attachmentAccept} className='hidden' onChange={handleFileInput} />
 
 			{isSlashOpen && (
 				<div className='absolute bottom-full left-0 mb-2 w-72 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl z-50 overflow-hidden'>
 					<div className='px-3 py-2 border-b border-zinc-700/60'><input type='text' value={slashQuery} onChange={event => setSlashQuery(event.target.value)} placeholder='Type a command…' className='w-full bg-transparent text-zinc-200 text-sm outline-none placeholder:text-zinc-600' autoFocus /></div>
-					<div className='max-h-64 overflow-y-auto'>
-						{filteredCommands.length === 0 ? <div className='px-3 py-2 text-xs text-zinc-500'>No commands found</div> : filteredCommands.map(command => <button key={command.name} type='button' onClick={() => void handleSlashSelect(command)} className='w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 transition-colors text-left'><span className='text-xs font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded'>/{command.name}</span><span className='text-xs text-zinc-300'>{command.label}</span></button>)}
-					</div>
+					<div className='max-h-64 overflow-y-auto'>{filteredCommands.length === 0 ? <div className='px-3 py-2 text-xs text-zinc-500'>No commands found</div> : filteredCommands.map(command => <button key={command.name} type='button' onClick={() => void handleSlashSelect(command)} className='w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 transition-colors text-left'><span className='text-xs font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded'>/{command.name}</span><span className='text-xs text-zinc-300'>{command.label}</span></button>)}</div>
 				</div>
 			)}
 
@@ -206,24 +204,22 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 					<span className='shrink-0 text-[10px] text-zinc-500'>{settingsState.globalSettings.chatMode === 'normal' ? 'Chat' : settingsState.globalSettings.chatMode === 'gather' ? 'Gather' : 'Agent'} <span className='text-[var(--forge-coco-accent)]'>✦</span></span>
 				</div>
 
-				{isExpanded && (
-					<div className='flex items-center gap-1 px-2 pt-1.5 border-b border-zinc-800/50 pb-1.5'>
-						{slashCommandsEnabled && <button type='button' onClick={() => setIsSlashOpen(!isSlashOpen)} className='px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded' title='Slash commands'>/</button>}
-						<button type='button' onClick={() => textAreaFnsRef.current?.triggerMention()} className='p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded' title='Reference files or folders'><AtSign size={14} /></button>
-						<button type='button' onClick={() => fileInputRef.current?.click()} className='p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded' title='Attach file'><Paperclip size={14} /></button>
-						<button type='button' onClick={enhancePrompt} disabled={!value.trim()} className='p-1 text-lime-300/70 hover:text-lime-200 hover:bg-lime-300/10 rounded disabled:opacity-30' title='Enhance prompt'><WandSparkles size={14} /></button>
-						{voiceEnabled && onVoiceToggle && <button type='button' onClick={onVoiceToggle} className={`p-1 rounded ${isListening ? 'bg-red-600 text-white animate-pulse' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`} title={isListening ? 'Stop voice input' : 'Voice input'}><Mic size={14} /></button>}
-						{artEnabled && <button type='button' onClick={() => setShowArtPanel(value => !value)} className={`p-1 rounded ${showArtPanel ? 'bg-purple-600/30 text-purple-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`} title='Design task'><Palette size={14} /></button>}
-						{codeEnabled && <button type='button' onClick={() => setShowCodePanel(value => !value)} className={`p-1 rounded ${showCodePanel ? 'bg-blue-600/30 text-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`} title='Code execution task'><Code2 size={14} /></button>}
-					</div>
-				)}
+				{isExpanded && <div className='flex items-center gap-1 px-2 pt-1.5 border-b border-zinc-800/50 pb-1.5'>
+					{slashCommandsEnabled && <button type='button' onClick={() => setIsSlashOpen(!isSlashOpen)} className='px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded' title='Slash commands'>/</button>}
+					<button type='button' onClick={() => textAreaFnsRef.current?.triggerMention()} className='p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded' title='Reference files or folders'><AtSign size={14} /></button>
+					<button type='button' onClick={() => openAttachmentPicker('file')} className='p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded' title='Attach file'><Paperclip size={14} /></button>
+					<button type='button' onClick={enhancePrompt} disabled={!value.trim()} className='p-1 text-lime-300/70 hover:text-lime-200 hover:bg-lime-300/10 rounded disabled:opacity-30' title='Enhance prompt'><WandSparkles size={14} /></button>
+					{voiceEnabled && onVoiceToggle && <button type='button' onClick={onVoiceToggle} className={`p-1 rounded ${isListening ? 'bg-red-600 text-white animate-pulse' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`} title={isListening ? 'Stop voice input' : 'Voice input'}><Mic size={14} /></button>}
+					{artEnabled && <button type='button' onClick={() => setShowArtPanel(value => !value)} className={`p-1 rounded ${showArtPanel ? 'bg-purple-600/30 text-purple-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`} title='Design task'><Palette size={14} /></button>}
+					{codeEnabled && <button type='button' onClick={() => setShowCodePanel(value => !value)} className={`p-1 rounded ${showCodePanel ? 'bg-blue-600/30 text-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`} title='Code execution task'><Code2 size={14} /></button>}
+				</div>}
 
 				<VoidInputBox2 className='w-full min-h-[40px] max-h-[200px] px-3 py-2 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none text-zinc-200 placeholder:text-zinc-600' placeholder={placeholder} multiline={true} enableAtToMention={true} fnsRef={textAreaFnsRef} onChangeText={onChange} onKeyDown={handleTextareaKeyDown} />
 
 				<div className='flex items-center justify-between px-2 py-1.5 border-t border-zinc-700/60'>
 					<div className='flex items-center gap-1'>
 						<button type='button' onClick={() => textAreaFnsRef.current?.triggerMention()} className='p-1 text-zinc-500 hover:text-zinc-300 rounded' title='Reference files or folders'><AtSign size={13} /></button>
-						<button type='button' onClick={() => fileInputRef.current?.click()} className='p-1 text-zinc-500 hover:text-zinc-300 rounded' title='Attach image or file'><ImageIcon size={13} /></button>
+						<button type='button' onClick={() => openAttachmentPicker('image')} className='p-1 text-zinc-500 hover:text-zinc-300 rounded' title='Attach image'><ImageIcon size={13} /></button>
 						<button type='button' onClick={() => setIsExpanded(value => !value)} className='p-1 text-zinc-500 hover:text-zinc-300 rounded' title={isExpanded ? 'Hide tools' : 'More tools'}>{isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}</button>
 						<ModelDropdown featureName={featureName} className='forge-coco-model-trigger max-w-[155px]' />
 					</div>
