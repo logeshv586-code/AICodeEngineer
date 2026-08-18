@@ -14,25 +14,38 @@ echo Repository: %CD%
 echo Integrations: %FORGE_INTEGRATIONS_HOME%
 echo.
 
-echo [1/6] Checking required commands...
+echo [1/7] Checking required commands...
 where node >nul 2>&1 || goto :missing_node
 where npm >nul 2>&1 || goto :missing_npm
 where git >nul 2>&1 || goto :missing_git
+where powershell >nul 2>&1 || goto :missing_powershell
 
-echo [2/6] Installing deterministic Forge dependencies with npm ci...
+echo [2/7] Checking Windows native build prerequisites and releasing repo locks...
+call powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\forge-windows-native-preflight.ps1" -RepoRoot "%CD%"
+if errorlevel 1 goto :failed
+
+rem Forge builds Electron native dependencies from source. Pin node-gyp to the
+rem same Visual Studio generation used by the Windows CI lane, even when VS 2026
+rem is also installed side-by-side on the developer machine.
+set "npm_config_msvs_version=2022"
+set "npm_package_config_node_gyp_msvs_version=2022"
+set "GYP_MSVS_VERSION=2022"
+
+echo [3/7] Installing deterministic Forge dependencies with npm ci...
 rem Setup is an explicit repair/install command, so always reconcile node_modules
 rem to package-lock.json instead of trusting a possibly stale or partial directory.
+rem npm deprecation warnings are informational; the first npm ERROR is what matters.
 call npm ci
 if errorlevel 1 goto :failed
 
-echo [3/6] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
+echo [4/7] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
 rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
 rem --browser installs the Chromium runtime used by Forge's Playwright browser agent.
 rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
 call node scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
 if errorlevel 1 goto :failed
 
-echo [4/6] Running fast local contract tests...
+echo [5/7] Running fast local contract tests...
 call node scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-ui-contract-test.mjs
@@ -46,13 +59,13 @@ if errorlevel 1 goto :failed
 call node scripts\manage-skills.mjs validate
 if errorlevel 1 goto :failed
 
-echo [5/6] Building Forge...
+echo [6/7] Building Forge...
 call npm run compile
 if errorlevel 1 goto :failed
 call npm run buildreact
 if errorlevel 1 goto :failed
 
-echo [6/6] Verifying runtime and Super Agent integration state...
+echo [7/7] Verifying runtime and Super Agent integration state...
 call node scripts\forge-runtime-guard.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-integrations.mjs verify active
@@ -69,6 +82,7 @@ echo ============================================================
 echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
 echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
+echo Windows native modules: built with the VS 2022 C++ toolchain.
 echo React service bridge: every named hook import has a real export.
 echo Provider/model routing: registry, transport and connection-test coverage verified.
 echo.
@@ -97,9 +111,15 @@ goto :failed
 echo ERROR: Git is not available on PATH.
 goto :failed
 
+:missing_powershell
+echo ERROR: Windows PowerShell is not available on PATH.
+goto :failed
+
 :failed
 echo.
 echo Forge Super Agent setup failed. Review the first failing command above.
+echo If setup reports Visual Studio 2026 only, install Visual Studio 2022 Build Tools side-by-side
+echo with the Desktop development with C++ workload, MSVC v143 x64/x86 tools, and a Windows SDK.
 echo If you are starting setup from PowerShell, run: .\setup-forge-super-agent.bat
 popd
 exit /b 1
