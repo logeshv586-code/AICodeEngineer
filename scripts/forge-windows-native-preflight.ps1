@@ -17,7 +17,7 @@ function Fail-ForgePreflight([string]$Message) {
 function Invoke-ForgeCommand([string]$FilePath, [string[]]$Arguments) {
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
-        Fail-ForgePreflight "Command failed with exit code $LASTEXITCODE: $FilePath $($Arguments -join ' ')"
+        Fail-ForgePreflight "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
     }
 }
 
