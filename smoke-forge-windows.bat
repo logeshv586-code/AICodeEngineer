@@ -27,6 +27,8 @@ call node scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-ui-contract-test.mjs
 if errorlevel 1 goto :failed
+call node scripts\forge-model-provider-contract-test.mjs
+if errorlevel 1 goto :failed
 call node scripts\forge-work-self-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\manage-skills.mjs validate
@@ -65,7 +67,7 @@ echo.
 echo ============================================================
 echo   FINAL MANUAL RELEASE CHECKLIST
 echo ============================================================
-echo   1. Confirm a Chat model is selected.
+echo   1. Confirm a Chat model is selected; use Test Connection for the provider/model you want to run.
 echo   2. Send a normal coding task and confirm a response/run starts.
 echo   3. Attach a file and an image; confirm both remain staged and are used.
 echo   4. Start a task, press Stop, and confirm the active run aborts.
@@ -74,6 +76,8 @@ echo   6. Run /work and confirm Work Mode responds without a dead command.
 echo   7. Run /design and confirm the design workflow responds.
 echo   8. Confirm the Forge icon/identity is correct in the window and Windows taskbar.
 echo.
+echo Provider/model registry and transport parity were already checked automatically.
+echo Live API success still depends on valid credentials, endpoint access, and the selected model being available from that provider.
 echo Keep this terminal open while you perform the checklist.
 echo.
 
