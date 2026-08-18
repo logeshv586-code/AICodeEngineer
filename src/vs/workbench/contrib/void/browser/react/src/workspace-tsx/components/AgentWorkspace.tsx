@@ -7,7 +7,7 @@ import React, { useState, useCallback } from 'react';
 import { useForgeBridge, ForgeState } from '../hooks/useForgeBridge';
 import { TopBar } from './TopBar';
 import { LeftToolbar } from './LeftToolbar';
-import { RightPanel } from './RightPanel';
+import { RightPanel, RightPanelTab } from './RightPanel';
 import { BottomStatusBar } from './BottomStatusBar';
 import { AgentsView } from './AgentsView';
 import { WorkflowsView } from './WorkflowsView';
@@ -44,7 +44,7 @@ const SubPlanView: React.FC<{ state: ForgeState; bridge: ReturnType<typeof useFo
 
 export const AgentWorkspace: React.FC = () => {
 	const bridge = useForgeBridge();
-	const [rightPanelTab, setRightPanelTab] = useState<'agents' | 'workflows' | 'plan' | 'forge'>('agents');
+	const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('agents');
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 	const [activeTool, setActiveTool] = useState<'agents' | 'workflows' | 'plan'>('agents');
 	const [activeFeature, setActiveFeature] = useState('Agent');
@@ -100,8 +100,8 @@ export const AgentWorkspace: React.FC = () => {
 					isOpen={isRightPanelOpen}
 					activeTab={rightPanelTab}
 					onTabChange={tab => {
-						setRightPanelTab(tab as 'agents' | 'workflows' | 'plan' | 'forge');
-						if (tab !== 'forge') handleToolChange(tab);
+						setRightPanelTab(tab);
+						if (tab === 'agents' || tab === 'workflows' || tab === 'plan') handleToolChange(tab);
 					}}
 					onClose={() => setIsRightPanelOpen(false)}
 					agents={bridge.state.agents}
