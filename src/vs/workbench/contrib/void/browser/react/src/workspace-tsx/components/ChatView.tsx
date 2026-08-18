@@ -11,6 +11,7 @@ import { IFileDialogService } from '../../../../../../../platform/dialogs/common
 import { SlashCommandPalette, SlashCommandContext, SlashCommand } from '../utils/slashCommandRouter';
 import { StreamRenderer } from './StreamRenderer';
 import { ComposerControlCenter, Attachment, NewAttachment } from './ComposerControlCenter';
+import { ForgeBrandMark } from './ForgeBrandMark';
 import { useStreamEvents, StreamEvent } from '../utils/streamEvents';
 import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
 import { IMetricsService } from '../../../../../common/metricsService.js';
@@ -46,48 +47,44 @@ export interface ChatViewProps {
 	onRevertMessage?: (messageIndex: number) => void;
 }
 
-const EmptyState: React.FC<{
-	onSuggestionClick: (text: string) => void;
-	onCommandsClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
-}> = ({ onSuggestionClick, onCommandsClick }) => (
-	<div className='flex flex-col items-center justify-center h-full select-none px-6'>
-		<div className='w-12 h-12 rounded-2xl bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center mb-4'><Sparkles size={24} className='text-zinc-400' /></div>
-		<div className='text-sm font-medium text-zinc-400 mb-1'>What should Forge complete?</div>
-		<div className='text-[11px] text-zinc-600 mb-5 max-w-[320px] text-center'>Forge can understand the codebase, edit files, run commands and tests, use the browser, create designs, and build Work Mode automations.</div>
-		<div className='flex flex-wrap gap-1.5 justify-center max-w-[420px]'>
-			{[
-				'Understand this codebase and explain the architecture',
-				'Find and fix the current bug, then run tests',
-				'Implement this feature end-to-end and verify it',
-				'Review the current changes for regressions',
-				'Inspect the app in the browser and fix the UI',
-				'Create an automation workflow for this task',
-			].map(suggestion => <button key={suggestion} type='button' onClick={() => onSuggestionClick(suggestion)} className='px-2.5 py-1.5 rounded-lg border border-zinc-800/60 bg-zinc-900/40 text-[11px] text-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-300 hover:border-zinc-700/60 transition-colors cursor-pointer'>{suggestion}</button>)}
+const suggestions = [
+	{ title: 'Understand', text: 'Understand this codebase and explain the architecture I need for my task.' },
+	{ title: 'Build', text: 'Implement this feature end-to-end, run targeted checks, and review the final diff.' },
+	{ title: 'Debug', text: 'Find the root cause of the current bug, fix it, and run a regression check.' },
+	{ title: 'Browser', text: 'Inspect the app in the browser, fix the UI issue, and verify it visually.' },
+	{ title: 'Review', text: 'Review the current changes for correctness, security, and regressions. Fix actionable issues.' },
+	{ title: 'Automate', text: 'Create a safe Work Mode automation for this recurring requirement.' },
+];
+
+const EmptyState: React.FC<{ onSuggestionClick: (text: string) => void; onCommandsClick: (event: React.MouseEvent<HTMLButtonElement>) => void }> = ({ onSuggestionClick, onCommandsClick }) => (
+	<div className='flex h-full items-center justify-center select-none px-5 py-8'>
+		<div className='forge-brand-empty-card text-center'>
+			<div className='flex justify-center mb-4'><ForgeBrandMark size={52} /></div>
+			<div className='text-[17px] font-semibold tracking-[-0.02em] text-[var(--forge-text)]'>What should we build?</div>
+			<div className='text-[11px] leading-relaxed text-[var(--forge-muted)] mt-2 mb-5 max-w-[430px] mx-auto'>Tell Forge the outcome, not every step. It can understand the repository, edit across files, run tools and tests, use the browser, work with designs, and create automations.</div>
+			<div className='grid grid-cols-2 gap-2 text-left'>
+				{suggestions.map(item => <button key={item.title} type='button' onClick={() => onSuggestionClick(item.text)} className='forge-brand-suggestion rounded-xl p-2.5 cursor-pointer'><div className='text-[10.5px] font-semibold text-[var(--forge-text-2)]'>{item.title}</div><div className='text-[9px] leading-relaxed text-[var(--forge-muted-2)] mt-0.5 line-clamp-2'>{item.text}</div></button>)}
+			</div>
+			<button type='button' onClick={onCommandsClick} className='forge-brand-tool mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9.5px] font-mono cursor-pointer'><Command size={11} /><span>/ commands & skills</span></button>
 		</div>
-		<button type='button' onClick={onCommandsClick} className='mt-5 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-700/30 text-[10px] text-zinc-600 font-mono transition-colors cursor-pointer'><Command size={10} /><span>/</span><span>Commands & skills</span></button>
 	</div>
 );
 
-const MessageActions: React.FC<{
-	onRevert?: () => void;
-	onCopy?: () => void;
-	onDuplicateThread?: () => void;
-}> = ({ onRevert, onCopy, onDuplicateThread }) => {
+const MessageActions: React.FC<{ onRevert?: () => void; onCopy?: () => void; onDuplicateThread?: () => void }> = ({ onRevert, onCopy, onDuplicateThread }) => {
 	if (!onRevert && !onCopy && !onDuplicateThread) return null;
-	return <div className='absolute right-3 top-2 hidden group-hover:flex items-center gap-0.5 rounded-md border border-zinc-800/60 bg-zinc-950/90 p-0.5 shadow-lg'>
-		{onCopy && <button type='button' onClick={onCopy} title='Copy message' aria-label='Copy message' className='w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/80 transition-colors'><Copy size={11} /></button>}
-		{onDuplicateThread && <button type='button' onClick={onDuplicateThread} title='Duplicate thread' aria-label='Duplicate thread' className='w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/80 transition-colors'><GitFork size={11} /></button>}
-		{onRevert && <button type='button' onClick={onRevert} title='Revert to here' aria-label='Revert to here' className='w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/80 transition-colors'><RotateCcw size={11} /></button>}
+	return <div className='absolute right-2 top-2 hidden group-hover:flex items-center gap-0.5 rounded-lg border border-[var(--forge-line)] bg-[var(--forge-bg-1)]/95 p-0.5 shadow-xl z-10'>
+		{onCopy && <button type='button' onClick={onCopy} title='Copy message' aria-label='Copy message' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><Copy size={11} /></button>}
+		{onDuplicateThread && <button type='button' onClick={onDuplicateThread} title='Duplicate thread' aria-label='Duplicate thread' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><GitFork size={11} /></button>}
+		{onRevert && <button type='button' onClick={onRevert} title='Revert to here' aria-label='Revert to here' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><RotateCcw size={11} /></button>}
 	</div>;
 };
 
 const UserMessage: React.FC<{ message: ChatViewMessage; onRevert?: () => void; onCopy?: () => void }> = ({ message, onRevert, onCopy }) => (
-	<div className='group relative flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
-		<MessageActions onRevert={onRevert} onCopy={onCopy} />
-		<div className='w-7 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center shrink-0 mt-0.5'><span className='text-[10px] font-bold text-zinc-500'>U</span></div>
-		<div className='flex-1 min-w-0'>
-			<div className='flex items-center gap-2 mb-0.5'><span className='text-[11px] font-medium text-zinc-500'>You</span><span className='text-[9px] text-zinc-700'>{new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span></div>
-			<div className='text-[13px] leading-relaxed text-zinc-300 whitespace-pre-wrap break-words'>{message.content}</div>
+	<div className='flex justify-end px-5 py-3'>
+		<div className='group forge-brand-user-bubble relative max-w-[82%] rounded-2xl rounded-tr-md px-3.5 py-2.5'>
+			<MessageActions onRevert={onRevert} onCopy={onCopy} />
+			<div className='flex items-center gap-2 mb-1'><span className='text-[9.5px] font-medium text-[var(--forge-muted)]'>You</span><span className='text-[8.5px] text-[var(--forge-muted-2)]'>{new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span></div>
+			<div className='text-[12.5px] leading-relaxed text-[var(--forge-text)] whitespace-pre-wrap break-words'>{message.content}</div>
 		</div>
 	</div>
 );
@@ -117,18 +114,18 @@ const AssistantMessage: React.FC<{
 		if (feedback !== rating) onFeedback?.(rating);
 	};
 
-	return <div className='group relative flex gap-3 py-3 px-4 hover:bg-zinc-900/10 transition-colors'>
+	return <div className='forge-brand-assistant-row group relative flex gap-3 px-5 py-4'>
 		<MessageActions onRevert={onRevert} onCopy={onCopy} onDuplicateThread={onDuplicateThread} />
-		<div className='w-7 h-7 rounded-lg bg-emerald-600/10 border border-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5'><Sparkles size={14} className='text-emerald-400' /></div>
-		<div className='flex-1 min-w-0'>
-			<div className='flex items-center gap-2 mb-1'><span className='text-[11px] font-medium text-zinc-400'>Forge</span><span className='text-[9px] text-zinc-700'>{new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span></div>
-			{hasActiveWork && <div className='text-[13px] leading-relaxed text-zinc-500 mb-1.5'>{displayEvents.filter(event => event.status === 'active').map(event => event.label).join(' · ')}</div>}
-			{message.content && <div className='text-[13px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-words'>{message.content}</div>}
-			{displayEvents.length > 0 && <StreamRenderer events={displayEvents} className='mt-2' />}
-			{isStreaming && <div className='flex items-center gap-1.5 mt-2 text-zinc-600'><Sparkles size={10} className='text-emerald-400 animate-pulse' /><span className='text-[10px] animate-pulse'>Working…</span></div>}
-			{!isStreaming && message.content && onFeedback && <div className='flex items-center gap-0.5 mt-2'>
-				<button type='button' onClick={() => submitFeedback('positive')} title='Helpful response' className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${feedback === 'positive' ? 'text-emerald-400 bg-emerald-500/10' : 'text-zinc-700 hover:text-zinc-400 hover:bg-zinc-800/50'}`}><ThumbsUp size={11} /></button>
-				<button type='button' onClick={() => submitFeedback('negative')} title='Unhelpful response' className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${feedback === 'negative' ? 'text-red-400 bg-red-500/10' : 'text-zinc-700 hover:text-zinc-400 hover:bg-zinc-800/50'}`}><ThumbsDown size={11} /></button>
+		<div className='shrink-0 mt-0.5'><ForgeBrandMark size={29} /></div>
+		<div className='flex-1 min-w-0 max-w-[900px]'>
+			<div className='flex items-center gap-2 mb-1.5'><span className='text-[10.5px] font-semibold text-[var(--forge-text-2)]'>Forge</span><span className='text-[8.5px] text-[var(--forge-muted-2)]'>{new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span></div>
+			{hasActiveWork && <div className='text-[11px] leading-relaxed text-[var(--forge-cyan)] mb-2'>{displayEvents.filter(event => event.status === 'active').map(event => event.label).join(' · ')}</div>}
+			{message.content && <div className='text-[12.5px] leading-[1.62] text-[var(--forge-text-2)] whitespace-pre-wrap break-words'>{message.content}</div>}
+			{displayEvents.length > 0 && <StreamRenderer events={displayEvents} className='mt-2.5' />}
+			{isStreaming && <div className='flex items-center gap-1.5 mt-2.5 text-[var(--forge-muted)]'><Sparkles size={10} className='text-[var(--forge-cyan)] animate-pulse' /><span className='text-[9.5px] animate-pulse'>Working through the task…</span></div>}
+			{!isStreaming && message.content && onFeedback && <div className='flex items-center gap-1 mt-2.5'>
+				<button type='button' onClick={() => submitFeedback('positive')} title='Helpful response' className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${feedback === 'positive' ? 'text-[var(--forge-success)] bg-emerald-500/10' : 'forge-brand-tool'}`}><ThumbsUp size={11} /></button>
+				<button type='button' onClick={() => submitFeedback('negative')} title='Unhelpful response' className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${feedback === 'negative' ? 'text-[var(--forge-danger)] bg-red-500/10' : 'forge-brand-tool'}`}><ThumbsDown size={11} /></button>
 			</div>}
 		</div>
 	</div>;
@@ -148,22 +145,9 @@ const mimeTypeForFile = (filePath: string): string => {
 };
 
 export const ChatView: React.FC<ChatViewProps> = ({
-	messages,
-	isStreaming = false,
-	onSendMessage,
-	slashContext,
-	className = '',
-	workspaceReady = false,
-	workspaceFileCount,
-	selectedFiles = [],
-	providerName,
-	modelName,
-	onOpenSettings,
-	tokenCount,
-	maxTokens,
-	attachments = [],
-	onRemoveAttachment,
-	onRevertMessage,
+	messages, isStreaming = false, onSendMessage, slashContext, className = '', workspaceReady = false,
+	workspaceFileCount, selectedFiles = [], providerName, modelName, onOpenSettings, tokenCount, maxTokens,
+	attachments = [], onRemoveAttachment, onRevertMessage,
 }) => {
 	const [isSlashOpen, setIsSlashOpen] = useState(false);
 	const [slashAnchor, setSlashAnchor] = useState<DOMRect | null>(null);
@@ -260,8 +244,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const handleAddAttachment = useCallback((attachment: NewAttachment) => {
 		if (!slashContext) { notify('Attachment service is unavailable in this view.', 'warn'); return; }
-		const isImage = attachment.mimeType.startsWith('image/');
-		if (!isImage || !attachment.dataUrl) { notify('Use the paperclip button for non-image files.', 'warn'); return; }
+		if (!attachment.mimeType.startsWith('image/') || !attachment.dataUrl) { notify('Use the paperclip button for non-image files.', 'warn'); return; }
 		const uri = URI.file(attachment.uri);
 		const selection: StagingSelectionItem = { type: 'Image', uri, dataUrl: attachment.dataUrl, mimeType: attachment.mimeType };
 		slashContext.chatThreadsService.addNewStagingSelection(selection);
@@ -272,18 +255,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!slashContext) { notify('File attachment service is unavailable.', 'warn'); return; }
 		try {
 			const resources = await slashContext.accessor.get(IFileDialogService).showOpenDialog({
-				title: 'Attach files to Forge',
-				canSelectFiles: true,
-				canSelectFolders: false,
-				canSelectMany: true,
-				openLabel: 'Attach',
+				title: 'Attach files to Forge', canSelectFiles: true, canSelectFolders: false, canSelectMany: true, openLabel: 'Attach',
 				filters: [{ name: 'Code and documents', extensions: ['pdf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql'] }],
 			});
 			if (!resources?.length) return;
 			for (const resource of resources) {
 				const filePath = resource.fsPath;
-				const language = filePath.split('.').pop() || '';
-				const selection: StagingSelectionItem = { type: 'File', uri: resource, language, state: { wasAddedAsCurrentFile: false } };
+				const selection: StagingSelectionItem = { type: 'File', uri: resource, language: filePath.split('.').pop() || '', state: { wasAddedAsCurrentFile: false } };
 				slashContext.chatThreadsService.addNewStagingSelection(selection);
 				setLocalAttachments(previous => previous.some(item => URI.file(item.uri).fsPath === filePath) ? previous : [...previous, { uri: filePath, name: filePath.split(/[\\/]/).pop() || filePath, mimeType: mimeTypeForFile(filePath) }]);
 			}
@@ -329,44 +307,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const lastAssistantIndex = [...messages].reverse().findIndex(message => message.role === 'assistant');
 	const streamEventsForLastResponse = lastAssistantIndex >= 0 ? streamState.events : [];
 
-	return <div className={`flex flex-1 min-w-0 min-h-0 flex-col h-full bg-void-bg-1 ${className}`}>
+	return <div className={`forge-brand-chat flex flex-1 min-w-0 min-h-0 flex-col h-full ${className}`}>
 		{slashContext && <SlashCommandPalette isOpen={isSlashOpen} onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }} onSelect={handleSlashSelect} anchorRect={slashAnchor} context={slashContext} />}
-		<div className='flex-1 overflow-y-auto'>
-			{messages.length === 0 ? <EmptyState onSuggestionClick={handleSuggestion} onCommandsClick={handleOpenCommands} /> : <>
-				{messages.map((message, index) => {
-					const revert = message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!);
-					const copy = message.content ? () => { void copyText(message.content); } : undefined;
-					if (message.role === 'user') return <UserMessage key={message.id} message={message} onRevert={revert} onCopy={copy} />;
-					const isLastAssistant = index === messages.length - 1;
-					return <AssistantMessage key={message.id} message={message} streamEvents={isLastAssistant ? streamEventsForLastResponse : []} isStreaming={isStreaming && isLastAssistant} onRevert={revert} onCopy={copy} onDuplicateThread={slashContext ? duplicateCurrentThread : undefined} onFeedback={slashContext ? rating => recordFeedback(message, rating) : undefined} />;
-				})}
-				{isStreaming && streamState.events.length > 0 && !messages.some(message => message.role === 'assistant' && message.timestamp > Date.now() - 5000) && <div className='flex gap-3 py-3 px-4'><div className='w-7 h-7 rounded-lg bg-emerald-600/10 border border-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5'><Sparkles size={14} className='text-emerald-400' /></div><div className='flex-1 min-w-0'><StreamRenderer events={streamEventsForLastResponse} /></div></div>}
-				<div ref={messagesEndRef} />
-			</>}
+		<div className='forge-brand-scroll flex-1 overflow-y-auto'>
+			<div className='mx-auto w-full max-w-[980px] min-h-full'>
+				{messages.length === 0 ? <EmptyState onSuggestionClick={handleSuggestion} onCommandsClick={handleOpenCommands} /> : <>
+					{messages.map((message, index) => {
+						const revert = message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!);
+						const copy = message.content ? () => { void copyText(message.content); } : undefined;
+						if (message.role === 'user') return <UserMessage key={message.id} message={message} onRevert={revert} onCopy={copy} />;
+						const isLastAssistant = index === messages.length - 1;
+						return <AssistantMessage key={message.id} message={message} streamEvents={isLastAssistant ? streamEventsForLastResponse : []} isStreaming={isStreaming && isLastAssistant} onRevert={revert} onCopy={copy} onDuplicateThread={slashContext ? duplicateCurrentThread : undefined} onFeedback={slashContext ? rating => recordFeedback(message, rating) : undefined} />;
+					})}
+					{isStreaming && streamState.events.length > 0 && !messages.some(message => message.role === 'assistant' && message.timestamp > Date.now() - 5000) && <div className='forge-brand-assistant-row flex gap-3 px-5 py-4'><ForgeBrandMark size={29} /><div className='flex-1 min-w-0'><StreamRenderer events={streamEventsForLastResponse} /></div></div>}
+					<div ref={messagesEndRef} />
+				</>}
+			</div>
 		</div>
 		<ComposerControlCenter
-			value={draftText}
-			onChange={setDraftText}
-			onSubmit={() => { void handleSend(); }}
-			onAbort={handleAbort}
-			isStreaming={isStreaming}
-			isDisabled={false}
-			workspaceReady={workspaceReady}
-			workspaceFileCount={workspaceFileCount}
-			selectedFiles={selectedFiles}
-			providerName={providerName}
-			modelName={modelName}
-			onOpenSettings={onOpenSettings}
-			tokenCount={tokenCount}
-			maxTokens={maxTokens}
-			attachments={effectiveAttachments}
-			onAddAttachment={handleAddAttachment}
-			onPickFiles={handlePickFiles}
-			onAttachmentError={message => notify(message, 'warn')}
-			onRemoveAttachment={handleRemoveAttachment}
-			placeholder='Ask Forge to complete a task…'
-			onKeyDown={handleKeyDown}
-			textareaRef={textareaRef}
+			value={draftText} onChange={setDraftText} onSubmit={() => { void handleSend(); }} onAbort={handleAbort}
+			isStreaming={isStreaming} isDisabled={false} workspaceReady={workspaceReady} workspaceFileCount={workspaceFileCount}
+			selectedFiles={selectedFiles} providerName={providerName} modelName={modelName} onOpenSettings={onOpenSettings}
+			tokenCount={tokenCount} maxTokens={maxTokens} attachments={effectiveAttachments} onAddAttachment={handleAddAttachment}
+			onPickFiles={handlePickFiles} onAttachmentError={message => notify(message, 'warn')} onRemoveAttachment={handleRemoveAttachment}
+			placeholder='Describe the outcome you want Forge to deliver…' onKeyDown={handleKeyDown} textareaRef={textareaRef}
 		/>
 	</div>;
 };
