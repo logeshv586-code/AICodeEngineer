@@ -153,6 +153,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [slashAnchor, setSlashAnchor] = useState<DOMRect | null>(null);
 	const [draftText, setDraftText] = useState('');
 	const [localAttachments, setLocalAttachments] = useState<Attachment[]>([]);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const clearEventsRef = useRef<(() => void) | null>(null);
@@ -177,8 +178,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const duplicateCurrentThread = useCallback(() => {
 		if (!slashContext) return;
-		try { slashContext.chatThreadsService.duplicateThread(slashContext.chatThreadsService.state.currentThreadId); notify('Thread duplicated.'); }
-		catch (error) { console.warn('[Forge Chat] Could not duplicate thread:', error); }
+		const threadId = slashContext.chatThreadsService.state.currentThreadId;
+		if (!threadId) { notify('There is no thread to duplicate yet.', 'warn'); return; }
+		try { slashContext.chatThreadsService.duplicateThread(threadId); notify('Thread duplicated.'); }
+		catch (error) { console.warn('[Forge Chat] Could not duplicate thread:', error); notify('Could not duplicate this thread.', 'warn'); }
 	}, [notify, slashContext]);
 
 	const recordFeedback = useCallback((message: ChatViewMessage, rating: 'positive' | 'negative') => {
@@ -206,10 +209,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return false;
 	}, [notify, slashContext]);
 
-	const sendWithAdaptiveModel = useCallback(async (text: string) => {
+	const sendWithAdaptiveModel = useCallback(async (text: string): Promise<boolean> => {
 		const trimmed = text.trim();
-		if (!trimmed) return;
-		if (await handleLocalSkillCommand(trimmed)) return;
+		if (!trimmed) return false;
+		if (await handleLocalSkillCommand(trimmed)) return false;
+
 		if (slashContext) {
 			try {
 				const settingsService = slashContext.accessor.get(IVoidSettingsService);
@@ -221,24 +225,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						console.log(`[Forge Model Router] ${decision.reason}`);
 					}
 				}
-			} catch (error) { console.warn('[Forge Model Router] Falling back to current model:', error); }
+				if (!settingsService.state.modelSelectionOfFeature.Chat) {
+					notify('Choose a Chat model before sending a task. Forge opened model settings for you.', 'warn');
+					onOpenSettings?.();
+					return false;
+				}
+			} catch (error) {
+				console.warn('[Forge Model Router] Falling back to current model:', error);
+			}
 		}
+
 		await Promise.resolve(onSendMessage(trimmed));
-	}, [handleLocalSkillCommand, onSendMessage, slashContext]);
+		return true;
+	}, [handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
 
 	const handleSend = useCallback(async () => {
-		if (isStreaming) return;
+		if (isStreaming || isSubmitting) return;
 		const text = draftText.trim() || (effectiveAttachments.length > 0 ? 'Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.' : '');
 		if (!text) return;
-		await sendWithAdaptiveModel(text);
-		setDraftText('');
-		setLocalAttachments([]);
-		if (textareaRef.current) textareaRef.current.style.height = 'auto';
-	}, [draftText, effectiveAttachments.length, isStreaming, sendWithAdaptiveModel]);
+		setIsSubmitting(true);
+		try {
+			const sent = await sendWithAdaptiveModel(text);
+			if (!sent) return;
+			setDraftText('');
+			setLocalAttachments([]);
+			if (textareaRef.current) textareaRef.current.style.height = 'auto';
+		} catch (error) {
+			console.error('[Forge Chat] Task submission failed:', error);
+			notify(`Forge could not start this task: ${error instanceof Error ? error.message : String(error)}`, 'error');
+		} finally {
+			setIsSubmitting(false);
+		}
+	}, [draftText, effectiveAttachments.length, isStreaming, isSubmitting, notify, sendWithAdaptiveModel]);
 
 	const handleAbort = useCallback(async () => {
 		if (!slashContext) return;
-		try { await slashContext.chatThreadsService.abortRunning(slashContext.chatThreadsService.state.currentThreadId); }
+		const threadId = slashContext.chatThreadsService.state.currentThreadId;
+		if (!threadId) return;
+		try { await slashContext.chatThreadsService.abortRunning(threadId); }
 		catch (error) { console.warn('[Forge Chat] Abort failed:', error); notify('Could not stop the current run.', 'warn'); }
 	}, [notify, slashContext]);
 
@@ -289,14 +313,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setLocalAttachments(previous => previous.filter((_, i) => i !== localIndex));
 	}, [attachments.length, localAttachments, onRemoveAttachment, removeStagedAttachment]);
 
-	const handleSuggestion = useCallback((text: string) => { void sendWithAdaptiveModel(text); }, [sendWithAdaptiveModel]);
+	const handleSuggestion = useCallback((text: string) => {
+		if (isSubmitting || isStreaming) return;
+		setIsSubmitting(true);
+		void sendWithAdaptiveModel(text)
+			.catch(error => { console.error('[Forge Chat] Suggested task failed:', error); notify(`Forge could not start this task: ${error instanceof Error ? error.message : String(error)}`, 'error'); })
+			.finally(() => setIsSubmitting(false));
+	}, [isSubmitting, isStreaming, notify, sendWithAdaptiveModel]);
 	const handleOpenCommands = useCallback((event: React.MouseEvent<HTMLButtonElement>) => { setSlashAnchor(event.currentTarget.getBoundingClientRect()); setIsSlashOpen(true); }, []);
 	const handleSlashSelect = useCallback((cmd: SlashCommand, args: string) => {
 		setIsSlashOpen(false);
 		setSlashAnchor(null);
 		if (cmd.category === 'Skills (Registry)' && !args) { setDraftText(`${cmd.name} `); setTimeout(() => textareaRef.current?.focus(), 50); return; }
-		if (slashContext) void cmd.execute({ ...slashContext, args });
-	}, [slashContext]);
+		if (slashContext) void Promise.resolve(cmd.execute({ ...slashContext, args })).catch(error => { console.error('[Forge Slash] Command failed:', error); notify(`Command ${cmd.name} failed: ${error instanceof Error ? error.message : String(error)}`, 'error'); });
+	}, [notify, slashContext]);
 
 	const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === '/' && !draftText && !isSlashOpen) { event.preventDefault(); setSlashAnchor(event.currentTarget.getBoundingClientRect()); setIsSlashOpen(true); return; }
@@ -326,11 +356,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		</div>
 		<ComposerControlCenter
 			value={draftText} onChange={setDraftText} onSubmit={() => { void handleSend(); }} onAbort={handleAbort}
-			isStreaming={isStreaming} isDisabled={false} workspaceReady={workspaceReady} workspaceFileCount={workspaceFileCount}
+			isStreaming={isStreaming} isDisabled={isSubmitting} workspaceReady={workspaceReady} workspaceFileCount={workspaceFileCount}
 			selectedFiles={selectedFiles} providerName={providerName} modelName={modelName} onOpenSettings={onOpenSettings}
 			tokenCount={tokenCount} maxTokens={maxTokens} attachments={effectiveAttachments} onAddAttachment={handleAddAttachment}
 			onPickFiles={handlePickFiles} onAttachmentError={message => notify(message, 'warn')} onRemoveAttachment={handleRemoveAttachment}
-			placeholder='Describe the outcome you want Forge to deliver…' onKeyDown={handleKeyDown} textareaRef={textareaRef}
+			placeholder={isSubmitting ? 'Starting the task…' : 'Describe the outcome you want Forge to deliver…'} onKeyDown={handleKeyDown} textareaRef={textareaRef}
 		/>
 	</div>;
 };
