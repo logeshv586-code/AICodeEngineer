@@ -4,6 +4,7 @@ import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export const NODE24_VERSION = '24.19.0';
 export const OPEN_DESIGN_PNPM_VERSION = '10.33.2';
@@ -172,3 +173,35 @@ export const openDesignRuntimeStatus = () => ({
   pnpmInstalled: fs.existsSync(pnpmCliPath()),
   runtimeRoot,
 });
+
+const main = async () => {
+  const [command = 'status', ...args] = process.argv.slice(2);
+  if (command === 'status') {
+    console.log(JSON.stringify(openDesignRuntimeStatus(), null, 2));
+    return;
+  }
+  if (command === 'ensure') {
+    await ensureOpenDesignPnpm();
+    console.log(JSON.stringify(openDesignRuntimeStatus(), null, 2));
+    return;
+  }
+  if (command === 'pnpm') {
+    const cwdIndex = args.indexOf('--cwd');
+    const separator = args.indexOf('--');
+    const cwd = cwdIndex >= 0 ? args[cwdIndex + 1] : process.cwd();
+    const commandArgs = separator >= 0 ? args.slice(separator + 1) : args.filter((_, index) => index !== cwdIndex && index !== cwdIndex + 1);
+    if (!commandArgs.length) throw new Error('Usage: node scripts/forge-node24-runtime.mjs pnpm --cwd <path> -- <pnpm args>');
+    const result = await runOpenDesignPnpm(commandArgs, { cwd, stdio: 'pipe' });
+    if (result.stdout) process.stdout.write(String(result.stdout));
+    if (result.stderr) process.stderr.write(String(result.stderr));
+    return;
+  }
+  throw new Error('Usage: node scripts/forge-node24-runtime.mjs <status|ensure|pnpm> [--cwd <path> -- <pnpm args>]');
+};
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(error => {
+    console.error(`[forge-node24] ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
+}
