@@ -40,10 +40,33 @@ for (const file of walk(reactRoot)) {
   }
 }
 
-if (missing.length) {
+const requiredCompatibilityHooks = [
+  'useCommandBarURIListener',
+  'useCtrlKZoneStreamingState',
+  'useRefreshModelListener',
+  'useMCPServiceState',
+  'useIsOptedOut',
+];
+
+const semanticFailures = [];
+if (!requiredCompatibilityHooks.every(name => exports.has(name))) {
+  semanticFailures.push('legacy React service hooks required by active consumers must stay exported');
+}
+if (!services.includes('stateOfURI: service.stateOfURI') || !services.includes('sortedURIs: service.sortedURIs')) {
+  semanticFailures.push('useCommandBarState must read IVoidCommandBarService.stateOfURI and sortedURIs');
+}
+if (!services.includes('service.activeURI') || !services.includes('return { uri }')) {
+  semanticFailures.push('useActiveURI must read activeURI and preserve the historical { uri } return shape');
+}
+if (services.includes("accessor.get('IVoidCommandBarService').state")) {
+  semanticFailures.push('IVoidCommandBarService has no .state property');
+}
+
+if (missing.length || semanticFailures.length) {
   console.error('Forge React service export contract FAILED.');
   for (const item of missing) console.error(`  Missing export ${item.imported} required by ${item.file}`);
+  for (const failure of semanticFailures) console.error(`  ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`Forge React service export contract passed: ${exports.size} exports cover ${importCount} named imports.`);
+  console.log(`Forge React service export contract passed: ${exports.size} exports cover ${importCount} named imports and command-bar hook semantics.`);
 }
