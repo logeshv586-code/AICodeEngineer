@@ -1,15 +1,24 @@
 param(
-    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot)
+    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+    [switch]$InstallDependencies
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = [System.IO.Path]::GetFullPath($RepoRoot)
+$nodeGypCompatVersion = '12.4.0'
 
 function Fail-ForgePreflight([string]$Message) {
     Write-Host ''
     Write-Host '[forge-native] Windows native build preflight FAILED.' -ForegroundColor Red
     Write-Host $Message -ForegroundColor Red
     exit 1
+}
+
+function Invoke-ForgeCommand([string]$FilePath, [string[]]$Arguments) {
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        Fail-ForgePreflight "Command failed with exit code $LASTEXITCODE: $FilePath $($Arguments -join ' ')"
+    }
 }
 
 Write-Host '[forge-native] Checking Windows native build toolchain...'
@@ -30,45 +39,53 @@ $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer
 if (-not (Test-Path $vswhere)) {
     Fail-ForgePreflight @'
 Visual Studio Installer / vswhere was not found.
-Install Visual Studio 2022 Build Tools (or Visual Studio 2022 Community) with the
-"Desktop development with C++" workload, then run setup again.
+Install Visual Studio 2022 or Visual Studio 2026 with the "Desktop development
+with C++" workload, then run setup again.
 '@
 }
 
 $vs2022 = (& $vswhere -latest -products * -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
-if ([string]::IsNullOrWhiteSpace($vs2022)) {
-    $vs2026 = (& $vswhere -latest -products * -version '[18.0,19.0)' -property installationPath | Select-Object -First 1)
-    if (-not [string]::IsNullOrWhiteSpace($vs2026)) {
+$vs2026 = (& $vswhere -latest -products * -version '[18.0,19.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
+
+$selectedVs = $null
+$selectedVsVersion = $null
+if (-not [string]::IsNullOrWhiteSpace($vs2022)) {
+    $selectedVs = $vs2022
+    $selectedVsVersion = '2022'
+} elseif (-not [string]::IsNullOrWhiteSpace($vs2026)) {
+    $selectedVs = $vs2026
+    $selectedVsVersion = '2026'
+} else {
+    $anyVs2026 = (& $vswhere -latest -products * -version '[18.0,19.0)' -property installationPath | Select-Object -First 1)
+    $anyVs2022 = (& $vswhere -latest -products * -version '[17.0,18.0)' -property installationPath | Select-Object -First 1)
+    $found = @($anyVs2022, $anyVs2026) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    if ($found.Count -gt 0) {
         Fail-ForgePreflight @"
-Visual Studio 2026 was found at:
-  $vs2026
+Visual Studio was found, but the x64/x86 C++ build tools were not detected.
+Found installation(s):
+  $($found -join "`n  ")
 
-This Forge branch uses the Node 20/npm native build chain whose bundled node-gyp
-cannot reliably build the Electron native modules with VS 2026. Install Visual
-Studio 2022 Build Tools side-by-side and select "Desktop development with C++"
-(including MSVC v143 x64/x86 tools and a Windows 10/11 SDK).
-
-You do NOT need to uninstall Visual Studio 2026.
+Open Visual Studio Installer -> Modify and enable "Desktop development with C++",
+including the MSVC x64/x86 toolset and a Windows 10/11 SDK.
 "@
     }
 
     Fail-ForgePreflight @'
-A usable Visual Studio 2022 C++ toolchain was not found.
-Install Visual Studio 2022 Build Tools (or VS 2022 Community) and select
-"Desktop development with C++", including MSVC v143 x64/x86 tools and a
-Windows 10/11 SDK.
+No usable Visual Studio C++ toolchain was found.
+Install Visual Studio 2022 or Visual Studio 2026 and select "Desktop development
+with C++", including the MSVC x64/x86 toolset and a Windows 10/11 SDK.
 '@
 }
 
-Write-Host "[forge-native] Visual Studio 2022 C++ toolchain: $vs2022"
+Write-Host "[forge-native] Visual Studio $selectedVsVersion C++ toolchain: $selectedVs"
 
 $windowsKits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Include'
 if (-not (Test-Path $windowsKits) -or -not (Get-ChildItem $windowsKits -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-    Fail-ForgePreflight @'
-Visual Studio 2022 C++ tools were found, but a Windows SDK include directory was not.
-Open Visual Studio Installer -> Modify -> Desktop development with C++ and add a
-Windows 10 or Windows 11 SDK, then run setup again.
-'@
+    Fail-ForgePreflight @"
+Visual Studio $selectedVsVersion C++ tools were found, but a Windows SDK include
+directory was not. Open Visual Studio Installer -> Modify -> Desktop development
+with C++ and add a Windows 10 or Windows 11 SDK, then run setup again.
+"@
 }
 
 # npm ci replaces native modules. Running Forge/watch/browser processes can keep
@@ -94,5 +111,78 @@ if ($repoScoped) {
     Start-Sleep -Milliseconds 750
 }
 
+# Node 20 ships with npm/node-gyp versions that predate VS2026 recognition. When
+# VS2026 is the available compiler, use a Forge-owned node-gyp 12.4.0 toolchain.
+# node-gyp 12.1+ added VS2026 support and 12.4.0 still supports Node >=20.17.
+$nodeGypJs = $null
+if ($selectedVsVersion -eq '2026') {
+    $toolchainRoot = Join-Path $env:USERPROFILE ".forge\toolchains\node-gyp-$nodeGypCompatVersion"
+    $nodeGypJs = Join-Path $toolchainRoot 'node_modules\node-gyp\bin\node-gyp.js'
+    $nodeGypPackage = Join-Path $toolchainRoot 'node_modules\node-gyp\package.json'
+    $needsBootstrap = $true
+
+    if (Test-Path $nodeGypPackage) {
+        try {
+            $installedVersion = (Get-Content $nodeGypPackage -Raw | ConvertFrom-Json).version
+            $needsBootstrap = $installedVersion -ne $nodeGypCompatVersion
+        } catch {
+            $needsBootstrap = $true
+        }
+    }
+
+    if ($needsBootstrap) {
+        Write-Host "[forge-native] Bootstrapping node-gyp $nodeGypCompatVersion for Visual Studio 2026..."
+        New-Item -ItemType Directory -Force -Path $toolchainRoot | Out-Null
+        Invoke-ForgeCommand 'npm' @(
+            'install',
+            '--prefix', $toolchainRoot,
+            "node-gyp@$nodeGypCompatVersion",
+            '--no-save',
+            '--ignore-scripts',
+            '--no-audit',
+            '--no-fund'
+        )
+    }
+
+    if (-not (Test-Path $nodeGypJs)) {
+        Fail-ForgePreflight "Pinned node-gyp bootstrap did not create $nodeGypJs"
+    }
+
+    $nodeGypVersion = (& node $nodeGypJs --version).Trim()
+    if ($LASTEXITCODE -ne 0 -or $nodeGypVersion -ne "v$nodeGypCompatVersion") {
+        Fail-ForgePreflight "Expected node-gyp v$nodeGypCompatVersion but got '$nodeGypVersion'."
+    }
+
+    $nodeGypBin = Join-Path $toolchainRoot 'node_modules\.bin'
+    $env:PATH = "$nodeGypBin;$env:PATH"
+    # npm 10 honors npm_config_node_gyp; PATH also covers dependencies with an
+    # explicit `node-gyp rebuild` install script.
+    $env:npm_config_node_gyp = $nodeGypJs
+    $env:npm_config_msvs_version = '2026'
+    $env:npm_package_config_node_gyp_msvs_version = '2026'
+    Write-Host "[forge-native] VS2026 compatibility node-gyp: $nodeGypVersion"
+} else {
+    $env:npm_config_msvs_version = '2022'
+    $env:npm_package_config_node_gyp_msvs_version = '2022'
+}
+
 Write-Host '[forge-native] Windows native build preflight passed.'
+
+if ($InstallDependencies) {
+    Write-Host '[forge-native] Installing deterministic Forge dependencies with npm ci...'
+    Push-Location $repo
+    try {
+        if ($nodeGypJs) {
+            # --node-gyp makes npm's implicit binding.gyp install path use the
+            # same pinned executable; PATH handles explicit node-gyp scripts.
+            Invoke-ForgeCommand 'npm' @('ci', "--node-gyp=$nodeGypJs")
+        } else {
+            Invoke-ForgeCommand 'npm' @('ci')
+        }
+    } finally {
+        Pop-Location
+    }
+    Write-Host '[forge-native] npm ci completed successfully.'
+}
+
 exit 0
