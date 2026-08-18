@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import { FileCode2, Image as ImageIcon, Search, Terminal, TestTube2, GitBranch, FolderOpen } from 'lucide-react';
+import { FileCode2, Image as ImageIcon, Search, Terminal, TestTube2, GitBranch, FolderOpen, Layers3 } from 'lucide-react';
 
 export interface ForgeContextPanelProps {
 	files?: string[];
@@ -14,61 +14,42 @@ export interface ForgeContextPanelProps {
 }
 
 const ContextSection: React.FC<{ title: string; count?: number; children: React.ReactNode }> = ({ title, count, children }) => (
-	<section className='border-b border-zinc-800/70 px-3 py-3'>
+	<section className='px-3 py-3'>
 		<div className='flex items-center justify-between mb-2'>
-			<span className='text-[10px] font-semibold tracking-wide text-zinc-500 uppercase'>{title}</span>
-			{count !== undefined && <span className='text-[9px] text-zinc-600 bg-zinc-800/70 px-1.5 py-0.5 rounded'>{count}</span>}
+			<span className='text-[9px] font-semibold tracking-[0.15em] text-[var(--forge-muted-2)] uppercase'>{title}</span>
+			{count !== undefined && <span className='forge-brand-chip text-[8.5px] px-1.5 py-0.5 rounded-md'>{count}</span>}
 		</div>
-		{children}
+		<div className='forge-brand-context-card p-2'>{children}</div>
 	</section>
 );
 
 export const ForgeContextPanel: React.FC<ForgeContextPanelProps> = ({ files = [], images = [], workspaceReady = false, onSendMessage }) => (
-	<aside className='w-60 shrink-0 min-h-0 overflow-y-auto border-l border-zinc-800/70 bg-zinc-950/35 text-zinc-300'>
-		<div className='px-3 py-3 border-b border-zinc-800/70'>
-			<div className='text-[11px] font-semibold text-zinc-300'>Chat context</div>
-			<div className='text-[10px] text-zinc-600 mt-0.5'>Files and actions used by this conversation</div>
+	<aside className='forge-brand-context-panel forge-brand-scroll w-64 shrink-0 min-h-0 overflow-y-auto text-[var(--forge-text-2)]'>
+		<div className='px-3 py-3.5 border-b border-[var(--forge-line)]'>
+			<div className='flex items-center gap-2'><div className='w-7 h-7 rounded-lg forge-brand-tool flex items-center justify-center'><Layers3 size={13} /></div><div><div className='text-[11px] font-semibold text-[var(--forge-text)]'>Task context</div><div className='text-[9.5px] text-[var(--forge-muted)] mt-0.5'>What Forge can see for this turn</div></div></div>
 		</div>
 
 		<ContextSection title='Files' count={files.length}>
-			{files.length > 0 ? files.map(file => (
-				<div key={file} className='flex items-center gap-2 py-1 text-[11px] text-zinc-400 min-w-0'>
-					<FileCode2 size={12} className='text-violet-400 shrink-0' />
+			{files.length > 0 ? <div className='space-y-0.5'>{files.map(file => (
+				<div key={file} className='flex items-center gap-2 px-1.5 py-1.5 text-[10.5px] text-[var(--forge-text-2)] min-w-0 rounded-lg hover:bg-white/[0.025]'>
+					<FileCode2 size={12} className='text-[var(--forge-iris-2)] shrink-0' />
 					<span className='truncate' title={file}>{file.split(/[\\/]/).pop()}</span>
 				</div>
-			)) : (
-				<div className='flex items-center gap-2 text-[10px] text-zinc-600'>
-					<FolderOpen size={12} />
-					{workspaceReady ? 'No files attached yet' : 'Open a workspace to add files'}
-				</div>
-			)}
+			))}</div> : <div className='flex items-center gap-2 px-1.5 py-2 text-[10px] text-[var(--forge-muted)]'><FolderOpen size={12} />{workspaceReady ? 'Attach only what the task needs' : 'Open a workspace to add files'}</div>}
 		</ContextSection>
 
-		{images.length > 0 && (
-			<ContextSection title='Images' count={images.length}>
-				{images.map(image => (
-					<div key={image} className='flex items-center gap-2 py-1 text-[11px] text-zinc-400 min-w-0'>
-						<ImageIcon size={12} className='text-violet-400 shrink-0' />
-						<span className='truncate'>{image}</span>
-					</div>
-				))}
-			</ContextSection>
-		)}
+		{images.length > 0 && <ContextSection title='Images' count={images.length}><div className='space-y-0.5'>{images.map(image => (
+			<div key={image} className='flex items-center gap-2 px-1.5 py-1.5 text-[10.5px] text-[var(--forge-text-2)] min-w-0 rounded-lg'><ImageIcon size={12} className='text-[var(--forge-cyan)] shrink-0' /><span className='truncate'>{image}</span></div>
+		))}</div></ContextSection>}
 
-		<ContextSection title='Tools'>
+		<ContextSection title='Quick actions'>
 			<div className='space-y-1'>
 				{[
-					{ icon: Terminal, label: 'Run terminal', prompt: 'Run the relevant terminal command for this task and show me the output.' },
-					{ icon: Search, label: 'Search code', prompt: 'Search the workspace for the files and symbols relevant to my request.' },
-					{ icon: TestTube2, label: 'Run tests', prompt: 'Run the relevant tests for this task and diagnose any failures.' },
-					{ icon: GitBranch, label: 'Git status', prompt: 'Show the current git status and summarize the changes.' },
-				].map(({ icon: Icon, label, prompt }) => (
-					<button key={label} type='button' onClick={() => onSendMessage(prompt)}
-						className='w-full flex items-center gap-2 px-2 py-1.5 rounded text-[11px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors text-left'>
-						<Icon size={13} className='text-zinc-600 shrink-0' />
-						{label}
-					</button>
-				))}
+					{ icon: Search, label: 'Find relevant code', prompt: 'Search the workspace for the minimum set of files, symbols, and references needed for this task.' },
+					{ icon: Terminal, label: 'Run the right command', prompt: 'Run the most relevant terminal command for this task and use the output to continue the work.' },
+					{ icon: TestTube2, label: 'Verify the change', prompt: 'Run targeted tests and checks for the current task, fix failures, then rerun verification.' },
+					{ icon: GitBranch, label: 'Review current diff', prompt: 'Review the current git diff for correctness, regressions, and incomplete work. Fix actionable issues when safe.' },
+				].map(({ icon: Icon, label, prompt }) => <button key={label} type='button' onClick={() => onSendMessage(prompt)} className='forge-brand-tool w-full flex items-center gap-2 px-2 py-2 rounded-lg text-[10.5px] text-left cursor-pointer'><Icon size={13} className='shrink-0' />{label}</button>)}
 			</div>
 		</ContextSection>
 	</aside>
