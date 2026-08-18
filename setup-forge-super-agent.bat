@@ -34,6 +34,8 @@ call node scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
 if errorlevel 1 goto :failed
 
 echo [4/6] Running fast local contract tests...
+call node scripts\forge-brand-contract-test.mjs
+if errorlevel 1 goto :failed
 call node scripts\forge-ui-contract-test.mjs
 if errorlevel 1 goto :failed
 call node scripts\forge-work-self-test.mjs
