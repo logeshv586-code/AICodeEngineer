@@ -11,8 +11,6 @@ import { IMCPService } from '../../../../../common/mcpService.js';
 import { ThreadList, ThreadItem } from './ThreadList';
 import type { SlashCommandContext } from '../utils/slashCommandRouter';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface SimpleSidebarProps {
 	threads: ThreadItem[];
 	activeThreadId: string | null;
@@ -23,8 +21,6 @@ export interface SimpleSidebarProps {
 	className?: string;
 	slashContext?: SlashCommandContext;
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 	threads,
@@ -40,17 +36,12 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 	const [busyAction, setBusyAction] = useState<string | null>(null);
 
 	const handleNewThread = useCallback(() => onNewThread(), [onNewThread]);
-
 	const openSettings = useCallback(() => {
 		if (onSettingsClick) return onSettingsClick();
-		void slashContext?.commandService.executeCommand('void.openSettings');
+		void slashContext?.commandService.executeCommand('workbench.action.openVoidSettings');
 	}, [onSettingsClick, slashContext]);
 
-	const runLocalForgeTool = useCallback(async (
-		toolName: string,
-		params: Record<string, unknown>,
-		label: string,
-	) => {
+	const runLocalForgeTool = useCallback(async (toolName: string, params: Record<string, unknown>, label: string) => {
 		if (!slashContext) return;
 		setBusyAction(toolName);
 		try {
@@ -65,9 +56,7 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 			const text = mcp.stringifyResult(result).replace(/\s+/g, ' ').trim();
 			notification.info(`${label}: ${text.slice(0, 900) || 'OK'}`);
 		} catch (error) {
-			try {
-				slashContext.accessor.get(INotificationService).error(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
-			} catch { /* notification service is optional during shutdown */ }
+			try { slashContext.accessor.get(INotificationService).error(`${label} failed: ${error instanceof Error ? error.message : String(error)}`); } catch { /* shutdown */ }
 		} finally {
 			setBusyAction(null);
 		}
@@ -79,36 +68,17 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 		const workspace = folders[0]?.uri.fsPath;
 		void runLocalForgeTool('forge_understand', { action: 'status', ...(workspace ? { workspace } : {}) }, 'Code graph');
 	}, [runLocalForgeTool, slashContext]);
-
-	const inspectWorkMode = useCallback(() => {
-		void runLocalForgeTool('forge_workflow', { action: 'list' }, 'Work Mode');
-	}, [runLocalForgeTool]);
-
-	const inspectDesignRuntime = useCallback(() => {
-		void runLocalForgeTool('forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design');
-	}, [runLocalForgeTool]);
-
-	const inspectIntegrations = useCallback(() => {
-		void runLocalForgeTool('forge_integrations', { action: 'doctor' }, 'Integrations');
-	}, [runLocalForgeTool]);
+	const inspectWorkMode = useCallback(() => { void runLocalForgeTool('forge_workflow', { action: 'list' }, 'Work Mode'); }, [runLocalForgeTool]);
+	const inspectDesignRuntime = useCallback(() => { void runLocalForgeTool('forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design'); }, [runLocalForgeTool]);
+	const inspectIntegrations = useCallback(() => { void runLocalForgeTool('forge_integrations', { action: 'doctor' }, 'Integrations'); }, [runLocalForgeTool]);
 
 	if (isCollapsed) {
 		return (
 			<div className={`w-10 bg-zinc-900/80 border-r border-zinc-800/60 flex flex-col items-center py-2 gap-1 shrink-0 ${className}`}>
-				<button type='button' onClick={() => setIsCollapsed(false)} className='w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-800/60 border border-zinc-700/40 text-zinc-400 cursor-pointer hover:bg-zinc-700/60 hover:text-zinc-300 transition-colors' title='Forge Assistant'>
-					<Sparkles size={14} />
-				</button>
-				<button type='button' onClick={handleNewThread} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='New Chat'>
-					<Plus size={16} />
-				</button>
-				{slashContext && (
-					<button type='button' onClick={inspectWorkMode} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Work Mode'>
-						<ListChecks size={14} />
-					</button>
-				)}
-				<button type='button' onClick={() => setIsCollapsed(false)} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer mt-auto' title='Expand sidebar'>
-					<ChevronDown size={14} className='rotate-[-90deg]' />
-				</button>
+				<button type='button' onClick={() => setIsCollapsed(false)} className='w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-800/60 border border-zinc-700/40 text-zinc-400 cursor-pointer hover:bg-zinc-700/60 hover:text-zinc-300 transition-colors' title='Forge Assistant'><Sparkles size={14} /></button>
+				<button type='button' onClick={handleNewThread} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='New Chat'><Plus size={16} /></button>
+				{slashContext && <button type='button' onClick={inspectWorkMode} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Work Mode'><ListChecks size={14} /></button>}
+				<button type='button' onClick={() => setIsCollapsed(false)} className='w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer mt-auto' title='Expand sidebar'><ChevronDown size={14} className='rotate-[-90deg]' /></button>
 			</div>
 		);
 	}
@@ -124,48 +94,19 @@ export const SimpleSidebar: React.FC<SimpleSidebarProps> = ({
 		<div className={`w-56 bg-zinc-900/90 border-r border-zinc-800/60 flex flex-col shrink-0 ${className}`}>
 			<div className='px-2.5 py-2 border-b border-zinc-800/60 shrink-0'>
 				<div className='flex items-center gap-2 mb-2'>
-					<div className='w-7 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center'>
-						<Sparkles size={14} className='text-zinc-400' />
-					</div>
-					<div className='flex-1 min-w-0'>
-						<div className='text-[11px] font-semibold text-zinc-300'>Forge Assistant</div>
-						<div className='text-[9px] text-zinc-600'>Code · Browser · Work · Design</div>
-					</div>
+					<div className='w-7 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center'><Sparkles size={14} className='text-zinc-400' /></div>
+					<div className='flex-1 min-w-0'><div className='text-[11px] font-semibold text-zinc-300'>Forge Assistant</div><div className='text-[9px] text-zinc-600'>Code · Browser · Work · Design</div></div>
 				</div>
-				<button type='button' onClick={handleNewThread} className='w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-zinc-800/60 hover:bg-zinc-700/60 border border-zinc-700/40 text-[11px] text-zinc-300 font-medium transition-colors cursor-pointer'>
-					<Plus size={12} /> New Chat
-				</button>
+				<button type='button' onClick={handleNewThread} className='w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-zinc-800/60 hover:bg-zinc-700/60 border border-zinc-700/40 text-[11px] text-zinc-300 font-medium transition-colors cursor-pointer'><Plus size={12} /> New Chat</button>
 			</div>
 
-			<div className='flex-1 overflow-hidden'>
-				<ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={onSelectThread} onNewThread={handleNewThread} onDeleteThread={onDeleteThread} />
-			</div>
+			<div className='flex-1 overflow-hidden'><ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={onSelectThread} onNewThread={handleNewThread} onDeleteThread={onDeleteThread} /></div>
 
 			<div className='px-2 py-2 border-t border-zinc-800/60 shrink-0'>
-				{quickButtons.length > 0 && (
-					<div className='grid grid-cols-4 gap-1 mb-1.5'>
-						{quickButtons.map(button => (
-							<button
-								key={button.id}
-								type='button'
-								onClick={button.action}
-								disabled={!!busyAction}
-								className={`h-7 flex items-center justify-center rounded-md border border-zinc-800/60 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70 transition-colors disabled:opacity-40 ${button.busy ? 'animate-pulse text-emerald-400' : ''}`}
-								title={button.title}
-								aria-label={button.title}
-							>
-								{button.icon}
-							</button>
-						))}
-					</div>
-				)}
+				{quickButtons.length > 0 && <div className='grid grid-cols-4 gap-1 mb-1.5'>{quickButtons.map(button => <button key={button.id} type='button' onClick={button.action} disabled={!!busyAction} className={`h-7 flex items-center justify-center rounded-md border border-zinc-800/60 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70 transition-colors disabled:opacity-40 ${button.busy ? 'animate-pulse text-emerald-400' : ''}`} title={button.title} aria-label={button.title}>{button.icon}</button>)}</div>}
 				<div className='flex items-center justify-between'>
-					<button type='button' onClick={openSettings} className='w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Forge settings' aria-label='Forge settings'>
-						<Settings size={13} />
-					</button>
-					<button type='button' onClick={() => setIsCollapsed(true)} className='w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Collapse sidebar'>
-						<ChevronDown size={13} className='rotate-90' />
-					</button>
+					<button type='button' onClick={openSettings} className='w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Forge settings' aria-label='Forge settings'><Settings size={13} /></button>
+					<button type='button' onClick={() => setIsCollapsed(true)} className='w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer' title='Collapse sidebar'><ChevronDown size={13} className='rotate-90' /></button>
 				</div>
 			</div>
 		</div>
