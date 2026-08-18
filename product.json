@@ -6,7 +6,7 @@
 	"applicationName": "forge-ai",
 	"dataFolderName": ".forge-ai-editor",
 	"win32MutexName": "forgeaieditor",
-	"licenseName": "MIT",
+	"licenseName": "Apache-2.0",
 	"licenseUrl": "https://github.com/logeshv586-code/AICodeEngineer/blob/main/LICENSE.txt",
 	"serverLicenseUrl": "https://github.com/logeshv586-code/AICodeEngineer/blob/main/LICENSE.txt",
 	"serverGreeting": [],
