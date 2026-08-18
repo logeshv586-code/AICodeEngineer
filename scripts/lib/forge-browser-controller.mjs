@@ -20,7 +20,7 @@ export class ForgeBrowserController {
     if (this.page && !this.page.isClosed()) return this.page;
     let chromium;
     try {
-      ({ chromium } = await import('playwright'));
+      ({ chromium } = await import('@playwright/test'));
     } catch (error) {
       throw new Error(`Playwright is unavailable. Run npm install in Forge first. ${error instanceof Error ? error.message : error}`);
     }
