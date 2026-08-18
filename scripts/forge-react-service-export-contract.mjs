@@ -26,7 +26,7 @@ let importCount = 0;
 for (const file of walk(reactRoot)) {
   if (!/\.(?:ts|tsx)$/.test(file) || file === servicesPath) continue;
   const source = fs.readFileSync(file, 'utf8');
-  const importPattern = /import\s*\{([\s\S]*?)\}\s*from\s*['"]([^'"]*util\/services\.tsx)['"]/g;
+  const importPattern = /import\s*\{([^}]*)\}\s*from\s*['"]([^'"]*util\/services(?:\.tsx|\.js)?)['"]/g;
   for (const match of source.matchAll(importPattern)) {
     const specifiers = match[1].split(',').map(value => value.trim()).filter(Boolean);
     for (const specifier of specifiers) {
