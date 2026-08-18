@@ -142,8 +142,6 @@ export const _registerServices = (accessor: ServicesAccessor) => {
 		mcpListeners.forEach(listener => listener())
 	}))
 
-	// Keep modelService eagerly resolved here because older Forge mounts rely on
-	// registration-time model initialization even when no hook reads it directly.
 	void modelService
 	return disposables
 }
@@ -196,14 +194,26 @@ const getReactAccessor = (accessor: ServicesAccessor) => ({
 
 type ReactAccessor = ReturnType<typeof getReactAccessor>
 let reactAccessor_: ReactAccessor | null = null
+let rawAccessor_: ServicesAccessor | null = null
 
 const _registerAccessor = (accessor: ServicesAccessor) => {
+	rawAccessor_ = accessor
 	reactAccessor_ = getReactAccessor(accessor)
 }
 
 export const useAccessor = () => {
 	if (!reactAccessor_) throw new Error('Forge useAccessor was called before _registerServices.')
 	return { get: <S extends keyof ReactAccessor>(service: S): ReactAccessor[S] => reactAccessor_![service] }
+}
+
+/**
+ * Token-aware workbench accessor for modern Forge surfaces that consume services
+ * through VS Code decorators (for example accessor.get(INotificationService)).
+ * Keep the lightweight string-key useAccessor() for legacy components.
+ */
+export const useRawAccessor = (): ServicesAccessor => {
+	if (!rawAccessor_) throw new Error('Forge useRawAccessor was called before _registerServices.')
+	return rawAccessor_
 }
 
 export const useSettingsState = () => {
@@ -220,18 +230,19 @@ export const useChatThreadsState = () => {
 	const [state, setState] = useState(chatThreadsState)
 	useEffect(() => {
 		setState(chatThreadsState)
-		chatThreadsStateListeners.add(setState)
-		return () => { chatThreadsStateListeners.delete(setState) }
-	}, [setState])
+		const listener = (newState: ThreadsState) => setState({ ...newState, allThreads: { ...newState.allThreads } })
+		chatThreadsStateListeners.add(listener)
+		return () => { chatThreadsStateListeners.delete(listener) }
+	}, [])
 	return state
 }
 
 export const useChatThreadsStreamState = (threadId: string) => {
-	const [state, setState] = useState<ThreadStreamState[string] | undefined>(chatThreadsStreamState[threadId])
+	const [state, setState] = useState(() => chatThreadsStreamState?.[threadId])
 	useEffect(() => {
-		setState(chatThreadsStreamState[threadId])
+		setState(chatThreadsStreamState?.[threadId])
 		const listener = (changedThreadId: string) => {
-			if (changedThreadId === threadId) setState(chatThreadsStreamState[threadId])
+			if (changedThreadId === threadId) setState(chatThreadsStreamState?.[threadId])
 		}
 		chatThreadsStreamStateListeners.add(listener)
 		return () => { chatThreadsStreamStateListeners.delete(listener) }
@@ -240,14 +251,13 @@ export const useChatThreadsStreamState = (threadId: string) => {
 }
 
 export const useFullChatThreadsStreamState = () => {
-	const [state, setState] = useState(chatThreadsStreamState)
+	const [, force] = useState(0)
 	useEffect(() => {
-		setState(chatThreadsStreamState)
-		const listener = () => setState(chatThreadsStreamState)
+		const listener = () => force(value => value + 1)
 		chatThreadsStreamStateListeners.add(listener)
 		return () => { chatThreadsStreamStateListeners.delete(listener) }
 	}, [])
-	return state
+	return chatThreadsStreamState
 }
 
 export const useRefreshModelState = () => {
@@ -256,82 +266,85 @@ export const useRefreshModelState = () => {
 		setState(refreshModelState)
 		refreshModelStateListeners.add(setState)
 		return () => { refreshModelStateListeners.delete(setState) }
-	}, [setState])
+	}, [])
 	return state
 }
 
-export const useRefreshModelListener = (listener: (providerName: RefreshableProviderName, state: RefreshModelStateOfProvider) => void) => {
+export const useRefreshModelProviderState = (providerName: RefreshableProviderName) => {
+	const [state, setState] = useState(() => refreshModelState?.[providerName])
 	useEffect(() => {
+		setState(refreshModelState?.[providerName])
+		const listener = (changedProvider: RefreshableProviderName, fullState: RefreshModelStateOfProvider) => {
+			if (changedProvider === providerName) setState(fullState?.[providerName])
+		}
 		refreshModelProviderListeners.add(listener)
 		return () => { refreshModelProviderListeners.delete(listener) }
-	}, [listener])
-}
-
-export const useCtrlKZoneStreamingState = (listener: (diffareaid: number, streaming: boolean) => void) => {
-	useEffect(() => {
-		ctrlKZoneStreamingStateListeners.add(listener)
-		return () => { ctrlKZoneStreamingStateListeners.delete(listener) }
-	}, [listener])
+	}, [providerName])
+	return state
 }
 
 export const useIsDark = () => {
-	const [state, setState] = useState(colorThemeState)
+	const [isDark, setIsDark] = useState(() => colorThemeState === ColorScheme.DARK || colorThemeState === ColorScheme.HIGH_CONTRAST_DARK)
 	useEffect(() => {
-		setState(colorThemeState)
-		colorThemeStateListeners.add(setState)
-		return () => { colorThemeStateListeners.delete(setState) }
-	}, [setState])
-	return state === ColorScheme.DARK || state === ColorScheme.HIGH_CONTRAST_DARK
+		const listener = (scheme: ColorScheme) => setIsDark(scheme === ColorScheme.DARK || scheme === ColorScheme.HIGH_CONTRAST_DARK)
+		colorThemeStateListeners.add(listener)
+		return () => { colorThemeStateListeners.delete(listener) }
+	}, [])
+	return isDark
 }
 
-export const useCommandBarURIListener = (listener: (uri: URI) => void) => {
+export const useCtrlKZoneStreaming = (diffareaid: number) => {
+	const accessor = useAccessor()
+	const [isStreaming, setIsStreaming] = useState(() => accessor.get('IEditCodeService').isCtrlKZoneStreaming({ diffareaid }))
 	useEffect(() => {
-		commandBarURIStateListeners.add(listener)
-		return () => { commandBarURIStateListeners.delete(listener) }
-	}, [listener])
+		const listener = (changedDiffareaid: number, state: boolean) => {
+			if (changedDiffareaid === diffareaid) setIsStreaming(state)
+		}
+		ctrlKZoneStreamingStateListeners.add(listener)
+		return () => { ctrlKZoneStreamingStateListeners.delete(listener) }
+	}, [diffareaid])
+	return isStreaming
 }
 
 export const useCommandBarState = () => {
-	const commandBarService = useAccessor().get('IVoidCommandBarService')
-	const [state, setState] = useState({ stateOfURI: commandBarService.stateOfURI, sortedURIs: commandBarService.sortedURIs })
-	const listener = useCallback(() => {
-		setState({ stateOfURI: commandBarService.stateOfURI, sortedURIs: commandBarService.sortedURIs })
-	}, [commandBarService])
-	useCommandBarURIListener(listener)
+	const accessor = useAccessor()
+	const service = accessor.get('IVoidCommandBarService')
+	const [state, setState] = useState(service.state)
+	useEffect(() => service.onDidChangeState(() => setState({ ...service.state })), [service])
 	return state
 }
 
 export const useActiveURI = () => {
-	const commandBarService = useAccessor().get('IVoidCommandBarService')
-	const [state, setState] = useState(commandBarService.activeURI)
+	const accessor = useAccessor()
+	const [uri, setUri] = useState<URI | null>(() => accessor.get('IVoidCommandBarService').state.uri ?? null)
 	useEffect(() => {
-		const listener = () => setState(commandBarService.activeURI)
-		activeURIListeners.add(listener)
-		return () => { activeURIListeners.delete(listener) }
-	}, [commandBarService])
-	return { uri: state }
+		activeURIListeners.add(setUri)
+		return () => { activeURIListeners.delete(setUri) }
+	}, [])
+	return uri
 }
 
-export const useMCPServiceState = () => {
-	const mcpService = useAccessor().get('IMCPService')
-	const [state, setState] = useState(mcpService.state)
+export const useMCPState = () => {
+	const accessor = useAccessor()
+	const service = accessor.get('IMCPService')
+	const [, refresh] = useState(0)
 	useEffect(() => {
-		const listener = () => setState(mcpService.state)
+		const listener = () => refresh(value => value + 1)
 		mcpListeners.add(listener)
 		return () => { mcpListeners.delete(listener) }
-	}, [mcpService])
-	return state
+	}, [])
+	return service.state
 }
 
-export const useIsOptedOut = () => {
-	const storageService = useAccessor().get('IStorageService')
-	const getValue = useCallback(() => storageService.getBoolean(OPT_OUT_KEY, StorageScope.APPLICATION, false), [storageService])
-	const [state, setState] = useState(getValue())
-	useEffect(() => {
-		const disposables = new DisposableStore()
-		const disposable = storageService.onDidChangeValue(StorageScope.APPLICATION, OPT_OUT_KEY, disposables)(() => setState(getValue()))
-		disposables.add(disposable)
-		return () => disposables.clear()
-	}, [storageService, getValue])
-	return state
+export const useStorageBoolean = (key: string, defaultValue: boolean) => {
+	const accessor = useAccessor()
+	const service = accessor.get('IStorageService')
+	const [value, setValue] = useState(() => service.getBoolean(key, StorageScope.PROFILE, defaultValue))
+	const update = useCallback((next: boolean) => {
+		service.store(key, next, StorageScope.PROFILE, 0)
+		setValue(next)
+	}, [service, key])
+	return [value, update] as const
 }
+
+export const useOptOut = () => useStorageBoolean(OPT_OUT_KEY, false)
