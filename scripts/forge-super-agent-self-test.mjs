@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { doctor, verifyIntegrations } from './forge-integrations.mjs';
+import { ACTIVE_INTEGRATION_IDS, doctor, verifyIntegrations } from './forge-integrations.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -12,6 +12,7 @@ const check = (name, ok, detail) => ({ name, ok: !!ok, detail });
 
 export const runSelfTest = (options = {}) => {
   const requireAll = options.requireAll === true;
+  const requireActive = options.requireActive === true || !requireAll;
   const checks = [];
   const diagnostics = doctor();
 
@@ -44,32 +45,42 @@ export const runSelfTest = (options = {}) => {
     checks.push(check('state-2 workspace skills', false, error instanceof Error ? error.message : String(error)));
   }
 
-  const integrationVerification = verifyIntegrations({ requireAll });
+  const integrationVerification = verifyIntegrations({ requireAll, requireActive });
   for (const item of integrationVerification.integrations) {
-    const ok = item.exact || (!requireAll && !item.installed);
-    checks.push(check(`integration:${item.id}`, ok, item.installed
+    const required = requireAll || ACTIVE_INTEGRATION_IDS.includes(item.id);
+    const ok = required ? item.exact && item.remoteExact && item.licenseFilePresent : true;
+    const detail = item.installed
       ? `${item.commit || 'unknown'}${item.exact ? ' (pinned)' : ' (mismatch)'}`
-      : `not installed${requireAll ? ' (required)' : ' (optional)'}`));
+      : required
+        ? 'not installed (required now)'
+        : 'deferred until Agent Lightning phase';
+    checks.push(check(`integration:${item.id}`, ok, detail));
   }
 
   const failed = checks.filter(item => !item.ok);
   return {
     ok: failed.length === 0,
     requireAll,
+    requireActive,
     repoRoot,
     integrationsRoot: diagnostics.integrationsRoot,
     expectedWindowsPath: path.join(os.homedir(), '.forge', 'integrations'),
+    activeIntegrationIds: ACTIVE_INTEGRATION_IDS,
+    deferredIntegrationIds: ['agent-lightning'],
     checks,
     failed: failed.map(item => item.name),
   };
 };
 
 const main = () => {
-  const result = runSelfTest({ requireAll: process.argv.includes('--require-all') });
+  const requireAll = process.argv.includes('--require-all');
+  const result = runSelfTest({ requireAll, requireActive: !requireAll || process.argv.includes('--require-active') });
   for (const item of result.checks) {
     console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(28)} ${item.detail || ''}`);
   }
   console.log(`\nIntegration root: ${result.integrationsRoot}`);
+  console.log(`Active now: ${result.activeIntegrationIds.join(', ')}`);
+  console.log('Deferred: agent-lightning');
   if (!result.ok) {
     console.error(`\nForge Super Agent self-test failed: ${result.failed.join(', ')}`);
     process.exitCode = 1;

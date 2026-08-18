@@ -11,8 +11,11 @@ const integrationsRoot = path.resolve(process.env.FORGE_INTEGRATIONS_HOME || pat
 const forgeDataRoot = path.resolve(process.env.FORGE_DATA_HOME || path.join(os.homedir(), '.forge-ai-editor'));
 const installManifestPath = path.join(integrationsRoot, '.forge-integrations.json');
 
+export const ACTIVE_INTEGRATION_IDS = Object.keys(lock.integrations).filter(id => id !== 'agent-lightning');
+
 const aliases = {
   all: 'full',
+  default: 'active',
   ua: 'understand-anything',
   understand: 'understand-anything',
   lightning: 'agent-lightning',
@@ -102,8 +105,6 @@ const setupIntegration = id => {
       return;
     }
     runPnpm(['install', '--frozen-lockfile'], packageRoot);
-    // The upstream dashboard skill requires the core package to be built before
-    // the local Vite dashboard is launched.
     runPnpm(['--filter', '@understand-anything/core', 'build'], packageRoot);
     return;
   }
@@ -119,8 +120,8 @@ const setupIntegration = id => {
   }
 
   if (id === 'agent-lightning') {
-    console.log('[forge-integrations] Agent Lightning source is installed. GPU/RL dependencies are intentionally opt-in.');
-    console.log('[forge-integrations] Use its pinned installation guide for the CUDA/verl/vLLM environment you intend to train with.');
+    console.log('[forge-integrations] Agent Lightning source is installed, but its GPU/RL stack is intentionally not configured by Forge.');
+    console.log('[forge-integrations] Enable it later with the pinned upstream CUDA/Kubernetes/verl/vLLM training guide.');
   }
 };
 
@@ -145,6 +146,8 @@ const writeInstallManifest = () => {
     schemaVersion: 1,
     updatedAt: new Date().toISOString(),
     integrationsRoot,
+    activeIntegrationIds: ACTIVE_INTEGRATION_IDS,
+    deferredIntegrationIds: ['agent-lightning'],
     lockFile: lockPath,
     integrations: integrationStatus(),
   };
@@ -176,8 +179,6 @@ export const installIntegration = (rawId, options = {}) => {
       if (remote !== spec.repo) run('git', ['-C', dir, 'remote', 'set-url', 'origin', spec.repo]);
     }
 
-    // Shallow-fetch the exact pinned commit. This materializes every file from
-    // that revision while avoiding unnecessary repository history.
     run('git', ['-C', dir, 'fetch', '--depth', '1', 'origin', spec.commit]);
     run('git', ['-C', dir, 'checkout', '--detach', '--force', 'FETCH_HEAD']);
     console.log(`[forge-integrations] Installed full ${id} source at ${dir}`);
@@ -199,7 +200,9 @@ export const installIntegration = (rawId, options = {}) => {
 export const installGroup = (group, options = {}) => {
   const normalizedGroup = resolveId(group);
   const ids = Object.entries(lock.integrations)
-    .filter(([, spec]) => normalizedGroup === 'full' || (normalizedGroup === 'core' && spec.tier === 'core'))
+    .filter(([id, spec]) => normalizedGroup === 'full'
+      || (normalizedGroup === 'active' && id !== 'agent-lightning')
+      || (normalizedGroup === 'core' && spec.tier === 'core'))
     .map(([id]) => id);
   if (ids.length === 0) throw new Error(`Unknown integration group: ${group}`);
   const results = ids.map(id => installIntegration(id, options));
@@ -214,6 +217,8 @@ export const integrationStatus = () => Object.entries(lock.integrations).map(([i
   return {
     id,
     tier: spec.tier,
+    activeNow: id !== 'agent-lightning',
+    deferred: id === 'agent-lightning',
     license: spec.license,
     installed: !!commit,
     commit,
@@ -229,14 +234,22 @@ export const integrationStatus = () => Object.entries(lock.integrations).map(([i
 
 export const verifyIntegrations = (options = {}) => {
   const requireAll = options.requireAll === true;
+  const requireActive = options.requireActive === true;
   const integrations = integrationStatus();
+  const requiredIds = new Set(requireAll
+    ? integrations.map(item => item.id)
+    : requireActive
+      ? ACTIVE_INTEGRATION_IDS
+      : []);
   const failures = integrations.filter(item =>
-    (requireAll && !item.installed)
+    (requiredIds.has(item.id) && !item.installed)
     || (item.installed && (!item.exact || !item.remoteExact || !item.licenseFilePresent))
   );
   return {
     ok: failures.length === 0,
     requireAll,
+    requireActive,
+    requiredIds: [...requiredIds],
     integrations,
     failures: failures.map(item => item.id),
   };
@@ -287,6 +300,8 @@ export const doctor = () => ({
   integrationsRoot,
   forgeDataRoot,
   installManifestPath,
+  activeIntegrationIds: ACTIVE_INTEGRATION_IDS,
+  deferredIntegrationIds: ['agent-lightning'],
   commands: {
     git: commandExists('git'),
     node: commandExists('node'),
@@ -301,33 +316,36 @@ export const doctor = () => ({
 const printStatus = () => {
   console.log(`Forge integration root: ${integrationsRoot}`);
   for (const item of integrationStatus()) {
-    const mark = item.exact && item.remoteExact ? 'OK' : item.installed ? 'MISMATCH' : 'NOT INSTALLED';
+    const mark = item.exact && item.remoteExact ? 'OK' : item.installed ? 'MISMATCH' : item.deferred ? 'DEFERRED' : 'NOT INSTALLED';
     console.log(`${mark.padEnd(13)} ${item.id.padEnd(20)} ${item.path}`);
   }
 };
 
 const main = () => {
-  const [command = 'status', target = 'core', ...rest] = process.argv.slice(2);
+  const [command = 'status', target = 'active', ...rest] = process.argv.slice(2);
   const setup = rest.includes('--setup');
   const force = rest.includes('--force');
 
   if (command === 'status') return printStatus();
   if (command === 'doctor') return console.log(JSON.stringify(doctor(), null, 2));
   if (command === 'verify') {
-    const result = verifyIntegrations({ requireAll: target === 'full' || target === 'all' || rest.includes('--require-all') });
+    const result = verifyIntegrations({
+      requireAll: target === 'full' || target === 'all' || rest.includes('--require-all'),
+      requireActive: target === 'active' || rest.includes('--require-active'),
+    });
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;
     return;
   }
   if (command === 'bootstrap-mcp') return bootstrapForgeMcp();
   if (command === 'install') {
-    if (target === 'core' || target === 'full' || target === 'all') return installGroup(target, { setup, force });
+    if (target === 'core' || target === 'active' || target === 'full' || target === 'all') return installGroup(target, { setup, force });
     return installIntegration(target, { setup, force });
   }
   if (command === 'path') return console.log(integrationPath(target));
   if (command === 'root') return console.log(integrationsRoot);
 
-  console.log('Usage: node scripts/forge-integrations.mjs <status|doctor|verify|bootstrap-mcp|install|path|root> [core|full|all|integration] [--setup] [--force] [--require-all]');
+  console.log('Usage: node scripts/forge-integrations.mjs <status|doctor|verify|bootstrap-mcp|install|path|root> [core|active|full|all|integration] [--setup] [--force] [--require-active] [--require-all]');
   process.exitCode = 1;
 };
 

@@ -6,19 +6,31 @@ Forge integrates advanced coding-agent capabilities without loading every subsys
 
 ```text
 User request
-  -> zero-token task classification / adaptive model selection
+  -> local task classification / adaptive model selection
   -> native 333-skill router (0-3 bodies, 4k skill-token cap)
   -> CocoIndex + optional Understand Anything graph discovery
   -> Forge coding loop (read/edit/rewrite/create/delete/terminal/MCP)
-  -> optional persistent browser / Open Design / AionUi / Work Mode tools
+  -> persistent browser / Open Design / AionUi / Work Mode when relevant
   -> tests + browser verification + diff review
-  -> sanitized offline learning trace
-  -> SkillOpt validation / optional Agent Lightning training
+  -> sanitized learning trace + SkillOpt validation
+  -> Agent Lightning later, as a dedicated optional training phase
 ```
 
-The base IDE remains lightweight. Heavy upstream projects are pinned by exact commit in `forge-integrations.lock.json` and downloaded as local source trees under `~/.forge/integrations`. On Windows this resolves to `C:\Users\<user>\.forge\integrations`.
+## Active integration phase
 
-## Windows one-click full installation
+The normal Forge installation now uses these integrations immediately:
+
+- Microsoft SkillOpt
+- Egonex Understand Anything
+- Nexu Open Design
+- AionUi
+- Forge persistent Playwright browser
+- Forge Work Mode scheduler and pending queue
+- Native 333-skill registry/router
+
+Agent Lightning is deliberately deferred. Its source remains pinned in `forge-integrations.lock.json`, and Forge already knows how to install it later, but it is not downloaded, required, started, or included in normal self-tests during this phase.
+
+## Windows one-click install
 
 After pulling Forge, run:
 
@@ -26,15 +38,15 @@ After pulling Forge, run:
 install-forge-super-agent.bat
 ```
 
-This downloads the complete pinned working source tree for all five integrations and installs Chromium for the persistent Playwright browser agent:
+The active source trees are stored under:
 
-- Microsoft SkillOpt
-- Egonex Understand Anything
-- Microsoft Agent Lightning
-- Nexu Open Design
-- AionUi
-
-The installer uses shallow exact-commit checkouts: every file for the pinned revision is available locally, while unnecessary Git history is not downloaded.
+```text
+C:\Users\<user>\.forge\integrations\
+  skillopt\
+  understand-anything\
+  open-design\
+  aionui\
+```
 
 For dependency setup where supported:
 
@@ -42,90 +54,57 @@ For dependency setup where supported:
 install-forge-super-agent.bat setup
 ```
 
-Agent Lightning GPU/`verl`/vLLM dependencies remain deliberately opt-in because its training environment is substantially heavier than normal IDE inference.
-
 Cross-platform equivalent:
 
 ```bash
-node scripts/forge-super-agent-bootstrap.mjs --full --browser
-node scripts/forge-super-agent-bootstrap.mjs --full --browser --setup
+node scripts/forge-super-agent-bootstrap.mjs --active --browser
+node scripts/forge-super-agent-bootstrap.mjs --active --browser --setup
 ```
 
-## Local source layout
+## Later Agent Lightning phase
 
-```text
-~/.forge/integrations/
-  skillopt/
-  understand-anything/
-  agent-lightning/
-  open-design/
-  aionui/
-  .forge-integrations.json
-```
-
-`node scripts/forge-integrations.mjs verify full` validates exact commit, upstream remote, and source-license presence for all five checkouts.
-
-## MCP integration
-
-`run-forge-ide.bat` registers `forge-super-agent` in `~/.forge-ai-editor/mcp.json` every launch. The MCP server exposes:
-
-- `forge_browser` — persistent browser inspection and interaction
-- `forge_integrations` — source install/status/doctor/verify/self-test
-- `forge_understand` — small local `.ua` graph searches and viewer launch
-- `forge_sidecar` — Open Design / AionUi lifecycle
-- `forge_workflow` — local scheduled/manual Work Mode tasks and pending queue
-- `forge_learning` — sanitized traces and SkillOpt-Sleep controls
-
-Run a strict verification with:
+When the dedicated GPU/RL environment is ready, install its pinned source with:
 
 ```bash
+node scripts/forge-super-agent-bootstrap.mjs --with-lightning --browser
+```
+
+For the fully provisioned future state, verification can use:
+
+```bash
+node scripts/forge-integrations.mjs verify full
 node scripts/forge-super-agent-self-test.mjs --require-all
 ```
 
-## Browser agent
+Until then, normal verification intentionally requires only the active integration set:
 
-The browser controller keeps one local Playwright profile under `~/.forge/browser-profile`. `snapshot` returns a compact page representation and assigns temporary stable selectors such as:
-
-```text
-[data-forge-agent-id="12"]
+```bash
+node scripts/forge-integrations.mjs verify active
+node scripts/forge-super-agent-self-test.mjs --require-active
 ```
 
-The agent can then click/fill/type/select/check/hover without guessing DOM selectors. It also supports navigation, tabs, waits, screenshots, batched `run_steps`, and guarded JavaScript evaluation. Browser screenshots are stored under `~/.forge/artifacts/browser`.
+## MCP tools
 
-Use `FORGE_BROWSER_HEADED=1` when you want the controlled browser visible.
+`run-forge-ide.bat` registers `forge-super-agent` in `~/.forge-ai-editor/mcp.json`. The MCP server exposes:
 
-## Understand Anything
+- `forge_browser` — persistent browser inspection and interaction
+- `forge_integrations` — install/status/doctor/verify/self-test
+- `forge_understand` — compact `.ua` graph search and local dashboard
+- `forge_sidecar` — Open Design / AionUi lifecycle
+- `forge_workflow` — Work Mode tasks, pending queue, approvals, scheduling
+- `forge_learning` — sanitized traces and SkillOpt-Sleep controls
 
-Forge keeps Understand Anything as a pinned full source checkout and consumes `.ua/knowledge-graph.json` only when useful. `forge_understand search` returns small graph slices rather than injecting the entire graph into the prompt. Initial graph construction remains an explicit upstream operation because it may consume substantial compute/tokens; later updates are incremental.
+## Browser agent
 
-## Open Design
+The browser controller keeps one local profile under `~/.forge/browser-profile`. `snapshot` returns compact visible page content and temporary selectors such as `[data-forge-agent-id="12"]`. The agent can click, fill, type, select, check, hover, navigate tabs, wait for text, reload, take screenshots, and batch actions through `run_steps`.
 
-Open Design remains a companion runtime because it has its own daemon/web/desktop architecture. Forge can start, stop and inspect the pinned source through `forge_sidecar`. Design tasks can combine Open Design outputs with normal Forge workspace edits and `forge_browser` verification.
+## Work Mode
 
-## Work Mode + AionUi
+`run-forge-ide.bat` starts `scripts/forge-work-daemon.mjs`. It supports manual, one-time, interval, and five-field cron schedules. Unattended shell commands can execute locally; prompt tasks and approval-required commands are queued under `~/.forge/work/pending.json` for Forge/AionUi handling. History is stored in `~/.forge/work/history.jsonl`.
 
-`run-forge-ide.bat` starts the lightweight `forge-work-daemon.mjs` scheduler. Work Mode supports:
+## Self-evolution policy
 
-- manual tasks
-- one-time schedules
-- interval schedules (minimum one minute)
-- five-field cron schedules
-- unattended local command tasks
-- approval-required command tasks
-- agent-prompt tasks
-
-Scheduled prompts and approval-required commands are de-duplicated into `~/.forge/work/pending.json`; completed/acknowledged work is recorded in `~/.forge/work/history.jsonl`. AionUi can still be launched as the richer local/remote cowork sidecar for long-running automation UI.
-
-## Self-evolution
-
-Forge deliberately separates live execution from learning:
-
-- `forge_learning record` writes sanitized task traces to `~/.forge/learning/coding-traces.jsonl`.
-- SkillOpt-Sleep can replay/consolidate experience behind its validation gates.
-- Agent Lightning source is available locally for optional RL experiments/training.
-- A successful chat turn never directly rewrites a production skill or silently starts GPU training.
-
-This preserves predictable inference behavior while still creating a controlled self-improvement loop.
+Live execution is separated from learning. Forge records sanitized outcomes, SkillOpt can validate/stage skill improvements, and production skills are not silently rewritten after a successful chat. Agent Lightning will later provide the heavier RL training path when the dedicated environment is available.
 
 ## Verification after pull
 
@@ -134,8 +113,8 @@ npm run compile
 npm run buildreact
 node scripts/forge-runtime-guard.mjs
 node scripts/manage-skills.mjs validate
-node scripts/forge-integrations.mjs doctor
-node scripts/forge-super-agent-self-test.mjs --require-all
+node scripts/forge-integrations.mjs verify active
+node scripts/forge-super-agent-self-test.mjs --require-active
 ```
 
-Then restart Forge with `run-forge-ide.bat` and verify that the MCP tool list includes all six `forge_*` tools above.
+Then restart Forge with `run-forge-ide.bat`.

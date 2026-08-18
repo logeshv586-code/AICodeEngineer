@@ -21,12 +21,12 @@ rem Start the lightweight local Work Mode scheduler. It de-duplicates itself
 rem with a PID file and queues prompt/approval workflows under %%USERPROFILE%%\.forge\work.
 start "Forge Work Scheduler" /B node "%~dp0scripts\forge-work-daemon.mjs" >nul 2>&1
 
-rem Tell the developer how to install the complete pinned open-source source trees,
-rem but never download multi-GB integrations unexpectedly during IDE startup.
-call node "%~dp0scripts\forge-integrations.mjs" verify full >nul 2>&1
+rem Verify the integrations active in this phase. Agent Lightning is deferred
+rem until the later GPU/RL training phase and is not required for normal startup.
+call node "%~dp0scripts\forge-integrations.mjs" verify active >nul 2>&1
 if errorlevel 1 (
-    echo [forge-super-agent] Optional integrations are not fully installed.
-    echo [forge-super-agent] Run install-forge-super-agent.bat once to download all source to %%USERPROFILE%%\.forge\integrations.
+    echo [forge-super-agent] Active integrations are not fully installed.
+    echo [forge-super-agent] Run install-forge-super-agent.bat once to install them under %%USERPROFILE%%\.forge\integrations.
 )
 
 rem Validate and self-repair all core, Forge, React, skill, and Super Agent runtime artifacts before launch.
