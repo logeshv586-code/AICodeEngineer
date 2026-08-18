@@ -14,6 +14,7 @@ const source = {
   workflows: 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/components/WorkflowsView.tsx',
   workspace: 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/components/AgentWorkspace.tsx',
   universalComposer: 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/components/UniversalComposer.tsx',
+  slashCommands: 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/slashCommands.ts',
   bridge: 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/hooks/useForgeBridge.ts',
 };
 
@@ -25,7 +26,10 @@ export const runUiContractTest = () => {
   const checks = [
     check('active sidebar super-agent rail', contains(files.activeSidebar, ['forge_understand', 'forge_workflow', 'forge_sidecar', 'forge_integrations']), 'The sidebar users actually see must expose real local Super Agent controls'),
     check('active response buttons', contains(files.activeSidebar, ['Copy response', 'Fork / Branch thread', 'Forge Assistant Response Feedback', 'duplicateThread']), 'Compact response copy/fork/feedback buttons must have handlers'),
-    check('registered settings action', contains(files.activeSidebar, ['workbench.action.openVoidSettings']) && contains(files.sidebar, ['workbench.action.openVoidSettings']), 'Settings buttons must use the registered Forge settings action'),
+    check('registered settings action', contains(files.activeSidebar, ['workbench.action.openVoidSettings']) && contains(files.sidebar, ['workbench.action.openVoidSettings']) && contains(files.slashCommands, ['workbench.action.openVoidSettings']), 'Settings buttons must use the registered Forge settings action'),
+    check('active slash super-agent commands', contains(files.slashCommands, ["name: 'understand'", "name: 'browser'", "name: 'work'", "name: 'design'", "name: 'health'", 'callForgeTool']), 'Compact slash commands must expose code understanding, browser, Work Mode, design, and health'),
+    check('slash attachment picker event', contains(files.slashCommands, ["dispatchAttachmentPicker('file')", "dispatchAttachmentPicker('image')", 'forge:open-attachment-picker']) && contains(files.universalComposer, ['forge:open-attachment-picker', 'openAttachmentPicker']), 'Slash attachment commands must route into the real composer picker'),
+    check('no broken React file dialog path', !files.slashCommands.includes("accessor.get('IFileDialogService')") && !files.slashCommands.includes('reader.readAsDataURL(uri.fsPath)'), 'Renderer slash commands may not depend on an unavailable file-dialog service or FileReader path strings'),
     check('conversation abort wiring', contains(files.chat, ['abortRunning(', 'onAbort={handleAbort}']), 'Stop must cancel the active ChatThreadService run'),
     check('conversation attachment wiring', contains(files.chat, ['handleAddAttachment', 'addNewStagingSelection', 'onAddAttachment={handleAddAttachment}']), 'Attachments must become real staging selections'),
     check('composer file picker', contains(files.composer, ['fileInputRef', "type='file'", 'onDrop={handleDrop}', 'onAddAttachment']), 'Paperclip and drag/drop must be functional'),
@@ -48,7 +52,7 @@ export const runUiContractTest = () => {
 
 const main = () => {
   const result = runUiContractTest();
-  for (const item of result.checks) console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(36)} ${item.detail}`);
+  for (const item of result.checks) console.log(`${item.ok ? 'PASS' : 'FAIL'}  ${item.name.padEnd(38)} ${item.detail}`);
   if (!result.ok) {
     console.error(`\nForge UI contract test failed: ${result.failed.join(', ')}`);
     process.exitCode = 1;
