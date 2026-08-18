@@ -83,11 +83,12 @@ export const ConversationShell: React.FC = () => {
 
 	const sendMessage = useCallback(async (message: string) => {
 		const trimmed = message.trim();
-		if (!trimmed) return;
 		let threadId = chatThreadsService.state.currentThreadId;
 		if (!threadId || !chatThreadsService.state.allThreads[threadId]) threadId = chatThreadsService.createNewThread();
 		const selections = chatThreadsService.getCurrentThreadState().stagingSelections.slice();
-		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: trimmed, _chatSelections: selections, threadId });
+		const effectiveMessage = trimmed || (selections.length > 0 ? 'Inspect the attached context and continue with the task.' : '');
+		if (!effectiveMessage) return;
+		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: effectiveMessage, _chatSelections: selections, threadId });
 		chatThreadsService.setCurrentThreadState({ stagingSelections: [] });
 	}, [chatThreadsService]);
 
