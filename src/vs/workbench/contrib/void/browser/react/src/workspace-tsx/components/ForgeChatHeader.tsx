@@ -49,27 +49,25 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 			const skillsService = slashContext.accessor.get(ISkillsService);
 			await skillsService.reloadSkills();
 
-			let totalFiles = snapshot.totalFiles;
-			let totalChunks = snapshot.totalChunks;
+			let indexStats: { totalFiles: number; totalChunks: number } | undefined;
 			if (refreshIndex && workspaceReady) {
 				const stats = await slashContext.accessor.get(ISemanticSearchService).indexWorkspace();
-				totalFiles = stats.totalFiles;
-				totalChunks = stats.totalChunks;
+				indexStats = { totalFiles: stats.totalFiles, totalChunks: stats.totalChunks };
 			}
 
 			if (disposedRef.current) return;
-			setSnapshot({
+			setSnapshot(previous => ({
+				...previous,
 				registrySkills: skillsService.getRegistrySkillCount(),
 				workspaceSkills: skillsService.getAllSkills().length,
-				totalFiles,
-				totalChunks,
-			});
+				...(indexStats ?? {}),
+			}));
 			setKnowledgeState('ready');
 		} catch (error) {
 			console.warn('[Forge Evolution] Could not refresh project knowledge:', error);
 			if (!disposedRef.current) setKnowledgeState('error');
 		}
-	}, [slashContext, snapshot.totalChunks, snapshot.totalFiles, workspaceReady]);
+	}, [slashContext, workspaceReady]);
 
 	useEffect(() => {
 		void refreshKnowledge(false);
