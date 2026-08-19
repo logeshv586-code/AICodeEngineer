@@ -72,6 +72,7 @@ export const ConversationShell: React.FC = () => {
 	const workspace = workspaceService.getWorkspace();
 	const workspaceReady = workspace.folders.length > 0;
 	const workspaceName = workspace.folders[0]?.name ?? 'No workspace open';
+	const workspacePath = workspace.folders[0]?.uri.fsPath;
 
 	const messages = useMemo<ChatViewMessage[]>(() => {
 		if (!currentThread) return [];
@@ -161,6 +162,7 @@ export const ConversationShell: React.FC = () => {
 			<div className='forge-chat-layout relative z-[1] h-full w-full min-h-0 min-w-0 overflow-hidden'>
 				<ForgeChatHeader
 					workspaceName={workspaceName}
+					workspacePath={workspacePath}
 					workspaceReady={workspaceReady}
 					isStreaming={isStreaming}
 					slashContext={slashContext}
