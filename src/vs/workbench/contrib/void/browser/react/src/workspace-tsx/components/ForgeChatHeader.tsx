@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, RefreshCw, Sparkles } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { ISkillsService } from '../../../skillsService.js';
 import { ISemanticSearchService } from '../../../../../common/forge/contracts/ISemanticSearchService.js';
 import type { SlashCommandContext } from '../utils/slashCommandRouter';
-import { FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts';
 
 type KnowledgeState = 'idle' | 'syncing' | 'ready' | 'error';
 
@@ -85,16 +84,6 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 		void refreshKnowledge(true);
 	}, [isStreaming, refreshKnowledge]);
 
-	const runProjectEvolution = useCallback(() => {
-		if (!slashContext || isStreaming) return;
-		slashContext.sendMessage(FORGE_PROJECT_EVOLUTION_TASK);
-	}, [isStreaming, slashContext]);
-
-	const runSkillEvolution = useCallback(() => {
-		if (!slashContext || isStreaming) return;
-		slashContext.sendMessage(FORGE_SKILL_EVOLUTION_TASK);
-	}, [isStreaming, slashContext]);
-
 	const statusText = !workspaceReady
 		? 'Open a folder to enable project knowledge'
 		: knowledgeState === 'syncing'
@@ -117,14 +106,7 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 					<span className='forge-chat-workspace-name truncate' title={workspaceName}>{workspaceName}</span>
 				</div>
 				<div className='forge-chat-header-actions'>
-					<button type='button' className='forge-chat-action' onClick={runProjectEvolution} disabled={!workspaceReady || isStreaming} title='Analyze the current project and propose or apply the next safe evolution'>
-						<Sparkles size={13} />
-						<span>Evolution</span>
-					</button>
-					<button type='button' className='forge-chat-action' onClick={runSkillEvolution} disabled={!workspaceReady || isStreaming} title='Evolve project-local skills from proven patterns in the current code'>
-						<BookOpen size={13} />
-						<span>Skills</span>
-					</button>
+					<span className='forge-chat-command-hint' title='Type / in the composer to open Forge commands'>/ commands</span>
 					<button type='button' className='forge-chat-icon-action' onClick={() => { void refreshKnowledge(true); }} disabled={!workspaceReady || knowledgeState === 'syncing'} title='Refresh project knowledge and workspace skills' aria-label='Refresh project knowledge'>
 						<RefreshCw size={13} className={knowledgeState === 'syncing' ? 'animate-spin' : ''} />
 					</button>
