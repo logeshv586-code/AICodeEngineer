@@ -5,6 +5,7 @@ title Forge Super Agent Setup
 pushd "%~dp0"
 set "FORGE_INTEGRATIONS_HOME=%USERPROFILE%\.forge\integrations"
 set "FORGE_WORK_HOME=%USERPROFILE%\.forge\work"
+set "FORGE_OPTIONAL_WARNINGS=0"
 
 echo.
 echo ============================================================
@@ -54,14 +55,7 @@ set "PATH=!FORGE_NODE_HOME!;!PATH!"
 for /f "delims=" %%V in ('"!FORGE_NODE!" --version') do set "FORGE_NODE_VERSION=%%V"
 echo [forge-setup] Runtime locked to !FORGE_NODE_VERSION!: !FORGE_NODE!
 
-echo [4/7] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
-rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
-rem --browser installs the Chromium runtime used by Forge's Playwright browser agent.
-rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
-"!FORGE_NODE!" scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
-if errorlevel 1 goto :failed
-
-echo [5/7] Running fast local contract tests...
+echo [4/7] Running core Forge contract tests...
 "!FORGE_NODE!" scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-ui-contract-test.mjs
@@ -77,36 +71,68 @@ if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\manage-skills.mjs validate
 if errorlevel 1 goto :failed
 
-echo [6/7] Building Forge with pinned Node...
+echo [5/7] Building Forge core IDE with pinned Node...
 "!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" "!FORGE_NPM_CLI!" run buildreact
 if errorlevel 1 goto :failed
 
-echo [7/7] Verifying runtime and Super Agent integration state...
+echo [6/7] Installing optional browser runtime and pinned Super Agent integrations...
+rem The IDE core is already built at this point. Browser and external integrations
+rem extend Forge, but a third-party setup problem must not make the editor unusable.
+"!FORGE_NODE!" "!FORGE_NPM_CLI!" exec playwright install chromium
+if errorlevel 1 (
+    echo [forge-setup] WARNING: Playwright Chromium install failed. Built-in IDE remains usable; browser-agent features may be unavailable.
+    set "FORGE_OPTIONAL_WARNINGS=1"
+)
+
+rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
+rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
+"!FORGE_NODE!" scripts\forge-super-agent-bootstrap.mjs --full --setup
+if errorlevel 1 (
+    echo [forge-setup] WARNING: One or more optional Super Agent integrations could not finish setup.
+    echo [forge-setup] WARNING: Forge core will still be validated and can launch. Re-run setup later to finish integrations.
+    set "FORGE_OPTIONAL_WARNINGS=1"
+)
+
+echo [7/7] Verifying Forge core runtime and reporting integration state...
 "!FORGE_NODE!" scripts\forge-runtime-guard.mjs
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-integrations.mjs verify active
-if errorlevel 1 goto :failed
+if errorlevel 1 (
+    echo [forge-setup] WARNING: Active integrations are not fully ready. Core Forge remains launchable.
+    set "FORGE_OPTIONAL_WARNINGS=1"
+)
 "!FORGE_NODE!" scripts\forge-integrations.mjs doctor
-if errorlevel 1 goto :failed
+if errorlevel 1 (
+    echo [forge-setup] WARNING: Integration doctor could not complete.
+    set "FORGE_OPTIONAL_WARNINGS=1"
+)
 "!FORGE_NODE!" scripts\forge-super-agent-self-test.mjs
-if errorlevel 1 goto :failed
+if errorlevel 1 (
+    echo [forge-setup] WARNING: Super Agent integration self-test is not fully green. Core Forge remains launchable.
+    set "FORGE_OPTIONAL_WARNINGS=1"
+)
 
 echo.
 echo ============================================================
-echo   Forge Super Agent setup completed successfully.
+echo   Forge core IDE setup completed successfully.
 echo ============================================================
 echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
 echo Forge setup/runtime Node: !FORGE_NODE_VERSION! from the checksummed .nvmrc runtime.
-echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
 echo Windows native modules: compatible VS 2022/VS 2026 toolchain plus Spectre libraries verified.
 echo Native lifecycle scripts: serialized to avoid shared node-addon-api GYP races.
 echo React service bridge: every named hook import has a real export.
 echo Provider/model routing: registry, transport and connection-test coverage verified.
 echo.
-echo Agent Lightning source is present, but GPU/RL training remains deferred.
+if "!FORGE_OPTIONAL_WARNINGS!"=="1" (
+    echo Optional integration warnings were detected.
+    echo Forge itself is built and may be opened now; affected browser/Super Agent features can be repaired by rerunning setup later.
+) else (
+    echo Playwright and supported Super Agent integrations verified successfully.
+)
+echo Agent Lightning source may be present, but GPU/RL training remains deferred.
 echo.
 echo PowerShell commands:
 echo   .\run-forge-ide.bat
@@ -134,7 +160,7 @@ goto :failed
 
 :failed
 echo.
-echo Forge Super Agent setup failed. Review the first failing command above.
+echo Forge core setup failed. Review the first failing core command above.
 echo If Spectre setup fails, approve the Windows UAC prompt or install the three x64/x86 Spectre components
 echo from Visual Studio Installer -> Modify -> Individual components, then rerun setup.
 echo If native preflight fails, ensure Visual Studio Desktop development with C++
