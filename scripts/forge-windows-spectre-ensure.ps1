@@ -5,12 +5,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $checkScript = Join-Path $PSScriptRoot 'forge-windows-spectre-check.ps1'
 
-function Test-ForgeSpectreReady {
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $checkScript -RepoRoot $RepoRoot
+function Test-ForgeSpectreReady([switch]$Silent) {
+    if ($Silent) {
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $checkScript -RepoRoot $RepoRoot *> $null
+    } else {
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $checkScript -RepoRoot $RepoRoot
+    }
     return $LASTEXITCODE -eq 0
 }
 
-if (Test-ForgeSpectreReady) {
+if (Test-ForgeSpectreReady -Silent) {
+    Write-Host '[forge-native] Spectre prerequisites already installed.'
     exit 0
 }
 
