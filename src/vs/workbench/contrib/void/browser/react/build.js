@@ -91,6 +91,73 @@ function syncRuntimeModuleBridges(sourceDir, bridgeDir) {
 	visit(sourceDir, bridgeDir);
 }
 
+function visitJavaScriptFiles(rootDir, callback) {
+	const visit = (currentDir) => {
+		for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+			const entryPath = path.join(currentDir, entry.name);
+			if (entry.isDirectory()) {
+				visit(entryPath);
+				continue;
+			}
+			if (entry.isFile() && entry.name.endsWith('.js')) callback(entryPath);
+		}
+	};
+	visit(rootDir);
+}
+
+// tsup bundles nested React sources into react/out/<entry>/index.js, but it keeps
+// imports that climb three or more directories external. A source import such as
+// ../../../../../common/... is correct from workspace-tsx/components, yet the same
+// literal path is one level too deep after flattening and resolves to contrib/common.
+// Rebase only this known shape when the canonical void/common target actually exists.
+function rebaseFlattenedCommonImports(bundleRoot) {
+	const sourcePrefix = '../../../../../common/';
+	const runtimePrefix = '../../../../common/';
+	let rewriteCount = 0;
+
+	visitJavaScriptFiles(bundleRoot, (bundlePath) => {
+		const content = fs.readFileSync(bundlePath, 'utf8');
+		const rewritten = content.replace(
+			/(["'])(\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/common\/[^"']+\.js)\1/g,
+			(match, quote, specifier) => {
+				if (!specifier.startsWith(sourcePrefix)) return match;
+				const runtimeSpecifier = runtimePrefix + specifier.slice(sourcePrefix.length);
+				const runtimeTarget = path.resolve(path.dirname(bundlePath), runtimeSpecifier);
+				if (!fs.existsSync(runtimeTarget)) return match;
+				rewriteCount++;
+				console.log(`[forge] Rebased flattened import ${path.relative(bundleRoot, bundlePath)}: ${specifier} -> ${runtimeSpecifier}`);
+				return `${quote}${runtimeSpecifier}${quote}`;
+			}
+		);
+		if (rewritten !== content) fs.writeFileSync(bundlePath, rewritten, 'utf8');
+	});
+
+	return rewriteCount;
+}
+
+// Validate the URLs Electron will actually request, not just a hand-picked list of
+// canonical compiler outputs. This catches a preserved relative import whose module
+// exists elsewhere in out/ but is unreachable from the emitted bundle's directory.
+function findMissingRelativeRuntimeImports(bundleRoot) {
+	const missing = [];
+	const importPattern = /(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(["'])(\.\.\/[^"']+\.js)\1/g;
+
+	visitJavaScriptFiles(bundleRoot, (bundlePath) => {
+		const content = fs.readFileSync(bundlePath, 'utf8');
+		importPattern.lastIndex = 0;
+		let match;
+		while ((match = importPattern.exec(content)) !== null) {
+			const specifier = match[2];
+			const target = path.resolve(path.dirname(bundlePath), specifier);
+			if (!fs.existsSync(target)) {
+				missing.push({ bundlePath, specifier, target });
+			}
+		}
+	});
+
+	return missing;
+}
+
 // hack to refresh styles automatically
 function saveStylesFile() {
 	setTimeout(() => {
@@ -221,6 +288,25 @@ if (isWatch) {
 		fs.cpSync(runtimeBaseCommon, runtimeWorkbenchBaseCommon, { recursive: true });
 		fs.cpSync(runtimeBaseCommon, runtimeRootBaseCommon, { recursive: true });
 	}
+
+	const rebasedImports = rebaseFlattenedCommonImports(runtimeReactOut);
+	if (rebasedImports > 0) {
+		// Keep the generated source-side output in sync so a later core compile does
+		// not copy the pre-rebased bundle back over the verified runtime tree.
+		fs.cpSync(runtimeReactOut, path.join(__dirname, 'out'), { recursive: true });
+		console.log(`[forge] Rebased ${rebasedImports} flattened common runtime import${rebasedImports === 1 ? '' : 's'}.`);
+	}
+
+	const missingRuntimeImports = findMissingRelativeRuntimeImports(runtimeReactOut);
+	if (missingRuntimeImports.length > 0) {
+		console.error('[forge] React bundles contain unresolved relative runtime imports:');
+		for (const missing of missingRuntimeImports) {
+			console.error(`  - ${path.relative(runtimeReactOut, missing.bundlePath)}: ${missing.specifier}`);
+			console.error(`    -> ${path.relative(path.dirname(packageJsonPath), missing.target)}`);
+		}
+		throw new Error(`[forge] ${missingRuntimeImports.length} unresolved React runtime import${missingRuntimeImports.length === 1 ? '' : 's'}`);
+	}
+	console.log('[forge] Verified all preserved React relative .js imports resolve from their emitted runtime locations.');
 
 	console.log('✅ Build complete!');
 }
