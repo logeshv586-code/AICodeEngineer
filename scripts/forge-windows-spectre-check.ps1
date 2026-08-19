@@ -25,6 +25,31 @@ if ([string]::IsNullOrWhiteSpace($selectedVs)) {
     Fail-ForgeSpectre 'No Visual Studio 2022/2026 x64/x86 C++ toolchain was found.'
 }
 
+$componentReady2022 = (& $vswhere -latest -products * -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre Microsoft.VisualStudio.Component.VC.ATL.Spectre Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre -property installationPath | Select-Object -First 1)
+$componentReady2026 = (& $vswhere -latest -products * -version '[18.0,19.0)' -requires Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre Microsoft.VisualStudio.Component.VC.ATL.Spectre Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre -property installationPath | Select-Object -First 1)
+$componentReady = if ($selectedLabel -eq '2022') { $componentReady2022 } else { $componentReady2026 }
+
+if ([string]::IsNullOrWhiteSpace($componentReady)) {
+    Fail-ForgeSpectre @"
+The Visual Studio $selectedLabel C++ compiler is installed, but Forge is missing
+one or more Spectre components required by the upstream VS Code/Void native build:
+  $selectedVs
+
+Open Visual Studio Installer -> Modify -> Individual components, search for
+"Spectre", and install the x64/x86 versions of:
+  - C++ Spectre-mitigated libraries (Latest MSVC)
+  - C++ ATL with Spectre Mitigations
+  - C++ MFC with Spectre Mitigations
+
+The underlying component IDs are:
+  Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre
+  Microsoft.VisualStudio.Component.VC.ATL.Spectre
+  Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre
+
+Do not disable /Qspectre in Forge to bypass the upstream native-build requirement.
+"@
+}
+
 $msvcRoot = Join-Path $selectedVs 'VC\Tools\MSVC'
 if (-not (Test-Path $msvcRoot)) {
     Fail-ForgeSpectre "MSVC tools directory is missing: $msvcRoot"
@@ -44,22 +69,16 @@ foreach ($toolset in $toolsets) {
 
 if (-not $spectreDir) {
     Fail-ForgeSpectre @"
-Forge/Code-OSS native modules are built with Spectre mitigation enabled, but the
-x64 Spectre-mitigated MSVC libraries are not installed for Visual Studio $selectedLabel:
-  $selectedVs
+Visual Studio reports the Spectre components as installed, but the active MSVC
+toolset does not expose an x64 Spectre library directory under:
+  $msvcRoot
 
-Open Visual Studio Installer -> Modify -> Individual components, search for
-"Spectre", and install:
-  - C++ Spectre-mitigated libraries for x64/x86 (Latest MSVC)
-
-For full Void/VS Code contributor parity, also install the matching ATL and MFC
-Spectre-mitigated components when available.
-
-Do not disable /Qspectre in Forge to bypass this check; upstream native projects
-expect the mitigated runtime libraries.
+Repair/modify Visual Studio $selectedLabel and reinstall the Spectre-mitigated
+libraries for the active x64/x86 MSVC toolset.
 "@
 }
 
-Write-Host "[forge-native] Visual Studio $selectedLabel Spectre libraries: $spectreToolset"
+Write-Host "[forge-native] Visual Studio $selectedLabel complete Spectre component set: present"
+Write-Host "[forge-native] Spectre MSVC toolset: $spectreToolset"
 Write-Host "[forge-native] Spectre x64 library path: $spectreDir"
 exit 0
