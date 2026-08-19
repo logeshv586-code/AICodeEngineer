@@ -102,7 +102,7 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 		<header className='forge-chat-header shrink-0'>
 			<div className='forge-chat-header-main'>
 				<div className='forge-chat-workspace min-w-0'>
-					<span className='forge-chat-section-label'>CHAT</span>
+					<span className='forge-chat-section-label'>FORGE AI</span>
 					<span className='forge-chat-workspace-name truncate' title={workspaceName}>{workspaceName}</span>
 				</div>
 				<div className='forge-chat-header-actions'>
