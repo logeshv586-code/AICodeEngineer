@@ -11,6 +11,7 @@ const node20 = read('scripts/forge-node20-runtime.mjs');
 const preflight = read('scripts/forge-windows-native-preflight.ps1');
 const codeOssPreinstall = read('build/npm/preinstall.js');
 const codeOssPostinstall = read('build/npm/postinstall.js');
+const integrations = read('scripts/forge-integrations.mjs');
 const spectre = read('scripts/forge-windows-spectre-check.ps1');
 const spectreEnsure = read('scripts/forge-windows-spectre-ensure.ps1');
 const setup = read('setup-forge-super-agent.bat');
@@ -23,6 +24,13 @@ const unixSmoke = read('smoke-forge-unix.sh');
 const crossPlatformDocs = read('docs/CROSS_PLATFORM_BUILD.md');
 const workflow = read('.github/workflows/forge-ci.yml');
 
+const windowsCoreBuildBeforeIntegrations = setup.indexOf('[5/7] Building Forge core IDE') >= 0
+  && setup.indexOf('[6/7] Installing optional browser runtime') >= 0
+  && setup.indexOf('[5/7] Building Forge core IDE') < setup.indexOf('[6/7] Installing optional browser runtime');
+const unixCoreBuildBeforeIntegrations = unixSetup.indexOf('[4/6] Building Forge React UI') >= 0
+  && unixSetup.indexOf('[5/6] Installing optional Playwright Chromium') >= 0
+  && unixSetup.indexOf('[4/6] Building Forge React UI') < unixSetup.indexOf('[5/6] Installing optional Playwright Chromium');
+
 const checks = [
   ['Forge runtime remains Node 20', /^20\./.test(nvmrc)],
   ['portable Node runtime is checksum verified', node20.includes('SHASUMS256.txt') && node20.includes('checksum mismatch') && node20.includes("readFileSync(path.join(repoRoot, '.nvmrc')") && node20.includes("process.platform === 'darwin'") && node20.includes("process.platform === 'linux'")],
@@ -31,15 +39,18 @@ const checks = [
   ['VS2026 uses Forge-owned npm under pinned Node', preflight.includes("$forgeNpmVersion = '11.16.0'") && preflight.includes('Invoke-ForgeCommand $forgeNode') && preflight.includes("$selectedVsVersion -eq '2026'")],
   ['Code-OSS preinstall accepts real VS2026 C++ installs', codeOssPreinstall.includes("'-version', '[17.0,19.0)'") && codeOssPreinstall.includes("'-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'") && codeOssPreinstall.includes("{ version: '2026', installFolder: '18' }") && codeOssPreinstall.includes('vs2026_install')],
   ['nested Code-OSS installs reuse the parent npm toolchain', codeOssPostinstall.includes("process.env['npm_execpath']") && codeOssPostinstall.includes('Reusing parent npm CLI:') && codeOssPostinstall.includes('run(process.execPath, [inheritedNpmCli, ...npmArgs]') && codeOssPostinstall.includes('shell: false')],
+  ['Windows Corepack and pnpm shims use the Windows shell', integrations.includes("process.platform === 'win32' ? 'corepack.cmd' : 'corepack'") && integrations.includes('spawnSync corepack.cmd EINVAL') && integrations.includes('return run(invocation.command, [...invocation.prefix, ...args], { cwd });') && !integrations.includes("run(invocation.command, [...invocation.prefix, ...args], { cwd, shell: false })")],
   ['Windows complete Spectre set is a setup gate', spectre.includes('lib\\spectre\\x64') && spectre.includes('Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATL.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre')],
   ['Windows setup can auto-repair Spectre prerequisites', setup.includes('forge-windows-spectre-ensure.ps1') && spectreEnsure.includes("'modify'") && spectreEnsure.includes('--add') && spectreEnsure.includes('-Verb RunAs') && spectreEnsure.includes('--passive --norestart') && spectreEnsure.includes('Test-ForgeSpectreReady -Silent')],
   ['Spectre repair preserves quoted VS install path', spectreEnsure.includes("$quotedInstallPath = '\"' + $selectedVs + '\"'") && spectreEnsure.includes('$argumentLine = "modify --installPath $quotedInstallPath') && spectreEnsure.includes('-ArgumentList $argumentLine') && !spectreEnsure.includes("$args = @('modify', '--installPath', $selectedVs)" )],
   ['setup pins all later stages to Forge Node', setup.includes('FORGE_NODE_HOME') && setup.includes('FORGE_NPM_CLI') && setup.includes('set "PATH=!FORGE_NODE_HOME!;!PATH!"') && setup.includes('"!FORGE_NODE!" scripts\\forge-runtime-guard.mjs')],
   ['setup compile does not fall back to system npm', setup.includes('"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile') && !setup.includes('call npm run compile')],
+  ['Windows local setup builds core before optional integrations', windowsCoreBuildBeforeIntegrations && setup.includes('Forge core will still be validated and can launch') && setup.includes('Forge core IDE setup completed successfully')],
   ['normal Windows launcher uses pinned Forge Node', launch.includes('forge-node20-runtime.mjs ensure') && launch.includes('set "PATH=!FORGE_NODE_HOME!;!PATH!"') && launch.includes('"!FORGE_NODE!" "%~dp0scripts\\forge-runtime-guard.mjs"')],
   ['Windows smoke uses pinned Forge Node and npm', smoke.includes('forge-node20-runtime.mjs ensure') && smoke.includes('FORGE_NPM_CLI') && smoke.includes('"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile')],
   ['Unix preflight covers macOS and Linux native prerequisites', unixPreflight.includes('Darwin)') && unixPreflight.includes('Linux)') && unixPreflight.includes('xcode-select') && unixPreflight.includes('libsecret-1') && unixPreflight.includes('libkrb5-dev')],
   ['Unix setup runs the same Forge gates', unixSetup.includes('forge-unix-native-preflight.sh') && unixSetup.includes('forge-ui-contract-test.mjs') && unixSetup.includes('forge-model-provider-contract-test.mjs') && unixSetup.includes('manage-skills.mjs validate') && unixSetup.includes('run buildreact')],
+  ['Unix local setup builds core before optional integrations', unixCoreBuildBeforeIntegrations && unixSetup.includes('Forge core remains usable') && unixSetup.includes('Forge core IDE setup completed successfully')],
   ['Unix launch supports both Electron layouts', unixLaunch.includes('Electron.app/Contents/MacOS/Electron') && unixLaunch.includes('node_modules/electron/dist/electron') && unixLaunch.includes('forge-runtime-guard.mjs')],
   ['Unix smoke uses pinned Forge runtime', unixSmoke.includes('forge-node20-runtime.mjs ensure') && unixSmoke.includes('FORGE_NPM_CLI') && unixSmoke.includes('run compile') && unixSmoke.includes('run-forge-ide.sh')],
   ['cross-platform build policy references Code-OSS Void and VSCodium', crossPlatformDocs.includes('Microsoft VS Code / Code-OSS 1.99.3') && crossPlatformDocs.includes('voideditor/void') && crossPlatformDocs.includes('VSCodium/vscodium')],
