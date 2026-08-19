@@ -99,6 +99,9 @@ jobs:
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
 
+      - name: Native setup contract
+        run: node scripts/forge-native-setup-contract.mjs
+
       - name: React service export contract
         run: node scripts/forge-react-service-export-contract.mjs
 
@@ -148,6 +151,9 @@ jobs:
 
       - name: UI contract test
         run: node scripts/forge-ui-contract-test.mjs
+
+      - name: Native setup contract
+        run: node scripts/forge-native-setup-contract.mjs
 
       - name: React service export contract
         run: node scripts/forge-react-service-export-contract.mjs
