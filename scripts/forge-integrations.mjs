@@ -58,7 +58,10 @@ const pnpmInvocation = () => {
 const runPnpm = (args, cwd) => {
   const invocation = pnpmInvocation();
   if (!invocation) throw new Error('pnpm is required for this integration. Install pnpm or enable Corepack.');
-  return run(invocation.command, [...invocation.prefix, ...args], { cwd, shell: false });
+  // Windows package-manager shims are .cmd files. Node cannot spawn them with
+  // shell:false (spawnSync corepack.cmd EINVAL), so reuse run()'s Windows shell
+  // behavior. macOS/Linux continue to execute pnpm/corepack directly.
+  return run(invocation.command, [...invocation.prefix, ...args], { cwd });
 };
 
 const runOpenDesignPnpm = (args, cwd) => run(process.execPath, [node24RuntimeScript, 'pnpm', '--cwd', cwd, '--', ...args], {
