@@ -10,6 +10,7 @@ const nvmrc = read('.nvmrc').trim();
 const node20 = read('scripts/forge-node20-runtime.mjs');
 const preflight = read('scripts/forge-windows-native-preflight.ps1');
 const spectre = read('scripts/forge-windows-spectre-check.ps1');
+const spectreEnsure = read('scripts/forge-windows-spectre-ensure.ps1');
 const setup = read('setup-forge-super-agent.bat');
 const launch = read('run-forge-ide.bat');
 const smoke = read('smoke-forge-windows.bat');
@@ -26,7 +27,8 @@ const checks = [
   ['Windows preflight resolves pinned Node', preflight.includes('forge-node20-runtime.mjs') && preflight.includes('Forge Node runtime:')],
   ['native lifecycle scripts are serialized', preflight.includes("npm_config_foreground_scripts = 'true'") && preflight.includes("'--foreground-scripts'") && unixPreflight.includes('npm_config_foreground_scripts=true') && unixPreflight.includes('--foreground-scripts')],
   ['VS2026 uses Forge-owned npm under pinned Node', preflight.includes("$forgeNpmVersion = '11.16.0'") && preflight.includes('Invoke-ForgeCommand $forgeNode') && preflight.includes("$selectedVsVersion -eq '2026'")],
-  ['Windows complete Spectre set is a setup gate', spectre.includes('lib\\spectre\\x64') && spectre.includes('Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATL.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre') && setup.includes('forge-windows-spectre-check.ps1')],
+  ['Windows complete Spectre set is a setup gate', spectre.includes('lib\\spectre\\x64') && spectre.includes('Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATL.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre')],
+  ['Windows setup can auto-repair Spectre prerequisites', setup.includes('forge-windows-spectre-ensure.ps1') && spectreEnsure.includes("'modify', '--installPath'") && spectreEnsure.includes("'--add', $component") && spectreEnsure.includes("'-Verb RunAs'") === false && spectreEnsure.includes('-Verb RunAs') && spectreEnsure.includes("'--passive', '--norestart'")],
   ['setup pins all later stages to Forge Node', setup.includes('FORGE_NODE_HOME') && setup.includes('FORGE_NPM_CLI') && setup.includes('set "PATH=!FORGE_NODE_HOME!;!PATH!"') && setup.includes('"!FORGE_NODE!" scripts\\forge-runtime-guard.mjs')],
   ['setup compile does not fall back to system npm', setup.includes('"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile') && !setup.includes('call npm run compile')],
   ['normal Windows launcher uses pinned Forge Node', launch.includes('forge-node20-runtime.mjs ensure') && launch.includes('set "PATH=!FORGE_NODE_HOME!;!PATH!"') && launch.includes('"!FORGE_NODE!" "%~dp0scripts\\forge-runtime-guard.mjs"')],
