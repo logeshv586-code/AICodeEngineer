@@ -11,6 +11,15 @@ const { dirs } = require('./dirs');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(__dirname));
 
+// npm exposes the CLI that launched the current lifecycle through npm_execpath.
+// Forge intentionally uses a private npm with a VS2026-aware node-gyp on Windows.
+// Reuse that exact CLI for nested Code-OSS installs instead of resolving npm again
+// from PATH, which can silently fall back to the Node 20 bundled npm/node-gyp 10.
+const inheritedNpmCli = process.env['npm_execpath'] && fs.existsSync(process.env['npm_execpath'])
+	&& /\.(?:c?js|mjs)$/i.test(process.env['npm_execpath'])
+	? process.env['npm_execpath']
+	: undefined;
+
 function log(dir, message) {
 	if (process.stdout.isTTY) {
 		console.log(`\x1b[34m[${dir}]\x1b[0m`, message);
@@ -47,6 +56,7 @@ function npmInstall(dir, opts) {
 	};
 
 	const command = process.env['npm_command'] || 'install';
+	const npmArgs = command.split(' ');
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const userinfo = os.userInfo();
@@ -60,7 +70,12 @@ function npmInstall(dir, opts) {
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
-		run(npm, command.split(' '), opts);
+		if (inheritedNpmCli) {
+			log(dir, `Reusing parent npm CLI: ${inheritedNpmCli}`);
+			run(process.execPath, [inheritedNpmCli, ...npmArgs], { ...opts, shell: false });
+		} else {
+			run(npm, npmArgs, opts);
+		}
 	}
 	removeParcelWatcherPrebuild(dir);
 }
@@ -167,9 +182,6 @@ for (let dir of dirs) {
 		const tempGlobalInclude = path.join(globalGypPath, 'include.gypi.bak');
 		if (process.platform === 'linux' &&
 			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
-			// Following include file rename should be removed
-			// when `Override gnu target for arm64 and arm` step
-			// is removed from the product build pipeline.
 			if (fs.existsSync(globalInclude)) {
 				fs.renameSync(globalInclude, tempGlobalInclude);
 			}
