@@ -9,6 +9,7 @@ const read = relative => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
 const nvmrc = read('.nvmrc').trim();
 const node20 = read('scripts/forge-node20-runtime.mjs');
 const preflight = read('scripts/forge-windows-native-preflight.ps1');
+const codeOssPreinstall = read('build/npm/preinstall.js');
 const spectre = read('scripts/forge-windows-spectre-check.ps1');
 const spectreEnsure = read('scripts/forge-windows-spectre-ensure.ps1');
 const setup = read('setup-forge-super-agent.bat');
@@ -27,6 +28,7 @@ const checks = [
   ['Windows preflight resolves pinned Node', preflight.includes('forge-node20-runtime.mjs') && preflight.includes('Forge Node runtime:')],
   ['native lifecycle scripts are serialized', preflight.includes("npm_config_foreground_scripts = 'true'") && preflight.includes("'--foreground-scripts'") && unixPreflight.includes('npm_config_foreground_scripts=true') && unixPreflight.includes('--foreground-scripts')],
   ['VS2026 uses Forge-owned npm under pinned Node', preflight.includes("$forgeNpmVersion = '11.16.0'") && preflight.includes('Invoke-ForgeCommand $forgeNode') && preflight.includes("$selectedVsVersion -eq '2026'")],
+  ['Code-OSS preinstall accepts real VS2026 C++ installs', codeOssPreinstall.includes("'-version', '[17.0,19.0)'") && codeOssPreinstall.includes("'-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'") && codeOssPreinstall.includes("{ version: '2026', installFolder: '18' }") && codeOssPreinstall.includes('vs2026_install')],
   ['Windows complete Spectre set is a setup gate', spectre.includes('lib\\spectre\\x64') && spectre.includes('Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATL.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre')],
   ['Windows setup can auto-repair Spectre prerequisites', setup.includes('forge-windows-spectre-ensure.ps1') && spectreEnsure.includes("'modify'") && spectreEnsure.includes('--add') && spectreEnsure.includes('-Verb RunAs') && spectreEnsure.includes('--passive --norestart') && spectreEnsure.includes('Test-ForgeSpectreReady -Silent')],
   ['Spectre repair preserves quoted VS install path', spectreEnsure.includes("$quotedInstallPath = '\"' + $selectedVs + '\"'") && spectreEnsure.includes('$argumentLine = "modify --installPath $quotedInstallPath') && spectreEnsure.includes('-ArgumentList $argumentLine') && !spectreEnsure.includes("$args = @('modify', '--installPath', $selectedVs)" )],
