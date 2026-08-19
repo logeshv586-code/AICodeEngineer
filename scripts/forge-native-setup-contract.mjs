@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+const hasArgumentPair = (source, flag, value) => {
+  const escapedFlag = flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`["']${escapedFlag}["']\\s*,\\s*["']${escapedValue}["']`).test(source);
+};
 
 const nvmrc = read('.nvmrc').trim();
 const node20 = read('scripts/forge-node20-runtime.mjs');
@@ -38,12 +43,12 @@ const checks = [
   ['Windows preflight resolves pinned Node', preflight.includes('forge-node20-runtime.mjs') && preflight.includes('Forge Node runtime:')],
   ['native lifecycle scripts are serialized', preflight.includes("npm_config_foreground_scripts = 'true'") && preflight.includes("'--foreground-scripts'") && unixPreflight.includes('npm_config_foreground_scripts=true') && unixPreflight.includes('--foreground-scripts')],
   ['VS2026 uses Forge-owned npm under pinned Node', preflight.includes("$forgeNpmVersion = '11.16.0'") && preflight.includes('Invoke-ForgeCommand $forgeNode') && preflight.includes("$selectedVsVersion -eq '2026'")],
-  ['Code-OSS preinstall accepts real VS2026 C++ installs', codeOssPreinstall.includes("'-version', '[17.0,19.0)'") && codeOssPreinstall.includes("'-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'") && codeOssPreinstall.includes("{ version: '2026', installFolder: '18' }") && codeOssPreinstall.includes('vs2026_install')],
+  ['Code-OSS preinstall accepts real VS2026 C++ installs', hasArgumentPair(codeOssPreinstall, '-version', '[17.0,19.0)') && hasArgumentPair(codeOssPreinstall, '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64') && codeOssPreinstall.includes("{ version: '2026', installFolder: '18' }") && codeOssPreinstall.includes('vs2026_install')],
   ['nested Code-OSS installs reuse the parent npm toolchain', codeOssPostinstall.includes("process.env['npm_execpath']") && codeOssPostinstall.includes('Reusing parent npm CLI:') && codeOssPostinstall.includes('run(process.execPath, [inheritedNpmCli, ...npmArgs]') && codeOssPostinstall.includes('shell: false')],
   ['Windows Corepack and pnpm shims use the Windows shell', integrations.includes("process.platform === 'win32' ? 'corepack.cmd' : 'corepack'") && integrations.includes('spawnSync corepack.cmd EINVAL') && integrations.includes('return run(invocation.command, [...invocation.prefix, ...args], { cwd });') && !integrations.includes("run(invocation.command, [...invocation.prefix, ...args], { cwd, shell: false })")],
   ['runtime guard repairs incomplete startup service output', runtimeGuard.includes('startupServiceRuntimeFiles') && runtimeGuard.includes('out/vs/workbench/contrib/void/common/mcpService.js') && runtimeGuard.includes('out/vs/workbench/contrib/void/common/voidSettingsService.js') && runtimeGuard.includes('out/vs/workbench/contrib/void/common/metricsService.js') && runtimeGuard.includes('out/vs/workbench/contrib/void/common/forge/intelligence/adaptiveModelRouter.js') && runtimeGuard.includes('Incomplete core runtime output detected') && runtimeGuard.includes("run(npmCommand, ['run', 'compile'])")],
   ['Windows complete Spectre set is a setup gate', spectre.includes('lib\\spectre\\x64') && spectre.includes('Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATL.Spectre') && spectre.includes('Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre')],
-  ['Windows setup can auto-repair Spectre prerequisites', setup.includes('forge-windows-spectre-ensure.ps1') && spectreEnsure.includes("'modify'") && spectreEnsure.includes('--add') && spectreEnsure.includes('-Verb RunAs') && spectreEnsure.includes('--passive --norestart') && spectreEnsure.includes('Test-ForgeSpectreReady -Silent')],
+  ['Windows setup can auto-repair Spectre prerequisites', setup.includes('forge-windows-spectre-ensure.ps1') && spectreEnsure.includes('$argumentLine = "modify --installPath $quotedInstallPath') && spectreEnsure.includes('--add') && spectreEnsure.includes('-Verb RunAs') && spectreEnsure.includes('--passive --norestart') && spectreEnsure.includes('Test-ForgeSpectreReady -Silent')],
   ['Spectre repair preserves quoted VS install path', spectreEnsure.includes("$quotedInstallPath = '\"' + $selectedVs + '\"'") && spectreEnsure.includes('$argumentLine = "modify --installPath $quotedInstallPath') && spectreEnsure.includes('-ArgumentList $argumentLine') && !spectreEnsure.includes("$args = @('modify', '--installPath', $selectedVs)" )],
   ['setup pins all later stages to Forge Node', setup.includes('FORGE_NODE_HOME') && setup.includes('FORGE_NPM_CLI') && setup.includes('set "PATH=!FORGE_NODE_HOME!;!PATH!"') && setup.includes('"!FORGE_NODE!" scripts\\forge-runtime-guard.mjs')],
   ['setup compile does not fall back to system npm', setup.includes('"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile') && !setup.includes('call npm run compile')],
