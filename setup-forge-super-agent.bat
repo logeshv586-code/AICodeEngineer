@@ -14,12 +14,16 @@ echo Repository: %CD%
 echo Integrations: %FORGE_INTEGRATIONS_HOME%
 echo.
 
-echo [1/6] Checking required commands...
+echo [1/7] Checking required commands...
 where node >nul 2>&1 || goto :missing_node
 where git >nul 2>&1 || goto :missing_git
 where powershell >nul 2>&1 || goto :missing_powershell
 
-echo [2/6] Preparing pinned Node runtime, Windows native toolchain, and dependencies...
+echo [2/7] Checking Visual Studio Spectre-mitigated libraries...
+call powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\forge-windows-spectre-check.ps1" -RepoRoot "%CD%"
+if errorlevel 1 goto :failed
+
+echo [3/7] Preparing pinned Node runtime, Windows native toolchain, and dependencies...
 rem This wrapper resolves the checksummed Node version from .nvmrc, detects VS 2022
 rem or VS 2026, releases repo-scoped locks, serializes native lifecycle scripts,
 rem and runs npm ci inside the compatible runtime/toolchain.
@@ -47,14 +51,14 @@ set "PATH=!FORGE_NODE_HOME!;!PATH!"
 for /f "delims=" %%V in ('"!FORGE_NODE!" --version') do set "FORGE_NODE_VERSION=%%V"
 echo [forge-setup] Runtime locked to !FORGE_NODE_VERSION!: !FORGE_NODE!
 
-echo [3/6] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
+echo [4/7] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
 rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
 rem --browser installs the Chromium runtime used by Forge's Playwright browser agent.
 rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
 "!FORGE_NODE!" scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
 if errorlevel 1 goto :failed
 
-echo [4/6] Running fast local contract tests...
+echo [5/7] Running fast local contract tests...
 "!FORGE_NODE!" scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-ui-contract-test.mjs
@@ -70,13 +74,13 @@ if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\manage-skills.mjs validate
 if errorlevel 1 goto :failed
 
-echo [5/6] Building Forge with pinned Node...
+echo [6/7] Building Forge with pinned Node...
 "!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" "!FORGE_NPM_CLI!" run buildreact
 if errorlevel 1 goto :failed
 
-echo [6/6] Verifying runtime and Super Agent integration state...
+echo [7/7] Verifying runtime and Super Agent integration state...
 "!FORGE_NODE!" scripts\forge-runtime-guard.mjs
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-integrations.mjs verify active
@@ -94,7 +98,7 @@ echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
 echo Forge setup/runtime Node: !FORGE_NODE_VERSION! from the checksummed .nvmrc runtime.
 echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
-echo Windows native modules: compatible VS 2022/VS 2026 toolchain verified.
+echo Windows native modules: VS 2022/VS 2026 C++ toolchain + Spectre libraries verified.
 echo Native lifecycle scripts: serialized to avoid shared node-addon-api GYP races.
 echo React service bridge: every named hook import has a real export.
 echo Provider/model routing: registry, transport and connection-test coverage verified.
@@ -128,6 +132,8 @@ goto :failed
 :failed
 echo.
 echo Forge Super Agent setup failed. Review the first failing command above.
+echo If Spectre preflight fails, install the C++ Spectre-mitigated libraries for x64/x86
+echo from Visual Studio Installer -^> Individual components, then run setup again.
 echo If native preflight fails, ensure Visual Studio Desktop development with C++
 echo plus the x64/x86 MSVC tools and a Windows 10/11 SDK are installed in VS 2022 or VS 2026.
 echo If you are starting setup from PowerShell, run: .\setup-forge-super-agent.bat
