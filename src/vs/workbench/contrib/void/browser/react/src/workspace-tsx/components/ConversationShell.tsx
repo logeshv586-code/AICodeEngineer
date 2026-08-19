@@ -35,6 +35,12 @@ const contentToText = (value: unknown): string => {
 
 const messageText = (message: any): string => contentToText(message.displayContent ?? message.content ?? '');
 
+const privateSessionTitle = (createdAt: string): string => {
+	const date = new Date(createdAt);
+	if (Number.isNaN(date.getTime())) return 'Conversation';
+	return `Session ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+};
+
 export const ConversationShell: React.FC = () => {
 	const accessor = useAccessor();
 	const rawAccessor = useRawAccessor();
@@ -47,6 +53,9 @@ export const ConversationShell: React.FC = () => {
 	const currentThread = threadsState.allThreads[currentThreadId] ?? chatThreadsService.getCurrentThread();
 	const streamState = useChatThreadsStreamState(currentThreadId);
 	const isStreaming = !!streamState?.isRunning;
+	const workspace = workspaceService.getWorkspace();
+	const workspaceReady = workspace.folders.length > 0;
+	const workspaceName = workspace.folders[0]?.name ?? 'No workspace open';
 
 	const messages = useMemo<ChatViewMessage[]>(() => {
 		if (!currentThread) return [];
@@ -68,25 +77,26 @@ export const ConversationShell: React.FC = () => {
 		.filter((thread): thread is NonNullable<typeof thread> => !!thread)
 		.map(thread => {
 			const visibleMessages = thread.messages.filter((message: any) => message.role === 'user' || message.role === 'assistant');
-			const firstUser = visibleMessages.find((message: any) => message.role === 'user');
-			const lastMessage = visibleMessages.at(-1);
-			const firstText = firstUser ? messageText(firstUser).replace(/\s+/g, ' ').trim() : '';
-			const preview = lastMessage ? messageText(lastMessage).replace(/\s+/g, ' ').trim() : '';
-			return { id: thread.id, title: firstText.slice(0, 44) || 'New conversation', preview: preview.slice(0, 80), timestamp: new Date(thread.lastModified || thread.createdAt).getTime(), isActive: thread.id === currentThreadId };
+			return {
+				id: thread.id,
+				title: visibleMessages.length > 0 ? privateSessionTitle(thread.createdAt) : 'New conversation',
+				preview: visibleMessages.length > 0 ? `${visibleMessages.length} messages` : 'Ready for a new task',
+				timestamp: new Date(thread.lastModified || thread.createdAt).getTime(),
+				isActive: thread.id === currentThreadId,
+			};
 		})
 		.sort((a, b) => b.timestamp - a.timestamp), [currentThreadId, threadsState.allThreads]);
 
 	const stagedSelections = currentThread?.state.stagingSelections ?? [];
 	const stagedFiles = useMemo(() => stagedSelections.filter(selection => selection.type === 'File').map(selection => selection.uri.fsPath), [stagedSelections]);
 	const stagedImages = useMemo(() => stagedSelections.filter(selection => selection.type === 'Image').map(selection => selection.uri.fsPath.split(/[\\/]/).pop() || selection.uri.fsPath), [stagedSelections]);
-	const workspaceReady = workspaceService.getWorkspace().folders.length > 0;
 
 	const sendMessage = useCallback(async (message: string) => {
 		const trimmed = message.trim();
 		let threadId = chatThreadsService.state.currentThreadId;
 		if (!threadId || !chatThreadsService.state.allThreads[threadId]) threadId = chatThreadsService.createNewThread();
 		const selections = chatThreadsService.getCurrentThreadState().stagingSelections.slice();
-		const effectiveMessage = trimmed || (selections.length > 0 ? 'Inspect the attached context and continue with the task.' : '');
+		const effectiveMessage = trimmed || (selections.length > 0 ? 'Continue with the attached context.' : '');
 		if (!effectiveMessage) return;
 		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: effectiveMessage, _chatSelections: selections, threadId });
 		chatThreadsService.setCurrentThreadState({ stagingSelections: [] });
@@ -115,6 +125,7 @@ export const ConversationShell: React.FC = () => {
 					onNewThread={() => { chatThreadsService.createNewThread(); }}
 					onDeleteThread={threadId => chatThreadsService.deleteThread(threadId)}
 					onSettingsClick={() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }}
+					workspaceName={workspaceName}
 					slashContext={slashContext}
 				/>
 
