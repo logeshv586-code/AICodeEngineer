@@ -19,6 +19,7 @@ import { ISkillsService } from '../../../skillsService.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IMCPService } from '../../../../../common/mcpService.js';
 import { ISemanticSearchService } from '../../../../../common/forge/contracts/ISemanticSearchService.js';
+import { FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from './evolutionPrompts.js';
 
 export interface SlashCommand {
 	readonly name: string;
@@ -106,6 +107,9 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/agent,refactor', label: 'Refactor', category: 'Agent', description: 'Refactor code and preserve behavior', icon: <Code2 size={14} />, execute() { sendMessage('Refactor the relevant code for clarity and maintainability while preserving behavior. Run targeted verification afterwards.'); } },
 		{ name: '/agent,explain', label: 'Explain Code', category: 'Agent', description: 'Explain relevant architecture and flow', icon: <MessageSquare size={14} />, execute() { sendMessage('Explain the relevant code and architecture for the current task. Read only the context needed and identify important data/control flow.'); } },
 
+		{ name: '/evolve', label: 'Project Evolution', category: 'Evolution', description: 'Inspect the current code and apply or suggest the next safe upgrade', icon: <Sparkles size={14} />, execute() { sendMessage(FORGE_PROJECT_EVOLUTION_TASK); } },
+		{ name: '/evolve,skills', label: 'Skills Evolution', category: 'Evolution', description: 'Improve project-local skills from proven code patterns', icon: <BookOpen size={14} />, execute() { sendMessage(FORGE_SKILL_EVOLUTION_TASK); } },
+
 		{ name: '/workflow,start', label: 'Start Workflow', category: 'Workflow', description: 'Plan and execute a multi-step task', icon: <Play size={14} />, execute() { sendMessage(`Run this as a Forge workflow. Plan, implement, verify, fix failures, and review the final result. ${ctx.args}`.trim()); } },
 		{ name: '/workflow,stop', label: 'Stop Workflow', category: 'Workflow', description: 'Abort the active agent/workflow run', icon: <Square size={14} />, async execute() {
 			const threadId = chatThreadsService.state.currentThreadId;
@@ -180,7 +184,9 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/memory,save', label: 'Save Memory', category: 'Memory', description: 'Save durable workspace findings', icon: <Brain size={14} />, execute() { sendMessage('Save only durable, useful workspace findings from this task to memory. Avoid transient logs or secrets.'); } },
 		{ name: '/workspace,index', label: 'Refresh Code Index', category: 'Memory', description: 'Refresh the local CocoIndex semantic index', icon: <HardDrive size={14} />, async execute() {
 			try {
-				const stats = await accessor.get(ISemanticSearchService).indexWorkspace();
+				const workspacePath = accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri.fsPath;
+				if (!workspacePath) { notify(accessor, 'Open a workspace folder before refreshing the code index.', 'warn'); return; }
+				const stats = await accessor.get(ISemanticSearchService).indexWorkspace(workspacePath);
 				notify(accessor, `Code index refreshed: ${stats.totalFiles} files, ${stats.totalChunks} chunks.`);
 			} catch (error) {
 				notify(accessor, `Code index refresh failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -203,7 +209,7 @@ function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/models', label: 'Select Model', category: 'System', description: 'Open Forge provider/model settings', icon: <Sparkles size={14} />, execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/settings', label: 'Settings', category: 'System', description: 'Open Forge settings', icon: <Settings size={14} />, shortcut: 'Ctrl+,', execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/help', label: 'Help', category: 'System', description: 'Show core Forge command groups locally', icon: <HelpCircle size={14} />, execute() {
-			notify(accessor, 'Forge commands: Agent /agent,* · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings. Type 2+ letters after / to autocomplete registry skills.');
+			notify(accessor, 'Forge commands: Agent /agent,* · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings. Type 2+ letters after / to autocomplete registry skills.');
 		} },
 	];
 }
@@ -266,19 +272,19 @@ export const SlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({ isOpen
 	const style: React.CSSProperties = anchorRect ? { position: 'fixed', left: anchorRect.left, bottom: window.innerHeight - anchorRect.top + 8, width: Math.min(420, window.innerWidth - 24), zIndex: 99999 } : { position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', width: Math.min(440, window.innerWidth - 24), zIndex: 99999 };
 
 	return createPortal(
-		<div className='fixed inset-0 z-[99998]' onClick={onClose}>
-			<div style={style} className='rounded-lg border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl overflow-hidden' onClick={event => event.stopPropagation()} onKeyDown={handleKeyDown}>
-				<div className='flex items-center gap-2 px-3 py-2 border-b border-zinc-800/60'><span className='text-zinc-500 text-xs font-mono'>/</span><input ref={inputRef} value={filter} onChange={event => setFilter(event.target.value)} placeholder='Type a command or skill…' className='flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-600 outline-none' /><span className='text-[10px] text-zinc-600'>ESC</span></div>
-				<div ref={listRef} className='max-h-[320px] overflow-y-auto py-1'>
-					{flatCommands.length === 0 ? <div className='px-3 py-4 text-xs text-zinc-600 text-center'>No commands found</div> : Object.entries(grouped).map(([category, commands]) => <div key={category}>
-						<div className='px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-zinc-600'>{category}</div>
+		<div className='forge-slash-overlay fixed inset-0 z-[99998]' onClick={onClose}>
+			<div role='dialog' aria-label='Forge slash commands' style={style} className='forge-slash-palette rounded-lg border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl overflow-hidden' onClick={event => event.stopPropagation()} onKeyDown={handleKeyDown}>
+				<div className='forge-slash-search flex items-center gap-2 px-3 py-2 border-b border-zinc-800/60'><span className='forge-slash-prefix text-zinc-500 text-xs font-mono'>/</span><input ref={inputRef} value={filter} onChange={event => setFilter(event.target.value)} placeholder='Type a command or skill…' className='forge-slash-input flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-600 outline-none' /><span className='forge-slash-escape text-[10px] text-zinc-600'>ESC</span></div>
+				<div ref={listRef} className='forge-slash-list max-h-[320px] overflow-y-auto py-1'>
+					{flatCommands.length === 0 ? <div className='forge-slash-empty px-3 py-4 text-xs text-zinc-600 text-center'>No commands found</div> : Object.entries(grouped).map(([category, commands]) => <div className='forge-slash-group' key={category}>
+						<div className='forge-slash-category px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-zinc-600'>{category}</div>
 						{commands.map(command => {
 							const globalIndex = flatCommands.indexOf(command);
 							const isSelected = globalIndex === selectedIndex;
-							return <button key={command.name} type='button' onClick={() => onSelect(command, args)} className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors cursor-pointer ${isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'}`}>
-								<span className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-800/60 text-zinc-500'}`}>{command.icon}</span>
-								<div className='flex-1 min-w-0'><div className={`text-xs ${isSelected ? 'text-zinc-200' : 'text-zinc-400'}`}>{command.label}</div><div className='text-[10px] text-zinc-600 truncate'>{command.description}</div></div>
-								<span className='text-[10px] font-mono text-zinc-600 flex-shrink-0'>{command.name}</span>
+							return <button key={command.name} type='button' onClick={() => onSelect(command, args)} className={`forge-slash-command ${isSelected ? 'forge-slash-command-selected bg-zinc-800' : 'hover:bg-zinc-800/50'} w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors cursor-pointer`}>
+								<span className={`forge-slash-icon w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-800/60 text-zinc-500'}`}>{command.icon}</span>
+								<div className='forge-slash-copy flex-1 min-w-0'><div className={`forge-slash-label text-xs ${isSelected ? 'text-zinc-200' : 'text-zinc-400'}`}>{command.label}</div><div className='forge-slash-description text-[10px] text-zinc-600 truncate'>{command.description}</div></div>
+								<span className='forge-slash-name text-[10px] font-mono text-zinc-600 flex-shrink-0'>{command.name}</span>
 							</button>;
 						})}
 					</div>)}
