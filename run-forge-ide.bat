@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 title Launching Forge Platform IDE...
 set VSCODE_DEV=1
 set VSCODE_CLI=1
@@ -10,12 +10,29 @@ pushd "%~dp0"
 
 where node >nul 2>&1
 if errorlevel 1 (
-    echo [forge] Node.js is not available on PATH.
-    echo [forge] Install the repository Node.js version.
+    echo [forge] A bootstrap Node.js runtime is not available on PATH.
     echo [forge] Run setup-forge-super-agent.bat from Command Prompt, or .\setup-forge-super-agent.bat from PowerShell.
     popd
     exit /b 1
 )
+
+set "FORGE_NODE="
+for /f "delims=" %%P in ('node scripts\forge-node20-runtime.mjs ensure') do set "FORGE_NODE=%%P"
+if not defined FORGE_NODE (
+    echo [forge] Could not resolve the pinned Forge Node runtime.
+    echo [forge] Repair with .\setup-forge-super-agent.bat from PowerShell.
+    popd
+    exit /b 1
+)
+if not exist "!FORGE_NODE!" (
+    echo [forge] Pinned Forge Node runtime is missing: !FORGE_NODE!
+    popd
+    exit /b 1
+)
+for %%I in ("!FORGE_NODE!") do set "FORGE_NODE_HOME=%%~dpI"
+set "PATH=!FORGE_NODE_HOME!;!PATH!"
+for /f "delims=" %%V in ('"!FORGE_NODE!" --version') do set "FORGE_NODE_VERSION=%%V"
+echo [forge] Runtime locked to !FORGE_NODE_VERSION!.
 
 rem Crawl4AI is an optional local crawl accelerator. Forge browser tasks use
 rem the Playwright Chromium runtime installed by setup-forge-super-agent.bat,
@@ -34,18 +51,18 @@ if errorlevel 1 (
 
 rem Keep the native Forge Super Agent MCP registered. This is local-only and
 rem does not install heavyweight third-party integrations on every launch.
-call node "%~dp0scripts\forge-integrations.mjs" bootstrap-mcp
+"!FORGE_NODE!" "%~dp0scripts\forge-integrations.mjs" bootstrap-mcp
 if errorlevel 1 (
     echo [forge-super-agent] MCP bootstrap failed. Continuing with built-in tools only.
 )
 
 rem Start the lightweight local Work Mode scheduler. It de-duplicates itself
 rem with a PID file and queues prompt/approval workflows under %%USERPROFILE%%\.forge\work.
-start "Forge Work Scheduler" /B node "%~dp0scripts\forge-work-daemon.mjs" >nul 2>&1
+start "Forge Work Scheduler" /B "!FORGE_NODE!" "%~dp0scripts\forge-work-daemon.mjs" >nul 2>&1
 
 rem Verify the integrations active in this phase. Agent Lightning is deferred
 rem until the later GPU/RL training phase and is not required for normal startup.
-call node "%~dp0scripts\forge-integrations.mjs" verify active >nul 2>&1
+"!FORGE_NODE!" "%~dp0scripts\forge-integrations.mjs" verify active >nul 2>&1
 if errorlevel 1 (
     echo [forge-super-agent] Active integrations are not fully installed.
     echo [forge-super-agent] Run setup-forge-super-agent.bat from Command Prompt, or .\setup-forge-super-agent.bat from PowerShell.
@@ -53,7 +70,7 @@ if errorlevel 1 (
 )
 
 rem Validate and self-repair all core, Forge, React, skill, and Super Agent runtime artifacts before launch.
-call node "%~dp0scripts\forge-runtime-guard.mjs"
+"!FORGE_NODE!" "%~dp0scripts\forge-runtime-guard.mjs"
 if errorlevel 1 (
     echo [forge-guard] Build validation failed. Electron will not be launched.
     echo [forge-guard] From PowerShell, repair with: .\setup-forge-super-agent.bat
