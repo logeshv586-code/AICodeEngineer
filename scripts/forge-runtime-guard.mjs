@@ -4,9 +4,29 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// These modules sit on the startup/import path for the Void/Forge contribution and
+// React service bridge. A stale or partial `out` tree can still contain
+// workbench.desktop.main.js while missing one of these files, which makes Electron
+// fail the whole dynamic workbench import with ERR_FILE_NOT_FOUND. Keep them in the
+// core probe so normal launch self-repairs by running a clean Code-OSS compile.
+const startupServiceRuntimeFiles = [
+	'out/vs/workbench/contrib/void/common/mcpService.js',
+	'out/vs/workbench/contrib/void/common/metricsService.js',
+	'out/vs/workbench/contrib/void/common/voidSettingsService.js',
+	'out/vs/workbench/contrib/void/common/voidSettingsTypes.js',
+	'out/vs/workbench/contrib/void/common/storageKeys.js',
+	'out/vs/workbench/contrib/void/common/sendLLMMessageService.js',
+	'out/vs/workbench/contrib/void/common/voidModelService.js',
+	'out/vs/workbench/contrib/void/common/refreshModelService.js',
+	'out/vs/workbench/contrib/void/common/forge/intelligence/adaptiveModelRouter.js',
+	'out/vs/workbench/contrib/void/common/forge/intelligence/taskProfile.js',
+];
+
 const requiredRuntimeFiles = [
 	'out/vs/workbench/workbench.desktop.main.js',
 	'out/vs/workbench/contrib/void/common/modelCapabilities.js',
+	...startupServiceRuntimeFiles,
 	'out/vs/workbench/contrib/void/browser/react/out/sidebar-tsx/index.js',
 	'out/vs/workbench/contrib/void/browser/forge/events/forgeEventBus.js',
 	'out/vs/workbench/contrib/void/browser/forge/execution/agents/agentRegistry.js',
@@ -21,6 +41,7 @@ const requiredRuntimeFiles = [
 const coreRuntimeFiles = [
 	'out/vs/workbench/workbench.desktop.main.js',
 	'out/vs/workbench/contrib/void/common/modelCapabilities.js',
+	...startupServiceRuntimeFiles,
 	'out/vs/workbench/contrib/void/browser/forge/events/forgeEventBus.js',
 	'out/vs/workbench/contrib/void/browser/forge/execution/agents/agentRegistry.js',
 	'out/vs/workbench/contrib/void/browser/forge/execution/blackboard/blackboard.js',
@@ -73,7 +94,7 @@ const nodeCommand = process.execPath;
 const initialMissing = coreRuntimeFiles.filter(file => !fs.existsSync(path.join(workspaceRoot, file)));
 
 if (initialMissing.length > 0) {
-	console.warn('[forge-guard] Missing runtime artifacts:');
+	console.warn('[forge-guard] Incomplete core runtime output detected; rebuilding the clean TypeScript output tree:');
 	initialMissing.forEach(file => console.warn(`  - ${file}`));
 	if (run(npmCommand, ['run', 'compile']) !== 0) process.exit(1);
 }
@@ -83,8 +104,9 @@ if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);
 
 const remainingMissing = missingFiles();
 if (remainingMissing.length > 0) {
-	console.error('[forge-guard] Refusing to launch: runtime artifacts are still missing.');
+	console.error('[forge-guard] Refusing to launch: runtime artifacts are still missing after repair.');
 	remainingMissing.forEach(file => console.error(`  - ${file}`));
+	console.error('[forge-guard] The missing path above is now a build-output defect, not a stale-cache condition.');
 	process.exit(1);
 }
 
@@ -158,4 +180,4 @@ try {
 	process.exit(1);
 }
 
-console.log('[forge-guard] Runtime artifacts, Forge brand, 333-skill library, and Super Agent assets verified.');
+console.log('[forge-guard] Runtime artifacts, startup services, Forge brand, 333-skill library, and Super Agent assets verified.');
