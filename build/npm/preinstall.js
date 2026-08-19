@@ -42,10 +42,32 @@ if (process.arch !== os.arch()) {
 function hasSupportedVisualStudioVersion() {
 	const fs = require('fs');
 	const path = require('path');
-	// VS Code 1.99.3 predates Visual Studio 2026. Forge keeps the upstream
-	// discovery behavior and extends it with the VS2026/VS18 install layout.
-	// The Forge Windows preflight also exports vs2026_install from vswhere so
-	// custom installation paths remain supported.
+
+	// VS Code 1.99.3 predates Visual Studio 2026. Prefer vswhere so Forge accepts
+	// real VS2022/VS2026 C++ installations regardless of installation directory.
+	const programFiles86Path = process.env['ProgramFiles(x86)'];
+	if (programFiles86Path) {
+		const vswhere = path.join(programFiles86Path, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+		if (fs.existsSync(vswhere)) {
+			try {
+				const installationPath = cp.execFileSync(vswhere, [
+					'-latest',
+					'-products', '*',
+					'-version', '[17.0,19.0)',
+					'-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+					'-property', 'installationPath'
+				], { encoding: 'utf8', windowsHide: true }).trim();
+				if (installationPath && fs.existsSync(installationPath)) {
+					return true;
+				}
+			} catch {
+				// Fall through to the upstream environment/default-path checks below.
+			}
+		}
+	}
+
+	// Preserve the upstream discovery behavior as a fallback and extend it with
+	// VS2026's major-version install folder (18).
 	const supportedVersions = [
 		{ version: '2026', installFolder: '18' },
 		{ version: '2022', installFolder: '2022' },
@@ -60,7 +82,6 @@ function hasSupportedVisualStudioVersion() {
 			availableVersions.push(version);
 			break;
 		}
-		const programFiles86Path = process.env['ProgramFiles(x86)'];
 		const programFiles64Path = process.env['ProgramFiles'];
 
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
