@@ -19,8 +19,11 @@ where node >nul 2>&1 || goto :missing_node
 where git >nul 2>&1 || goto :missing_git
 where powershell >nul 2>&1 || goto :missing_powershell
 
-echo [2/7] Checking Visual Studio Spectre-mitigated libraries...
-call powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\forge-windows-spectre-check.ps1" -RepoRoot "%CD%"
+echo [2/7] Ensuring Visual Studio Spectre-mitigated libraries...
+rem The upstream Code-OSS/Void native projects require Spectre runtime libraries.
+rem If they are missing, this helper uses the installed Visual Studio setup.exe
+rem modify flow and requests UAC elevation to add the supported components.
+call powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\forge-windows-spectre-ensure.ps1" -RepoRoot "%CD%"
 if errorlevel 1 goto :failed
 
 echo [3/7] Preparing pinned Node runtime, Windows native toolchain, and dependencies...
@@ -98,7 +101,7 @@ echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
 echo Forge setup/runtime Node: !FORGE_NODE_VERSION! from the checksummed .nvmrc runtime.
 echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
-echo Windows native modules: VS 2022/VS 2026 C++ toolchain + Spectre libraries verified.
+echo Windows native modules: compatible VS 2022/VS 2026 toolchain plus Spectre libraries verified.
 echo Native lifecycle scripts: serialized to avoid shared node-addon-api GYP races.
 echo React service bridge: every named hook import has a real export.
 echo Provider/model routing: registry, transport and connection-test coverage verified.
@@ -132,8 +135,8 @@ goto :failed
 :failed
 echo.
 echo Forge Super Agent setup failed. Review the first failing command above.
-echo If Spectre preflight fails, install the C++ Spectre-mitigated libraries for x64/x86
-echo from Visual Studio Installer -^> Individual components, then run setup again.
+echo If Spectre setup fails, approve the Windows UAC prompt or install the three x64/x86 Spectre components
+echo from Visual Studio Installer -> Modify -> Individual components, then rerun setup.
 echo If native preflight fails, ensure Visual Studio Desktop development with C++
 echo plus the x64/x86 MSVC tools and a Windows 10/11 SDK are installed in VS 2022 or VS 2026.
 echo If you are starting setup from PowerShell, run: .\setup-forge-super-agent.bat
