@@ -43,10 +43,54 @@ check('reduced motion support', contains(files.brandCss, ['prefers-reduced-motio
 check('Forge mark consistency', contains(files.brandMark, ['#8B8DFF', '#55D8FF', '#F4C668']) && contains(files.brandSvg, ['#8B8DFF', '#55D8FF', '#F4C668']), 'Reusable UI mark and standalone vector asset must share the same identity colors.');
 
 check('Windows tile brand', contains(files.winManifest, ['BackgroundColor="#0D1628"', 'ForegroundText="light"', 'ShortDisplayName="Forge"']), 'Windows tile metadata must display Forge on the premium dark background.');
-check('Windows deterministic setup', contains(files.windowsSetup, ['where npm >nul 2>&1', 'Installing deterministic Forge dependencies with npm ci', 'call npm ci', 'forge-integrations.mjs verify active', 'smoke-forge-windows.bat']) && !files.windowsSetup.includes('node_modules already exists - skipping npm ci'), 'Explicit setup must repair dependencies from the lockfile, verify active integrations, and hand off to the final smoke command.');
+
+const setupCoreBuild = files.windowsSetup.indexOf('[5/7] Building Forge core IDE with pinned Node...');
+const setupOptionalIntegrations = files.windowsSetup.indexOf('[6/7] Installing optional browser runtime and pinned Super Agent integrations...');
+const setupCoreVerify = files.windowsSetup.indexOf('[7/7] Verifying Forge core runtime and reporting integration state...');
+check('Windows deterministic setup',
+	contains(files.windowsSetup, [
+		'forge-windows-spectre-ensure.ps1',
+		'forge-windows-native-preflight.ps1',
+		'-InstallDependencies',
+		'set "FORGE_NPM_CLI=',
+		'"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile',
+		'"!FORGE_NODE!" "!FORGE_NPM_CLI!" run buildreact',
+		'Forge core IDE setup completed successfully.',
+		'smoke-forge-windows.bat',
+	])
+	&& setupCoreBuild >= 0
+	&& setupOptionalIntegrations > setupCoreBuild
+	&& setupCoreVerify > setupOptionalIntegrations
+	&& files.windowsSetup.includes('WARNING: One or more optional Super Agent integrations could not finish setup.')
+	&& !files.windowsSetup.includes('node_modules already exists - skipping npm ci'),
+	'Explicit setup must deterministically repair core dependencies, build Forge before optional integrations, and preserve the release-smoke handoff.');
+
 check('Windows launcher setup recovery', contains(files.windowsLauncher, ['Run setup-forge-super-agent.bat', 'set "FORGE_ELECTRON=', 'if not exist "%FORGE_ELECTRON%"']) && !files.windowsLauncher.includes('install-forge-super-agent.bat'), 'Windows startup must point to the real setup entrypoint and block cleanly when Electron is absent.');
 check('Windows launcher optional Docker', contains(files.windowsLauncher, ['where docker >nul 2>&1', 'optional Crawl4AI service skipped', 'built-in Playwright browser runtime']), 'Missing Docker must not prevent Forge from starting because Playwright Chromium is the supported browser runtime.');
-check('Windows release smoke coverage', contains(files.windowsSmoke, ['forge-brand-contract-test.mjs', 'forge-ui-contract-test.mjs', 'forge-work-self-test.mjs', 'manage-skills.mjs validate', 'npm run compile', 'npm run buildreact', 'forge-runtime-guard.mjs', 'forge-integrations.mjs verify active', 'forge-integrations.mjs doctor', 'forge-super-agent-self-test.mjs', 'Confirm a Chat model is selected.', 'Attach a file and an image', 'press Stop', 'Run /browser', 'Run /work', 'Run /design', 'Windows taskbar']), 'The one-command Windows release smoke must preserve every automated gate and the final interactive desktop checklist.');
+
+check('Windows release smoke coverage', contains(files.windowsSmoke, [
+	'forge-brand-contract-test.mjs',
+	'forge-ui-contract-test.mjs',
+	'forge-native-setup-contract.mjs',
+	'forge-react-service-export-contract.mjs',
+	'forge-model-provider-contract-test.mjs',
+	'forge-work-self-test.mjs',
+	'manage-skills.mjs validate',
+	'"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile',
+	'"!FORGE_NODE!" "!FORGE_NPM_CLI!" run buildreact',
+	'forge-runtime-guard.mjs',
+	'forge-integrations.mjs verify active',
+	'forge-integrations.mjs doctor',
+	'forge-super-agent-self-test.mjs',
+	'Confirm a Chat model is selected.',
+	'Attach a file and an image',
+	'press Stop',
+	'Run /browser',
+	'Run /work',
+	'Run /design',
+	'Windows taskbar',
+]), 'The one-command Windows release smoke must keep strict automated gates, strict active-integration verification, pinned build commands, and the final interactive desktop checklist.');
+
 check('Linux desktop brand', contains(files.linuxDesktop, ['AI Development Environment', 'Keywords=forge;ai;agent;coding;automation;development;ide;']) && !files.linuxDesktop.includes('Keywords=vscode'), 'Linux launcher metadata must identify Forge rather than VS Code.');
 check('Linux URL handler brand', contains(files.linuxHandler, ['Open Forge AI Engineering Studio', 'Keywords=forge;ai;agent;coding;ide;']) && !files.linuxHandler.includes('Code Editing. Redefined.'), 'Deep-link launcher metadata must be Forge-specific.');
 check('Linux app-store brand', contains(files.linuxAppdata, [expectedRepo, 'Forge is an AI engineering studio', 'adaptive AI model routing']) && !files.linuxAppdata.includes('Visual Studio Code'), 'AppStream metadata must describe Forge rather than the upstream editor.');
