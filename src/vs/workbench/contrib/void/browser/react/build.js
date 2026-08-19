@@ -50,6 +50,47 @@ function findDesiredPathFromLocalPath(localDesiredPath, currentPath) {
 	return globalDesiredPath;
 }
 
+// React's flattened output can resolve browser/forge imports through void/forge.
+// Never copy compiled modules into that compatibility tree: their own relative
+// imports are authored for browser/forge and would then resolve from the wrong
+// directory. Bridge modules keep the requested compatibility URL while loading
+// the canonical compiler output from its original location.
+function syncRuntimeModuleBridges(sourceDir, bridgeDir) {
+	fs.rmSync(bridgeDir, { recursive: true, force: true });
+
+	const visit = (currentSourceDir, currentBridgeDir) => {
+		fs.mkdirSync(currentBridgeDir, { recursive: true });
+		for (const entry of fs.readdirSync(currentSourceDir, { withFileTypes: true })) {
+			const sourcePath = path.join(currentSourceDir, entry.name);
+			const bridgePath = path.join(currentBridgeDir, entry.name);
+
+			if (entry.isDirectory()) {
+				visit(sourcePath, bridgePath);
+				continue;
+			}
+
+			if (entry.isFile() && entry.name.endsWith('.js')) {
+				let target = path.relative(path.dirname(bridgePath), sourcePath).replace(/\\/g, '/');
+				if (!target.startsWith('.')) target = `./${target}`;
+				fs.writeFileSync(
+					bridgePath,
+					`import * as canonical from '${target}';\nexport * from '${target}';\nexport default canonical.default;\n`,
+					'utf8'
+				);
+				continue;
+			}
+
+			// Preserve non-JavaScript runtime assets without relocating executable
+			// module bodies. Source maps are intentionally omitted for bridge files.
+			if (entry.isFile() && !entry.name.endsWith('.js.map')) {
+				fs.copyFileSync(sourcePath, bridgePath);
+			}
+		}
+	};
+
+	visit(sourceDir, bridgeDir);
+}
+
 // hack to refresh styles automatically
 function saveStylesFile() {
 	setTimeout(() => {
@@ -157,16 +198,17 @@ if (isWatch) {
 	fs.cpSync(path.join(__dirname, 'out'), runtimeReactOut, { recursive: true });
 	console.log(`[forge] Synced React bundles to ${runtimeReactOut}`);
 
-	// React is emitted from a flattened `react/out` directory. Forge modules
-	// imported by that bundle therefore resolve through `void/forge`, while the
-	// TypeScript compiler emits them under `void/browser/forge`. Keep both
-	// runtime layouts available so vscode-file imports remain valid in dev mode.
+	// React is emitted from a flattened `react/out` directory. Some preserved
+	// Forge imports therefore resolve through `void/forge`, while TypeScript
+	// emits the canonical modules under `void/browser/forge`. Use bridge modules
+	// instead of copies so the canonical module keeps its original base URL and
+	// all of its internal relative imports remain correct.
 	const workspaceOut = path.join(path.dirname(packageJsonPath), 'out');
 	const runtimeBrowserForge = path.join(workspaceOut, 'vs/workbench/contrib/void/browser/forge');
 	const runtimeVoidForge = path.join(workspaceOut, 'vs/workbench/contrib/void/forge');
 	if (fs.existsSync(runtimeBrowserForge)) {
-		fs.cpSync(runtimeBrowserForge, runtimeVoidForge, { recursive: true });
-		console.log(`[forge] Synced Forge modules to ${runtimeVoidForge}`);
+		syncRuntimeModuleBridges(runtimeBrowserForge, runtimeVoidForge);
+		console.log(`[forge] Synced Forge compatibility bridges to ${runtimeVoidForge}`);
 	}
 
 	// One Forge event import is preserved six levels deep by tsup and resolves
