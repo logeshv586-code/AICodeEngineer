@@ -12,18 +12,16 @@ on:
       - 'forge-integrations.lock.json'
       - 'product.json'
       - 'resources/forge/**'
-      - 'resources/win32/VisualElementsManifest.xml'
-      - 'resources/win32/code.ico'
-      - 'resources/win32/code_150x150.png'
-      - 'resources/win32/code_70x70.png'
-      - 'resources/linux/code.png'
-      - 'resources/linux/code.desktop'
-      - 'resources/linux/code-url-handler.desktop'
-      - 'resources/linux/code.appdata.xml'
-      - 'resources/darwin/code.icns'
+      - 'resources/win32/**'
+      - 'resources/linux/**'
+      - 'resources/darwin/**'
       - 'setup-forge-super-agent.bat'
+      - 'setup-forge.sh'
       - 'run-forge-ide.bat'
+      - 'run-forge-ide.sh'
       - 'smoke-forge-windows.bat'
+      - 'smoke-forge-unix.sh'
+      - 'docs/CROSS_PLATFORM_BUILD.md'
       - '.github/scripts/issue_triage.py'
       - '.github/workflows/triage.yml'
       - 'package.json'
@@ -40,18 +38,16 @@ on:
       - 'forge-integrations.lock.json'
       - 'product.json'
       - 'resources/forge/**'
-      - 'resources/win32/VisualElementsManifest.xml'
-      - 'resources/win32/code.ico'
-      - 'resources/win32/code_150x150.png'
-      - 'resources/win32/code_70x70.png'
-      - 'resources/linux/code.png'
-      - 'resources/linux/code.desktop'
-      - 'resources/linux/code-url-handler.desktop'
-      - 'resources/linux/code.appdata.xml'
-      - 'resources/darwin/code.icns'
+      - 'resources/win32/**'
+      - 'resources/linux/**'
+      - 'resources/darwin/**'
       - 'setup-forge-super-agent.bat'
+      - 'setup-forge.sh'
       - 'run-forge-ide.bat'
+      - 'run-forge-ide.sh'
       - 'smoke-forge-windows.bat'
+      - 'smoke-forge-unix.sh'
+      - 'docs/CROSS_PLATFORM_BUILD.md'
       - '.github/scripts/issue_triage.py'
       - '.github/workflows/triage.yml'
       - 'package.json'
@@ -67,10 +63,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Compile, UI contracts, skills, runtime
+  linux-electron:
+    name: Linux compile, contracts, Electron
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -85,10 +81,10 @@ jobs:
       - name: Install Linux native build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libkrb5-dev
+          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies serially
+        run: npm ci --foreground-scripts
 
       - name: Syntax-check Forge triage
         run: python3 -m py_compile .github/scripts/issue_triage.py
@@ -123,13 +119,14 @@ jobs:
       - name: Verify runtime artifacts
         run: node scripts/forge-runtime-guard.mjs
 
-  windows-electron:
-    name: Windows Electron build gate (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2022, windows-2025]
-    runs-on: ${{ matrix.os }}
+      - name: Verify Linux Electron executable
+        run: |
+          test -x node_modules/electron/dist/electron
+          node_modules/electron/dist/electron --version
+
+  macos-electron:
+    name: macOS compile, contracts, Electron
+    runs-on: macos-14
     timeout-minutes: 50
     steps:
       - name: Checkout
@@ -141,6 +138,74 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
           package-manager-cache: false
+
+      - name: Verify macOS native build prerequisites
+        run: |
+          xcode-select -p
+          python3 --version
+          clang --version
+          make --version
+
+      - name: Install dependencies serially
+        run: npm ci --foreground-scripts
+
+      - name: Brand and desktop contract test
+        run: node scripts/forge-brand-contract-test.mjs
+
+      - name: UI contract test
+        run: node scripts/forge-ui-contract-test.mjs
+
+      - name: Native setup contract
+        run: node scripts/forge-native-setup-contract.mjs
+
+      - name: React service export contract
+        run: node scripts/forge-react-service-export-contract.mjs
+
+      - name: Model and provider routing contract
+        run: node scripts/forge-model-provider-contract-test.mjs
+
+      - name: Work Mode queue and claim test
+        run: node scripts/forge-work-self-test.mjs
+
+      - name: Validate 333-skill library
+        run: node scripts/manage-skills.mjs validate
+
+      - name: Compile core TypeScript
+        run: npm run compile
+
+      - name: Build Forge React UI
+        run: npm run buildreact
+
+      - name: Verify runtime artifacts
+        run: node scripts/forge-runtime-guard.mjs
+
+      - name: Verify macOS Electron executable
+        run: |
+          test -x node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+          node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --version
+
+  windows-electron:
+    name: Windows Electron build gate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 65
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use repository Node version
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          package-manager-cache: false
+
+      - name: Ensure Spectre-mitigated Visual C++ libraries
+        shell: pwsh
+        run: ./scripts/forge-windows-spectre-ensure.ps1 -RepoRoot $PWD
 
       - name: Prepare native toolchain and install dependencies
         shell: pwsh
