@@ -46,15 +46,13 @@ $components = @(
     'Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre'
 )
 
-# Microsoft supports adding components to an existing instance with setup.exe
-# modify --installPath <instance> --add <component>. Use passive mode so the user
-# can see progress; the operation is elevated because standard-user automation
-# cannot modify the Visual Studio installation without Windows approval.
-$args = @('modify', '--installPath', $selectedVs)
-foreach ($component in $components) {
-    $args += @('--add', $component)
-}
-$args += @('--passive', '--norestart')
+# Start-Process joins an ArgumentList array into one command line and removes the
+# PowerShell string's outer quotes. Microsoft recommends passing one argument
+# string with explicit quote characters when an argument contains spaces.
+# Keep the Visual Studio instance path quoted across the UAC/elevation boundary.
+$quotedInstallPath = '"' + $selectedVs + '"'
+$componentArguments = ($components | ForEach-Object { "--add $_" }) -join ' '
+$argumentLine = "modify --installPath $quotedInstallPath $componentArguments --passive --norestart"
 
 $tempWork = Join-Path $env:TEMP 'forge-vs-installer-work'
 New-Item -ItemType Directory -Force -Path $tempWork | Out-Null
@@ -65,13 +63,14 @@ $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administ
 
 Write-Host "[forge-native] Visual Studio $selectedLabel is missing Forge Spectre prerequisites."
 Write-Host "[forge-native] Installing the required Spectre components into: $selectedVs"
+Write-Host "[forge-native] Installer target: $quotedInstallPath"
 Write-Host '[forge-native] Windows may show a User Account Control prompt. Choose Yes to continue setup.'
 
 try {
     if ($isAdmin) {
-        $process = Start-Process -FilePath $installer -ArgumentList $args -WorkingDirectory $tempWork -Wait -PassThru
+        $process = Start-Process -FilePath $installer -ArgumentList $argumentLine -WorkingDirectory $tempWork -Wait -PassThru
     } else {
-        $process = Start-Process -FilePath $installer -ArgumentList $args -WorkingDirectory $tempWork -Verb RunAs -Wait -PassThru
+        $process = Start-Process -FilePath $installer -ArgumentList $argumentLine -WorkingDirectory $tempWork -Verb RunAs -Wait -PassThru
     }
 } catch {
     $message = $_.Exception.Message
@@ -106,7 +105,16 @@ Installer error: $message
 }
 
 if ($process.ExitCode -notin @(0, 3010)) {
-    Stop-ForgeSpectreEnsure "Visual Studio Installer exited with code $($process.ExitCode). Open Visual Studio Installer and review the installation error before rerunning Forge setup."
+    Stop-ForgeSpectreEnsure @"
+Visual Studio Installer exited with code $($process.ExitCode).
+
+Expected instance path:
+  $selectedVs
+
+If the installer log says "installPath: C:\Program", pull the latest Forge main
+and rerun setup; that indicates an older unquoted argument path was used.
+Otherwise open Visual Studio Installer and review the installation error.
+"@
 }
 
 if ($process.ExitCode -eq 3010) {
