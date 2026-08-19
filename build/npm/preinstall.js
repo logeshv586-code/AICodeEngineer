@@ -28,6 +28,7 @@ const os = require('os');
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
+		console.error('\x1b[1;31m*** Forge supports Visual Studio 2022 and Visual Studio 2026; custom installs may be supplied via vs2022_install or vs2026_install.\x1b[0;0m');
 		throw new Error();
 	}
 	installHeaders();
@@ -41,12 +42,19 @@ if (process.arch !== os.arch()) {
 function hasSupportedVisualStudioVersion() {
 	const fs = require('fs');
 	const path = require('path');
-	// Translated over from
-	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019', '2017'];
+	// VS Code 1.99.3 predates Visual Studio 2026. Forge keeps the upstream
+	// discovery behavior and extends it with the VS2026/VS18 install layout.
+	// The Forge Windows preflight also exports vs2026_install from vswhere so
+	// custom installation paths remain supported.
+	const supportedVersions = [
+		{ version: '2026', installFolder: '18' },
+		{ version: '2022', installFolder: '2022' },
+		{ version: '2019', installFolder: '2019' },
+		{ version: '2017', installFolder: '2017' },
+	];
 
 	const availableVersions = [];
-	for (const version of supportedVersions) {
+	for (const { version, installFolder } of supportedVersions) {
 		let vsPath = process.env[`vs${version}_install`];
 		if (vsPath && fs.existsSync(vsPath)) {
 			availableVersions.push(version);
@@ -57,7 +65,7 @@ function hasSupportedVisualStudioVersion() {
 
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {
-			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
+			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${installFolder}`;
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
 				availableVersions.push(version);
 				break;
@@ -65,7 +73,7 @@ function hasSupportedVisualStudioVersion() {
 		}
 
 		if (programFiles86Path) {
-			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
+			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${installFolder}`;
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
 				availableVersions.push(version);
 				break;
