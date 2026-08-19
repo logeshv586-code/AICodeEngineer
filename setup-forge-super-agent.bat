@@ -16,52 +16,72 @@ echo.
 
 echo [1/6] Checking required commands...
 where node >nul 2>&1 || goto :missing_node
-where npm >nul 2>&1 || goto :missing_npm
 where git >nul 2>&1 || goto :missing_git
 where powershell >nul 2>&1 || goto :missing_powershell
 
-echo [2/6] Preparing Windows native toolchain and installing dependencies...
-rem This wrapper detects VS 2022 or VS 2026, releases repo-scoped native locks,
-rem and runs npm ci in the same process as the selected node-gyp configuration.
-rem VS 2026 automatically uses Forge's pinned node-gyp 12.4.0 compatibility toolchain.
+echo [2/6] Preparing pinned Node runtime, Windows native toolchain, and dependencies...
+rem This wrapper resolves the checksummed Node version from .nvmrc, detects VS 2022
+rem or VS 2026, releases repo-scoped locks, serializes native lifecycle scripts,
+rem and runs npm ci inside the compatible runtime/toolchain.
 call powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\forge-windows-native-preflight.ps1" -RepoRoot "%CD%" -InstallDependencies
 if errorlevel 1 goto :failed
+
+rem Resolve the same checksummed Node runtime for every remaining setup stage.
+set "FORGE_NODE="
+for /f "delims=" %%P in ('node scripts\forge-node20-runtime.mjs ensure') do set "FORGE_NODE=%%P"
+if not defined FORGE_NODE (
+    echo ERROR: Could not resolve the pinned Forge Node runtime after native setup.
+    goto :failed
+)
+if not exist "!FORGE_NODE!" (
+    echo ERROR: Pinned Forge Node runtime does not exist: !FORGE_NODE!
+    goto :failed
+)
+for %%I in ("!FORGE_NODE!") do set "FORGE_NODE_HOME=%%~dpI"
+set "FORGE_NPM_CLI=!FORGE_NODE_HOME!node_modules\npm\bin\npm-cli.js"
+if not exist "!FORGE_NPM_CLI!" (
+    echo ERROR: Pinned Forge npm CLI does not exist: !FORGE_NPM_CLI!
+    goto :failed
+)
+set "PATH=!FORGE_NODE_HOME!;!PATH!"
+for /f "delims=" %%V in ('"!FORGE_NODE!" --version') do set "FORGE_NODE_VERSION=%%V"
+echo [forge-setup] Runtime locked to !FORGE_NODE_VERSION!: !FORGE_NODE!
 
 echo [3/6] Cloning pinned open-source integrations, setting up supported dependencies, and installing Chromium...
 rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
 rem --browser installs the Chromium runtime used by Forge's Playwright browser agent.
 rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
-call node scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
+"!FORGE_NODE!" scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
 if errorlevel 1 goto :failed
 
 echo [4/6] Running fast local contract tests...
-call node scripts\forge-brand-contract-test.mjs
+"!FORGE_NODE!" scripts\forge-brand-contract-test.mjs
 if errorlevel 1 goto :failed
-call node scripts\forge-ui-contract-test.mjs
+"!FORGE_NODE!" scripts\forge-ui-contract-test.mjs
 if errorlevel 1 goto :failed
-call node scripts\forge-react-service-export-contract.mjs
+"!FORGE_NODE!" scripts\forge-react-service-export-contract.mjs
 if errorlevel 1 goto :failed
-call node scripts\forge-model-provider-contract-test.mjs
+"!FORGE_NODE!" scripts\forge-model-provider-contract-test.mjs
 if errorlevel 1 goto :failed
-call node scripts\forge-work-self-test.mjs
+"!FORGE_NODE!" scripts\forge-work-self-test.mjs
 if errorlevel 1 goto :failed
-call node scripts\manage-skills.mjs validate
+"!FORGE_NODE!" scripts\manage-skills.mjs validate
 if errorlevel 1 goto :failed
 
-echo [5/6] Building Forge...
-call npm run compile
+echo [5/6] Building Forge with pinned Node...
+"!FORGE_NODE!" "!FORGE_NPM_CLI!" run compile
 if errorlevel 1 goto :failed
-call npm run buildreact
+"!FORGE_NODE!" "!FORGE_NPM_CLI!" run buildreact
 if errorlevel 1 goto :failed
 
 echo [6/6] Verifying runtime and Super Agent integration state...
-call node scripts\forge-runtime-guard.mjs
+"!FORGE_NODE!" scripts\forge-runtime-guard.mjs
 if errorlevel 1 goto :failed
-call node scripts\forge-integrations.mjs verify active
+"!FORGE_NODE!" scripts\forge-integrations.mjs verify active
 if errorlevel 1 goto :failed
-call node scripts\forge-integrations.mjs doctor
+"!FORGE_NODE!" scripts\forge-integrations.mjs doctor
 if errorlevel 1 goto :failed
-call node scripts\forge-super-agent-self-test.mjs
+"!FORGE_NODE!" scripts\forge-super-agent-self-test.mjs
 if errorlevel 1 goto :failed
 
 echo.
@@ -70,8 +90,10 @@ echo   Forge Super Agent setup completed successfully.
 echo ============================================================
 echo Local source integrations are under:
 echo   %FORGE_INTEGRATIONS_HOME%
+echo Forge setup/runtime Node: !FORGE_NODE_VERSION! from the checksummed .nvmrc runtime.
 echo Browser runtime: Playwright Chromium installed for Forge browser tasks.
 echo Windows native modules: compatible VS 2022/VS 2026 toolchain verified.
+echo Native lifecycle scripts: serialized to avoid shared node-addon-api GYP races.
 echo React service bridge: every named hook import has a real export.
 echo Provider/model routing: registry, transport and connection-test coverage verified.
 echo.
@@ -89,11 +111,8 @@ popd
 exit /b 0
 
 :missing_node
-echo ERROR: Node.js is not available on PATH.
-goto :failed
-
-:missing_npm
-echo ERROR: npm is not available on PATH.
+echo ERROR: A bootstrap Node.js runtime is not available on PATH.
+echo Forge only uses it to fetch/verify the pinned Node version from .nvmrc.
 goto :failed
 
 :missing_git
@@ -107,7 +126,7 @@ goto :failed
 :failed
 echo.
 echo Forge Super Agent setup failed. Review the first failing command above.
-echo If native preflight fails, open Visual Studio Installer and ensure Desktop development with C++
+echo If native preflight fails, ensure Visual Studio Desktop development with C++
 echo plus the x64/x86 MSVC tools and a Windows 10/11 SDK are installed in VS 2022 or VS 2026.
 echo If you are starting setup from PowerShell, run: .\setup-forge-super-agent.bat
 popd
