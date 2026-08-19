@@ -38,8 +38,8 @@ Could not fully remove:
   $nodeModules
 
 Windows still has one or more files locked after four cleanup attempts.
-Close any terminal, editor, Forge/Electron, Playwright/Chromium, antivirus scan, or
-Explorer window actively using this repository and run setup again.
+Close any editor/Forge/Electron/Playwright process using this repository and run
+setup again. Antivirus or Explorer preview handlers may also temporarily hold DLLs.
 
 Last error: $($_.Exception.Message)
 "@
@@ -53,15 +53,40 @@ Last error: $($_.Exception.Message)
 Write-Host '[forge-native] Checking Windows native build toolchain...'
 
 $nvmrc = Join-Path $repo '.nvmrc'
-if (Test-Path $nvmrc) {
-    $expectedNode = (Get-Content $nvmrc -Raw).Trim()
-    $actualNode = (& node -p "process.version.slice(1)").Trim()
-    if ($actualNode -ne $expectedNode) {
-        Write-Warning "Forge CI is pinned to Node $expectedNode; this machine is using Node $actualNode. The setup can continue, but matching .nvmrc is recommended for release reproduction."
-    } else {
-        Write-Host "[forge-native] Node version matches .nvmrc: $actualNode"
-    }
+if (-not (Test-Path $nvmrc)) {
+    Fail-ForgePreflight '.nvmrc is missing; Forge cannot determine its pinned Node runtime.'
 }
+$expectedNode = (Get-Content $nvmrc -Raw).Trim()
+$actualNode = (& node -p "process.version.slice(1)").Trim()
+if ($actualNode -ne $expectedNode) {
+    Write-Warning "System Node is $actualNode; Forge setup is pinned to Node $expectedNode and will use its private checksummed runtime instead."
+}
+
+# Always resolve the checksummed project runtime. This prevents a machine-level
+# Node upgrade (for example Node 25) from changing Electron native ABI/build behavior.
+$node20RuntimeScript = Join-Path $repo 'scripts\forge-node20-runtime.mjs'
+if (-not (Test-Path $node20RuntimeScript)) {
+    Fail-ForgePreflight "Pinned Node runtime helper is missing: $node20RuntimeScript"
+}
+$forgeNodeOutput = & node $node20RuntimeScript ensure
+if ($LASTEXITCODE -ne 0) {
+    Fail-ForgePreflight 'Could not prepare the checksummed Forge Node 20 runtime.'
+}
+$forgeNode = ($forgeNodeOutput | Select-Object -Last 1).Trim()
+if (-not (Test-Path $forgeNode)) {
+    Fail-ForgePreflight "Forge Node runtime path does not exist: $forgeNode"
+}
+$forgeNodeVersion = (& $forgeNode --version).Trim()
+if ($forgeNodeVersion -ne "v$expectedNode") {
+    Fail-ForgePreflight "Expected Forge Node v$expectedNode but resolved '$forgeNodeVersion'."
+}
+$forgeNodeHome = Split-Path -Parent $forgeNode
+$forgeBundledNpmCli = Join-Path $forgeNodeHome 'node_modules\npm\bin\npm-cli.js'
+if (-not (Test-Path $forgeBundledNpmCli)) {
+    Fail-ForgePreflight "Pinned Node runtime is missing npm CLI: $forgeBundledNpmCli"
+}
+$env:PATH = "$forgeNodeHome;$env:PATH"
+Write-Host "[forge-native] Forge Node runtime: $forgeNodeVersion"
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path $vswhere)) {
@@ -137,15 +162,13 @@ if ($repoScoped) {
     Start-Sleep -Milliseconds 1000
 }
 
-$npmCommand = 'npm'
-$npmArgumentsPrefix = @()
+$npmCli = $forgeBundledNpmCli
 
 if ($selectedVsVersion -eq '2026') {
-    # npm bundled with Node 20 carries an older node-gyp and rewrites the node-gyp
-    # lifecycle environment to that bundled copy. External --node-gyp overrides
-    # therefore do not reliably affect dependency install scripts. Use a private,
-    # pinned npm release whose own bundled node-gyp supports Visual Studio 2026.
-    $toolchainRoot = Join-Path $env:USERPROFILE ".forge\toolchains\npm-$forgeNpmVersion"
+    # The npm bundled with Node 20 contains node-gyp 10, which predates VS2026.
+    # Bootstrap npm 11 under the pinned Node 20 runtime so dependency lifecycle
+    # scripts inherit a VS2026-aware bundled node-gyp rather than system npm.
+    $toolchainRoot = Join-Path $env:USERPROFILE ".forge\toolchains\npm-$forgeNpmVersion-node20"
     $forgeNpmCli = Join-Path $toolchainRoot 'node_modules\npm\bin\npm-cli.js'
     $forgeNpmPackage = Join-Path $toolchainRoot 'node_modules\npm\package.json'
     $needsBootstrap = $true
@@ -162,7 +185,8 @@ if ($selectedVsVersion -eq '2026') {
     if ($needsBootstrap) {
         Write-Host "[forge-native] Bootstrapping Forge npm $forgeNpmVersion for Visual Studio 2026..."
         New-Item -ItemType Directory -Force -Path $toolchainRoot | Out-Null
-        Invoke-ForgeCommand 'npm' @(
+        Invoke-ForgeCommand $forgeNode @(
+            $forgeBundledNpmCli,
             'install',
             '--prefix', $toolchainRoot,
             "npm@$forgeNpmVersion",
@@ -177,7 +201,7 @@ if ($selectedVsVersion -eq '2026') {
         Fail-ForgePreflight "Forge npm bootstrap did not create $forgeNpmCli"
     }
 
-    $actualForgeNpmVersion = (& node $forgeNpmCli --version).Trim()
+    $actualForgeNpmVersion = (& $forgeNode $forgeNpmCli --version).Trim()
     if ($LASTEXITCODE -ne 0 -or $actualForgeNpmVersion -ne $forgeNpmVersion) {
         Fail-ForgePreflight "Expected Forge npm $forgeNpmVersion but got '$actualForgeNpmVersion'."
     }
@@ -187,17 +211,18 @@ if ($selectedVsVersion -eq '2026') {
         Fail-ForgePreflight "Forge npm $forgeNpmVersion does not contain its bundled node-gyp at $forgeNodeGyp"
     }
 
-    $forgeNodeGypVersion = (& node $forgeNodeGyp --version).Trim()
+    $forgeNodeGypVersion = (& $forgeNode $forgeNodeGyp --version).Trim()
     if ($LASTEXITCODE -ne 0) {
         Fail-ForgePreflight 'Could not execute the node-gyp bundled with Forge npm.'
     }
-    $nodeGypMajor = [int](($forgeNodeGypVersion.TrimStart('v') -split '\.')[0])
-    if ($nodeGypMajor -lt 12) {
+    $nodeGypParts = $forgeNodeGypVersion.TrimStart('v') -split '\.'
+    $nodeGypMajor = [int]$nodeGypParts[0]
+    $nodeGypMinor = [int]$nodeGypParts[1]
+    if ($nodeGypMajor -lt 12 -or ($nodeGypMajor -eq 12 -and $nodeGypMinor -lt 1)) {
         Fail-ForgePreflight "Forge npm bundled node-gyp '$forgeNodeGypVersion', but VS2026 requires node-gyp 12.1 or newer."
     }
 
-    $npmCommand = 'node'
-    $npmArgumentsPrefix = @($forgeNpmCli)
+    $npmCli = $forgeNpmCli
     $env:npm_config_msvs_version = '2026'
     $env:npm_package_config_node_gyp_msvs_version = '2026'
     Write-Host "[forge-native] Forge npm runtime: $actualForgeNpmVersion"
@@ -207,6 +232,12 @@ if ($selectedVsVersion -eq '2026') {
     $env:npm_package_config_node_gyp_msvs_version = '2022'
 }
 
+# npm 7+ backgrounds install lifecycle scripts. Several VS Code native modules
+# reference the shared @vscode/node-addon-api project and can race while GYP is
+# generating node_addon_api.sln. Foreground scripts make that lifecycle stage
+# sequential and eliminate the FileExistsError race seen on Windows.
+$env:npm_config_foreground_scripts = 'true'
+Write-Host '[forge-native] Native dependency scripts: serialized foreground mode.'
 Write-Host '[forge-native] Windows native build preflight passed.'
 
 if ($InstallDependencies) {
@@ -214,7 +245,7 @@ if ($InstallDependencies) {
     Write-Host '[forge-native] Installing deterministic Forge dependencies with npm ci...'
     Push-Location $repo
     try {
-        Invoke-ForgeCommand $npmCommand ($npmArgumentsPrefix + @('ci'))
+        Invoke-ForgeCommand $forgeNode @($npmCli, 'ci', '--foreground-scripts')
     } finally {
         Pop-Location
     }
