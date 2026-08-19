@@ -36,8 +36,8 @@
 .forge-premium-shell textarea:focus-visible,
 .forge-premium-shell input:focus-visible,
 .forge-premium-shell a:focus-visible {
-	outline: 1px solid var(--forge-focus-ring);
-	outline-offset: 1px;
+	outline: 2px solid var(--forge-focus-ring);
+	outline-offset: 2px;
 }
 
 /* The old decorative aurora remains as a compatibility hook but is intentionally hidden. */
