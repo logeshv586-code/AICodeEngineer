@@ -41,6 +41,23 @@ const privateSessionTitle = (createdAt: string): string => {
 	return `Session ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
 };
 
+// Canned product actions can carry detailed execution guidance to the agent while the
+// conversation shows only the user's high-level intent. Free-form user text is never changed.
+const generatedTaskDisplayLabels = new Map<string, string>([
+	['Understand this codebase and explain the architecture I need for my task.', 'Understand this project'],
+	['Implement this feature end-to-end, run targeted checks, and review the final diff.', 'Build this feature'],
+	['Find the root cause of the current bug, fix it, and run a regression check.', 'Fix this problem'],
+	['Inspect the app in the browser, fix the UI issue, and verify it visually.', 'Check and improve the app'],
+	['Review the current changes for correctness, security, and regressions. Fix actionable issues.', 'Review the current work'],
+	['Create a safe Work Mode automation for this recurring requirement.', 'Automate this task'],
+	['Find the relevant parts of this project for my current task and continue.', 'Find what matters'],
+	['Run the most useful command for my current task and continue.', 'Run a useful check'],
+	['Verify the current result and fix anything that is still wrong.', 'Verify the result'],
+	['Review the current work and fix anything important before finishing.', 'Review before finish'],
+	['Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.', 'Use the attached context'],
+	['Continue with the attached context.', 'Use the attached context'],
+]);
+
 export const ConversationShell: React.FC = () => {
 	const accessor = useAccessor();
 	const rawAccessor = useRawAccessor();
@@ -98,7 +115,39 @@ export const ConversationShell: React.FC = () => {
 		const selections = chatThreadsService.getCurrentThreadState().stagingSelections.slice();
 		const effectiveMessage = trimmed || (selections.length > 0 ? 'Continue with the attached context.' : '');
 		if (!effectiveMessage) return;
+
 		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: effectiveMessage, _chatSelections: selections, threadId });
+
+		const displayLabel = generatedTaskDisplayLabels.get(effectiveMessage);
+		if (displayLabel) {
+			const state = chatThreadsService.state;
+			const thread = state.allThreads[threadId];
+			if (thread) {
+				let targetIndex = -1;
+				for (let index = thread.messages.length - 1; index >= 0; index--) {
+					const candidate = thread.messages[index];
+					if (candidate.role === 'user' && candidate.displayContent === effectiveMessage) {
+						targetIndex = index;
+						break;
+					}
+				}
+				if (targetIndex >= 0) {
+					const nextMessages = thread.messages.slice();
+					const userMessage = nextMessages[targetIndex];
+					if (userMessage.role === 'user') {
+						nextMessages[targetIndex] = { ...userMessage, displayContent: displayLabel };
+						chatThreadsService.dangerousSetState({
+							...state,
+							allThreads: {
+								...state.allThreads,
+								[threadId]: { ...thread, messages: nextMessages },
+							},
+						});
+					}
+				}
+			}
+		}
+
 		chatThreadsService.setCurrentThreadState({ stagingSelections: [] });
 	}, [chatThreadsService]);
 
