@@ -1,292 +1,423 @@
-/* Forge premium brand system — obsidian, iris, arctic-cyan and a warm craft ember. */
+/* Forge chat surface — use the host editor theme first, with Forge accents only where useful. */
 
 .forge-premium-shell {
-	--forge-bg-0: #080d19;
-	--forge-bg-1: #0b1220;
-	--forge-bg-2: #0f1829;
-	--forge-bg-3: #131e32;
-	--forge-card: rgba(18, 29, 50, 0.72);
-	--forge-card-strong: rgba(20, 31, 54, 0.92);
-	--forge-line: rgba(137, 151, 190, 0.12);
-	--forge-line-strong: rgba(128, 139, 255, 0.3);
-	--forge-text: #eef3ff;
-	--forge-text-2: #c8d1e6;
-	--forge-muted: #8793ac;
-	--forge-muted-2: #5f6b82;
-	--forge-iris: #7b7fff;
+	--forge-bg-0: var(--vscode-sideBar-background, #181818);
+	--forge-bg-1: var(--vscode-editor-background, #1f1f1f);
+	--forge-bg-2: var(--vscode-input-background, #242424);
+	--forge-bg-3: var(--vscode-list-hoverBackground, #2a2d2e);
+	--forge-card: var(--vscode-editorWidget-background, #252526);
+	--forge-card-strong: var(--vscode-quickInput-background, #252526);
+	--forge-line: var(--vscode-sideBar-border, rgba(128, 128, 128, 0.22));
+	--forge-line-strong: var(--vscode-focusBorder, #7b7fff);
+	--forge-text: var(--vscode-foreground, #d4d4d4);
+	--forge-text-2: var(--vscode-editor-foreground, #cccccc);
+	--forge-muted: var(--vscode-descriptionForeground, #9d9d9d);
+	--forge-muted-2: var(--vscode-disabledForeground, #6f6f6f);
+	--forge-iris: var(--vscode-focusBorder, #7b7fff);
 	--forge-iris-2: #9a8cff;
-	--forge-cyan: #58d9ff;
-	--forge-cyan-soft: rgba(88, 217, 255, 0.1);
-	--forge-iris-soft: rgba(123, 127, 255, 0.12);
+	--forge-cyan: var(--vscode-textLink-foreground, #58d9ff);
+	--forge-cyan-soft: color-mix(in srgb, var(--forge-cyan) 10%, transparent);
+	--forge-iris-soft: color-mix(in srgb, var(--forge-iris) 11%, transparent);
 	--forge-ember: #f4c668;
-	--forge-ember-soft: rgba(244, 198, 104, 0.12);
-	--forge-success: #62e6bd;
-	--forge-danger: #ff738a;
-	--forge-focus-ring: rgba(143, 232, 255, 0.72);
-	--forge-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
-	background:
-		radial-gradient(760px 440px at 68% -16%, rgba(102, 112, 255, 0.075), transparent 58%),
-		var(--forge-bg-0);
+	--forge-success: var(--vscode-testing-iconPassed, #62e6bd);
+	--forge-danger: var(--vscode-errorForeground, #f48771);
+	--forge-focus-ring: var(--vscode-focusBorder, #7b7fff);
+	background: var(--forge-bg-0);
 	color: var(--forge-text);
+	font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 	isolation: isolate;
 }
 
 .forge-premium-shell * { box-sizing: border-box; }
-.forge-premium-shell ::selection { background: rgba(123, 127, 255, 0.34); color: #fff; }
+.forge-premium-shell ::selection { background: var(--vscode-editor-selectionBackground, rgba(70, 90, 150, 0.55)); color: inherit; }
 
 .forge-premium-shell button:focus-visible,
 .forge-premium-shell [role='button']:focus-visible,
 .forge-premium-shell textarea:focus-visible,
 .forge-premium-shell input:focus-visible,
 .forge-premium-shell a:focus-visible {
-	outline: 2px solid var(--forge-focus-ring);
-	outline-offset: 2px;
+	outline: 1px solid var(--forge-focus-ring);
+	outline-offset: 1px;
 }
 
-.forge-brand-aurora {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	overflow: hidden;
-	z-index: 0;
-}
+/* The old decorative aurora remains as a compatibility hook but is intentionally hidden. */
+.forge-brand-aurora { display: none; }
 
-.forge-brand-aurora::before,
-.forge-brand-aurora::after {
-	content: '';
-	position: absolute;
-	width: 360px;
-	height: 360px;
-	border-radius: 999px;
-	filter: blur(95px);
-	opacity: 0.07;
-}
-
-.forge-brand-aurora::before { top: -240px; right: 8%; background: #7b7fff; }
-.forge-brand-aurora::after { bottom: -280px; left: 18%; background: #58d9ff; }
-
-.forge-brand-wordmark { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.forge-brand-wordmark-copy { min-width: 0; line-height: 1.05; }
-.forge-brand-name { font-size: 13px; font-weight: 750; letter-spacing: -0.01em; color: var(--forge-text); }
-.forge-brand-tagline { margin-top: 3px; font-size: 9px; letter-spacing: 0.03em; color: var(--forge-muted); white-space: nowrap; }
-.forge-brand-wordmark-compact .forge-brand-name { font-size: 11px; }
-
-/* Trae-inspired information architecture: permanent activity rail + focused panel. */
-.forge-brand-nav-wrap {
-	background: rgba(8, 13, 25, 0.9);
-	border-right: 1px solid var(--forge-line);
-}
-
-.forge-brand-rail {
-	width: 48px;
-	min-width: 48px;
+.forge-chat-layout {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	gap: 5px;
-	padding: 8px 6px;
-	background: linear-gradient(180deg, rgba(8, 14, 27, 0.98), rgba(7, 12, 23, 0.98));
-	border-right: 1px solid rgba(137, 151, 190, 0.1);
+	background: var(--forge-bg-0);
 }
 
-.forge-brand-rail-mark,
-.forge-brand-rail-button {
-	width: 34px;
-	height: 34px;
-	border-radius: 10px;
+/* Compact editor-style header: no second conversation sidebar and no right context rail. */
+.forge-chat-header {
+	border-bottom: 1px solid var(--forge-line);
+	background: var(--forge-bg-0);
+	padding: 8px 10px 7px;
+}
+
+.forge-chat-header-main {
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	min-width: 0;
+}
+
+.forge-chat-workspace {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+}
+
+.forge-chat-section-label {
+	font-size: 9px;
+	font-weight: 650;
+	letter-spacing: 0.1em;
+	color: var(--forge-cyan);
+}
+
+.forge-chat-workspace-name {
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--forge-text-2);
+}
+
+.forge-chat-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.forge-chat-action,
+.forge-chat-icon-action {
+	display: inline-flex;
+	align-items: center;
 	justify-content: center;
+	gap: 5px;
+	height: 27px;
 	border: 1px solid transparent;
+	border-radius: 6px;
 	background: transparent;
 	color: var(--forge-muted);
+	font: inherit;
+	font-size: 10px;
 	cursor: pointer;
+	padding: 0 7px;
 }
 
-.forge-brand-rail-mark { margin-bottom: 5px; background: rgba(255, 255, 255, 0.025); border-color: var(--forge-line); }
-.forge-brand-rail-button:hover { color: var(--forge-text-2); background: rgba(255, 255, 255, 0.035); border-color: rgba(137, 151, 190, 0.12); }
-.forge-brand-rail-button-active {
+.forge-chat-icon-action {
+	width: 27px;
+	padding: 0;
+}
+
+.forge-chat-action:hover,
+.forge-chat-icon-action:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 	color: var(--forge-text);
-	background: linear-gradient(135deg, rgba(123, 127, 255, 0.16), rgba(88, 217, 255, 0.055));
-	border-color: rgba(128, 139, 255, 0.24);
-	box-shadow: inset 2px 0 0 var(--forge-iris);
 }
 
-.forge-brand-rail-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.forge-brand-rail-divider { width: 22px; height: 1px; margin: 2px 0; background: var(--forge-line); }
-
-.forge-brand-sidebar {
-	background: linear-gradient(180deg, rgba(11, 18, 32, 0.98), rgba(9, 15, 28, 0.96));
-	border-right: 1px solid var(--forge-line);
-	box-shadow: 14px 0 32px rgba(0, 0, 0, 0.06);
+.forge-chat-action:disabled,
+.forge-chat-icon-action:disabled {
+	opacity: 0.42;
+	cursor: default;
 }
 
-.forge-brand-sidebar-header {
-	background: rgba(255, 255, 255, 0.008);
-	border-bottom: 1px solid var(--forge-line);
+.forge-chat-healthline {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	margin-top: 5px;
+	font-size: 9.5px;
+	line-height: 1.25;
+	color: var(--forge-muted-2);
 }
 
-.forge-brand-sidebar-search {
-	border: 1px solid var(--forge-line);
-	border-radius: 9px;
-	background: rgba(255, 255, 255, 0.02);
+.forge-chat-health-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 999px;
+	background: var(--forge-muted-2);
+	flex-shrink: 0;
 }
-.forge-brand-sidebar-search:focus-within { border-color: rgba(128, 139, 255, 0.36); background: rgba(123, 127, 255, 0.04); }
-.forge-brand-sidebar-footer { border-top: 1px solid var(--forge-line); background: rgba(255, 255, 255, 0.006); }
+.forge-chat-health-ready { background: var(--forge-success); }
+.forge-chat-health-syncing { background: var(--forge-cyan); }
+.forge-chat-health-error { background: var(--forge-danger); }
+.forge-chat-health-separator { opacity: 0.45; }
+
+.forge-brand-wordmark { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.forge-brand-wordmark-copy { min-width: 0; line-height: 1.05; }
+.forge-brand-name { font-size: 12px; font-weight: 650; color: var(--forge-text); }
+.forge-brand-tagline { margin-top: 3px; font-size: 9px; color: var(--forge-muted); white-space: nowrap; }
+.forge-brand-wordmark-compact .forge-brand-name { font-size: 11px; }
+
+/* Legacy navigation classes are kept for other fallback views, but the active ConversationShell no longer renders them. */
+.forge-brand-nav-wrap { background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
+.forge-brand-rail { width: 44px; min-width: 44px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 5px; background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
+.forge-brand-rail-mark,
+.forge-brand-rail-button { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; background: transparent; color: var(--forge-muted); cursor: pointer; }
+.forge-brand-rail-button:hover { color: var(--forge-text); background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)); }
+.forge-brand-rail-button-active { color: var(--forge-text); background: var(--vscode-list-activeSelectionBackground, #37373d); border-color: var(--forge-line); }
+.forge-brand-rail-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.forge-brand-rail-divider { width: 20px; height: 1px; margin: 2px 0; background: var(--forge-line); }
+.forge-brand-sidebar { background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
+.forge-brand-sidebar-header { border-bottom: 1px solid var(--forge-line); }
+.forge-brand-sidebar-search { border: 1px solid var(--vscode-input-border, var(--forge-line)); border-radius: 5px; background: var(--vscode-input-background, var(--forge-bg-2)); }
+.forge-brand-sidebar-search:focus-within { border-color: var(--forge-focus-ring); }
+.forge-brand-sidebar-footer { border-top: 1px solid var(--forge-line); }
 
 .forge-brand-primary {
-	background: linear-gradient(135deg, rgba(123, 127, 255, 0.98), rgba(91, 103, 242, 0.98));
-	border: 1px solid rgba(172, 177, 255, 0.5);
-	color: white;
-	box-shadow: 0 8px 22px rgba(75, 80, 210, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+	background: var(--vscode-button-background, #0e639c);
+	border: 1px solid transparent;
+	color: var(--vscode-button-foreground, #fff);
+	border-radius: 5px;
 }
-.forge-brand-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.forge-brand-primary:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
 
 .forge-brand-tool {
-	background: rgba(255, 255, 255, 0.018);
-	border: 1px solid var(--forge-line);
+	background: transparent;
+	border: 1px solid transparent;
 	color: var(--forge-muted);
 }
-.forge-brand-tool:hover { color: var(--forge-text-2); border-color: var(--forge-line-strong); background: var(--forge-iris-soft); }
+.forge-brand-tool:hover { color: var(--forge-text); background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)); }
 
 .forge-brand-thread { border: 1px solid transparent; background: transparent; }
-.forge-brand-thread:hover { background: rgba(255, 255, 255, 0.025); border-color: rgba(137, 151, 190, 0.08); }
-.forge-brand-thread-active {
-	background: linear-gradient(135deg, rgba(123, 127, 255, 0.105), rgba(88, 217, 255, 0.025));
-	border-color: rgba(128, 139, 255, 0.18);
-	box-shadow: inset 2px 0 0 var(--forge-iris);
+.forge-brand-thread:hover { background: var(--vscode-list-hoverBackground, #2a2d2e); }
+.forge-brand-thread-active { background: var(--vscode-list-activeSelectionBackground, #37373d); color: var(--vscode-list-activeSelectionForeground, var(--forge-text)); }
+
+.forge-brand-chat {
+	background: var(--forge-bg-0);
+	min-height: 0;
 }
 
-.forge-brand-chat { background: rgba(8, 13, 25, 0.34); }
-
-/* The empty state stays premium but reads like a product workspace, not a prompt gallery. */
 .forge-brand-empty-card {
-	width: min(620px, calc(100% - 36px));
-	padding: 24px 20px;
-	border-radius: 18px;
+	width: min(520px, calc(100% - 28px));
+	padding: 20px 16px;
 	border: 0;
 	background: transparent;
 	box-shadow: none;
 }
 
-.forge-brand-empty-card .grid {
-	grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-	gap: 8px !important;
-}
-
-.forge-brand-suggestion {
-	min-height: 46px;
-	background: rgba(255, 255, 255, 0.018);
-	border: 1px solid var(--forge-line);
-	color: var(--forge-muted);
-	text-align: center;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-.forge-brand-suggestion > div:first-child { font-size: 10.5px; }
-.forge-brand-suggestion > div:nth-child(2) { display: none; }
-.forge-brand-suggestion:hover {
-	color: var(--forge-text-2);
-	border-color: var(--forge-line-strong);
-	background: linear-gradient(135deg, rgba(123, 127, 255, 0.09), rgba(88, 217, 255, 0.035));
-	transform: translateY(-1px);
-}
+.forge-brand-empty-card .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
+.forge-brand-suggestion { min-height: 40px; background: transparent; border: 1px solid var(--forge-line); color: var(--forge-muted); text-align: center; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+.forge-brand-suggestion:hover { color: var(--forge-text); background: var(--vscode-list-hoverBackground, #2a2d2e); }
 
 .forge-brand-user-bubble {
-	background: linear-gradient(145deg, rgba(44, 55, 94, 0.72), rgba(31, 41, 72, 0.76));
-	border: 1px solid rgba(130, 140, 255, 0.18);
-	box-shadow: 0 8px 26px rgba(0, 0, 0, 0.1);
+	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.11));
+	border: 1px solid var(--forge-line);
+	box-shadow: none;
 }
 
-.forge-brand-assistant-row { border-top: 1px solid rgba(255, 255, 255, 0.022); }
-.forge-brand-assistant-row:hover { background: rgba(255, 255, 255, 0.009); }
+.forge-brand-assistant-row { border-top: 1px solid color-mix(in srgb, var(--forge-line) 65%, transparent); }
+.forge-brand-assistant-row:hover { background: color-mix(in srgb, var(--vscode-list-hoverBackground, #2a2d2e) 35%, transparent); }
 
 .forge-brand-composer-shell {
-	padding: 9px 16px 12px;
-	background: linear-gradient(180deg, rgba(8, 13, 25, 0), rgba(8, 13, 25, 0.95) 34%);
+	padding: 8px 10px 10px;
+	background: var(--forge-bg-0);
+	border-top: 1px solid color-mix(in srgb, var(--forge-line) 65%, transparent);
 }
 
 .forge-brand-composer {
-	width: min(920px, 100%);
+	width: min(860px, 100%);
 	margin: 0 auto;
-	border: 1px solid rgba(128, 139, 255, 0.19);
-	border-radius: 16px;
-	background: linear-gradient(145deg, rgba(17, 27, 47, 0.96), rgba(12, 20, 36, 0.97));
-	box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.038);
+	border: 1px solid var(--vscode-input-border, var(--forge-line));
+	border-radius: 9px;
+	background: var(--vscode-input-background, var(--forge-bg-2));
+	box-shadow: none;
 	overflow: hidden;
 }
-.forge-brand-composer:focus-within {
-	border-color: rgba(133, 142, 255, 0.42);
-	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(123, 127, 255, 0.08);
-}
+.forge-brand-composer:focus-within { border-color: var(--forge-focus-ring); }
 
 /* Keep provider internals out of the primary non-developer surface. */
 .forge-brand-composer button[title='Model settings'] span { display: none; }
 .forge-brand-composer button[title='Model settings']::after { content: 'Model'; }
 
 .forge-brand-chip {
-	background: rgba(255, 255, 255, 0.025);
+	background: transparent;
 	border: 1px solid var(--forge-line);
 	color: var(--forge-muted);
+	border-radius: 5px;
 }
 
 .forge-brand-send {
-	background: linear-gradient(135deg, #8588ff, #6d72f8);
-	color: #fff;
-	box-shadow: 0 6px 16px rgba(84, 88, 220, 0.22);
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #fff);
+	box-shadow: none;
 }
-.forge-brand-send:hover { filter: brightness(1.08); }
+.forge-brand-send:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
 
-.forge-brand-context-panel {
-	width: 232px !important;
-	background: linear-gradient(180deg, rgba(11, 18, 32, 0.76), rgba(8, 14, 26, 0.82));
-	border-left: 1px solid var(--forge-line);
+/* Kept only for fallback/legacy renderers. The active chat shell does not render this rail. */
+.forge-brand-context-panel { width: 232px !important; background: var(--forge-bg-0); border-left: 1px solid var(--forge-line); }
+.forge-brand-context-card { background: transparent; border: 1px solid var(--forge-line); border-radius: 6px; }
+
+.forge-brand-scroll::-webkit-scrollbar,
+body > div:has(> div[style*="z-index: 99999"]) ::-webkit-scrollbar { width: 6px; height: 6px; }
+.forge-brand-scroll::-webkit-scrollbar-thumb,
+body > div:has(> div[style*="z-index: 99999"]) ::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)); border-radius: 999px; }
+.forge-brand-scroll::-webkit-scrollbar-thumb:hover,
+body > div:has(> div[style*="z-index: 99999"]) ::-webkit-scrollbar-thumb:hover { background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7)); }
+
+/*
+ * Slash command palette.
+ * It is rendered through createPortal(document.body), outside @@void-scope, so scoped
+ * Tailwind utilities cannot be trusted here. Style the portal directly with VS Code theme
+ * tokens to prevent the white/default-button stack seen on Windows.
+ */
+body > div:has(> div[style*="z-index: 99999"]) {
+	position: fixed !important;
+	inset: 0 !important;
+	z-index: 99998 !important;
+	background: transparent !important;
+	font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
 }
 
-.forge-brand-context-card {
-	background: rgba(255, 255, 255, 0.016);
-	border: 1px solid rgba(137, 151, 190, 0.1);
-	border-radius: 10px;
+div[style*="z-index: 99999"] {
+	background: var(--vscode-quickInput-background, #252526) !important;
+	color: var(--vscode-quickInput-foreground, var(--vscode-foreground, #cccccc)) !important;
+	border: 1px solid var(--vscode-widget-border, #454545) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38) !important;
+	overflow: hidden !important;
+	font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
 }
 
-.forge-brand-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
-.forge-brand-scroll::-webkit-scrollbar-thumb { background: rgba(125, 137, 177, 0.18); border-radius: 999px; }
-.forge-brand-scroll::-webkit-scrollbar-thumb:hover { background: rgba(125, 137, 177, 0.34); }
+div[style*="z-index: 99999"] > div:first-child {
+	display: flex !important;
+	align-items: center !important;
+	gap: 7px !important;
+	min-height: 34px !important;
+	padding: 5px 9px !important;
+	border-bottom: 1px solid var(--vscode-widget-border, #454545) !important;
+	background: var(--vscode-quickInput-background, #252526) !important;
+}
 
-/* Bring the host workbench into the same family without making it monochrome. */
-.monaco-workbench {
-	--vscode-editor-background: #0a1020;
-	--vscode-sideBar-background: #0b1220;
-	--vscode-activityBar-background: #090f1b;
-	--vscode-titleBar-activeBackground: #090f1b;
-	--vscode-statusBar-background: #0d1526;
-	--vscode-panel-background: #0b1220;
-	--vscode-foreground: #e9effb;
-	--vscode-descriptionForeground: #8f9ab3;
-	--vscode-focusBorder: #7b7fff;
-	--vscode-button-background: #7478f2;
-	--vscode-button-foreground: #ffffff;
-	--vscode-button-hoverBackground: #8588ff;
-	--vscode-textLink-foreground: #70ddff;
-	--vscode-textLink-activeForeground: #a9eeff;
-	--vscode-widget-border: #26324a;
-	--vscode-input-background: #0e1728;
-	--vscode-input-foreground: #e9effb;
-	--vscode-list-activeSelectionBackground: #192540;
-	--vscode-list-hoverBackground: #121d31;
+div[style*="z-index: 99999"] > div:first-child > span:first-child {
+	color: var(--vscode-textLink-foreground, #58d9ff) !important;
+	font-size: 12px !important;
+	font-family: var(--vscode-editor-font-family, monospace) !important;
+}
+
+div[style*="z-index: 99999"] > div:first-child > span:last-child {
+	color: var(--vscode-descriptionForeground, #8b8b8b) !important;
+	font-size: 9px !important;
+}
+
+div[style*="z-index: 99999"] input {
+	flex: 1 1 auto !important;
+	min-width: 0 !important;
+	background: transparent !important;
+	color: var(--vscode-input-foreground, #cccccc) !important;
+	border: 0 !important;
+	outline: 0 !important;
+	font: inherit !important;
+	font-size: 11px !important;
+}
+
+div[style*="z-index: 99999"] input::placeholder { color: var(--vscode-input-placeholderForeground, #7a7a7a) !important; }
+
+div[style*="z-index: 99999"] > div:nth-child(2) {
+	max-height: min(340px, 52vh) !important;
+	overflow-y: auto !important;
+	padding: 4px 0 !important;
+	background: var(--vscode-quickInput-background, #252526) !important;
+}
+
+div[style*="z-index: 99999"] > div:nth-child(2) > div > div:first-child {
+	padding: 7px 10px 4px !important;
+	color: var(--vscode-descriptionForeground, #8b8b8b) !important;
+	font-size: 8.5px !important;
+	font-weight: 650 !important;
+	letter-spacing: 0.08em !important;
+	text-transform: uppercase !important;
+}
+
+div[style*="z-index: 99999"] button {
+	display: flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+	width: 100% !important;
+	min-height: 38px !important;
+	padding: 5px 9px !important;
+	margin: 0 !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	color: var(--vscode-quickInput-foreground, #cccccc) !important;
+	font: inherit !important;
+	text-align: left !important;
+	cursor: pointer !important;
+	box-shadow: none !important;
+}
+
+div[style*="z-index: 99999"] button:hover,
+div[style*="z-index: 99999"] button:focus-visible,
+div[style*="z-index: 99999"] button[class*="bg-zinc-800"] {
+	background: var(--vscode-list-hoverBackground, #2a2d2e) !important;
+	outline: none !important;
+}
+
+div[style*="z-index: 99999"] button > span:first-child {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 24px !important;
+	height: 24px !important;
+	flex: 0 0 24px !important;
+	border-radius: 5px !important;
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)) !important;
+	color: var(--vscode-icon-foreground, #c5c5c5) !important;
+}
+
+div[style*="z-index: 99999"] button > div {
+	flex: 1 1 auto !important;
+	min-width: 0 !important;
+}
+
+div[style*="z-index: 99999"] button > div > div:first-child {
+	color: var(--vscode-foreground, #cccccc) !important;
+	font-size: 11px !important;
+	line-height: 1.2 !important;
+}
+
+div[style*="z-index: 99999"] button > div > div:last-child {
+	margin-top: 2px !important;
+	color: var(--vscode-descriptionForeground, #8b8b8b) !important;
+	font-size: 9px !important;
+	line-height: 1.2 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+div[style*="z-index: 99999"] button > span:last-child {
+	flex: 0 0 auto !important;
+	max-width: 118px !important;
+	color: var(--vscode-descriptionForeground, #8b8b8b) !important;
+	font-size: 9px !important;
+	font-family: var(--vscode-editor-font-family, monospace) !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
 }
 
 @media (max-width: 1180px) {
 	.forge-brand-context-panel { display: none; }
 }
 
-@media (max-width: 900px) {
-	.forge-brand-empty-card .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+@media (max-width: 620px) {
+	.forge-chat-action span { display: none; }
+	.forge-chat-action { width: 27px; padding: 0; }
+	.forge-chat-health-separator,
+	.forge-chat-healthline span:last-child { display: none; }
+	.forge-brand-empty-card { width: calc(100% - 18px); padding-inline: 10px; }
 }
 
-@media (max-width: 820px) {
-	.forge-brand-sidebar-expanded { width: 200px !important; }
+@media (max-width: 460px) {
+	.forge-chat-workspace-name { max-width: 120px; }
+	.forge-chat-section-label { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -294,7 +425,9 @@
 	.forge-brand-tool,
 	.forge-brand-suggestion,
 	.forge-brand-thread,
-	.forge-brand-rail-button { transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease, filter 150ms ease; }
+	.forge-brand-rail-button,
+	.forge-chat-action,
+	.forge-chat-icon-action { transition: background 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -302,8 +435,8 @@
 	.forge-premium-shell *::before,
 	.forge-premium-shell *::after {
 		scroll-behavior: auto !important;
-		transition-duration: 0.01ms !important;
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
 	}
 }
