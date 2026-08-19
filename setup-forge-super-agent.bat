@@ -87,8 +87,9 @@ if errorlevel 1 (
 )
 
 rem --full clones SkillOpt, Understand Anything, Agent Lightning, Open Design and AionUi.
+rem --browser keeps the bootstrap contract aligned with forge_browser's Playwright Chromium dependency.
 rem Agent Lightning's GPU/RL stack is intentionally NOT installed; its source is only pinned locally for the later training phase.
-"!FORGE_NODE!" scripts\forge-super-agent-bootstrap.mjs --full --setup
+"!FORGE_NODE!" scripts\forge-super-agent-bootstrap.mjs --full --setup --browser
 if errorlevel 1 (
     echo [forge-setup] WARNING: One or more optional Super Agent integrations could not finish setup.
     echo [forge-setup] WARNING: Forge core will still be validated and can launch. Re-run setup later to finish integrations.
