@@ -21,6 +21,7 @@ type KnowledgeSnapshot = {
 
 export interface ForgeChatHeaderProps {
 	workspaceName: string;
+	workspacePath?: string;
 	workspaceReady: boolean;
 	isStreaming: boolean;
 	slashContext?: SlashCommandContext;
@@ -28,6 +29,7 @@ export interface ForgeChatHeaderProps {
 
 export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 	workspaceName,
+	workspacePath,
 	workspaceReady,
 	isStreaming,
 	slashContext,
@@ -50,8 +52,8 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 			await skillsService.reloadSkills();
 
 			let indexStats: { totalFiles: number; totalChunks: number } | undefined;
-			if (refreshIndex && workspaceReady) {
-				const stats = await slashContext.accessor.get(ISemanticSearchService).indexWorkspace();
+			if (refreshIndex && workspaceReady && workspacePath) {
+				const stats = await slashContext.accessor.get(ISemanticSearchService).indexWorkspace(workspacePath);
 				indexStats = { totalFiles: stats.totalFiles, totalChunks: stats.totalChunks };
 			}
 
@@ -67,7 +69,7 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 			console.warn('[Forge Evolution] Could not refresh project knowledge:', error);
 			if (!disposedRef.current) setKnowledgeState('error');
 		}
-	}, [slashContext, workspaceReady]);
+	}, [slashContext, workspacePath, workspaceReady]);
 
 	useEffect(() => {
 		void refreshKnowledge(false);
