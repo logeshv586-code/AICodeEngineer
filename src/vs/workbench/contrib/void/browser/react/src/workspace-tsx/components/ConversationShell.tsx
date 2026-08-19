@@ -55,6 +55,7 @@ const generatedTaskDisplayLabels = new Map<string, string>([
 	['Verify the current result and fix anything that is still wrong.', 'Verify the result'],
 	['Review the current work and fix anything important before finishing.', 'Review before finish'],
 	['Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.', 'Use the attached context'],
+	['Inspect the attached context and continue with the task.', 'Use the attached context'],
 	['Continue with the attached context.', 'Use the attached context'],
 ]);
 
@@ -113,7 +114,7 @@ export const ConversationShell: React.FC = () => {
 		let threadId = chatThreadsService.state.currentThreadId;
 		if (!threadId || !chatThreadsService.state.allThreads[threadId]) threadId = chatThreadsService.createNewThread();
 		const selections = chatThreadsService.getCurrentThreadState().stagingSelections.slice();
-		const effectiveMessage = trimmed || (selections.length > 0 ? 'Continue with the attached context.' : '');
+		const effectiveMessage = trimmed || (selections.length > 0 ? 'Inspect the attached context and continue with the task.' : '');
 		if (!effectiveMessage) return;
 
 		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: effectiveMessage, _chatSelections: selections, threadId });
