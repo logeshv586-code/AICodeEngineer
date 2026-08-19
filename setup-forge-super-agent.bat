@@ -59,6 +59,8 @@ echo [4/6] Running fast local contract tests...
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-ui-contract-test.mjs
 if errorlevel 1 goto :failed
+"!FORGE_NODE!" scripts\forge-native-setup-contract.mjs
+if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-react-service-export-contract.mjs
 if errorlevel 1 goto :failed
 "!FORGE_NODE!" scripts\forge-model-provider-contract-test.mjs
