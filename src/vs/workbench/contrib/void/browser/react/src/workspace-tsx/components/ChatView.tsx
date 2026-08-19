@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Sparkles, Command, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Sparkles, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -47,18 +47,12 @@ export interface ChatViewProps {
 	onRevertMessage?: (messageIndex: number) => void;
 }
 
-const EmptyState: React.FC<{ onCommandsClick: (event: React.MouseEvent<HTMLButtonElement>) => void }> = ({ onCommandsClick }) => (
+const EmptyState: React.FC = () => (
 	<div className='flex h-full items-center justify-center select-none px-5 py-8'>
 		<div className='forge-brand-empty-card text-center'>
-			<div className='flex justify-center mb-4'><ForgeBrandMark size={52} /></div>
-			<div className='text-[18px] font-semibold tracking-[-0.025em] text-[var(--forge-text)]'>What would you like to make?</div>
-			<div className='text-[11px] leading-relaxed text-[var(--forge-muted)] mt-2.5 max-w-[450px] mx-auto'>Describe the result in your own words. Forge will understand the project, choose the right tools, make the changes, and verify the result automatically.</div>
-			<div className='mt-4 flex items-center justify-center gap-1.5 flex-wrap' aria-label='Forge capabilities'>
-				<span className='forge-brand-chip text-[9px] px-2 py-1 rounded-lg'>Project-aware</span>
-				<span className='forge-brand-chip text-[9px] px-2 py-1 rounded-lg'>Works across files</span>
-				<span className='forge-brand-chip text-[9px] px-2 py-1 rounded-lg'>Verifies before finish</span>
-			</div>
-			<button type='button' onClick={onCommandsClick} className='forge-brand-tool mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9.5px] cursor-pointer'><Command size={11} /><span>Advanced controls</span></button>
+			<div className='flex justify-center mb-3'><ForgeBrandMark size={42} /></div>
+			<div className='text-[15px] font-medium tracking-[-0.015em] text-[var(--forge-text)]'>How can Forge help with this project?</div>
+			<div className='text-[10.5px] leading-relaxed text-[var(--forge-muted)] mt-2 max-w-[420px] mx-auto'>Describe what you want to change or build. Forge will inspect the project, use the right tools and skills, make the changes, and verify the result.</div>
 		</div>
 	</div>
 );
@@ -306,7 +300,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setLocalAttachments(previous => previous.filter((_, i) => i !== localIndex));
 	}, [attachments.length, localAttachments, onRemoveAttachment, removeStagedAttachment]);
 
-	const handleOpenCommands = useCallback((event: React.MouseEvent<HTMLButtonElement>) => { setSlashAnchor(event.currentTarget.getBoundingClientRect()); setIsSlashOpen(true); }, []);
 	const handleSlashSelect = useCallback((cmd: SlashCommand, args: string) => {
 		setIsSlashOpen(false);
 		setSlashAnchor(null);
@@ -327,7 +320,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		{slashContext && <SlashCommandPalette isOpen={isSlashOpen} onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }} onSelect={handleSlashSelect} anchorRect={slashAnchor} context={slashContext} />}
 		<div className='forge-brand-scroll flex-1 overflow-y-auto'>
 			<div className='mx-auto w-full max-w-[980px] min-h-full'>
-				{messages.length === 0 ? <EmptyState onCommandsClick={handleOpenCommands} /> : <>
+				{messages.length === 0 ? <EmptyState /> : <>
 					{messages.map((message, index) => {
 						const revert = message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!);
 						const copy = message.content ? () => { void copyText(message.content); } : undefined;
