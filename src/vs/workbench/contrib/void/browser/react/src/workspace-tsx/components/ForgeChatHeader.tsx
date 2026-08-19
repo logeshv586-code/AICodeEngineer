@@ -106,7 +106,6 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 					<span className='forge-chat-workspace-name truncate' title={workspaceName}>{workspaceName}</span>
 				</div>
 				<div className='forge-chat-header-actions'>
-					<span className='forge-chat-command-hint' title='Type / in the composer to open Forge commands'>/ commands</span>
 					<button type='button' className='forge-chat-icon-action' onClick={() => { void refreshKnowledge(true); }} disabled={!workspaceReady || knowledgeState === 'syncing'} title='Refresh project knowledge and workspace skills' aria-label='Refresh project knowledge'>
 						<RefreshCw size={13} className={knowledgeState === 'syncing' ? 'animate-spin' : ''} />
 					</button>
