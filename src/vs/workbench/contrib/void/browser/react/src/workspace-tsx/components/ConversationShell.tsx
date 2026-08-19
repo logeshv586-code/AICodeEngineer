@@ -6,9 +6,9 @@
 import React, { useCallback, useMemo } from 'react';
 import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useRawAccessor, useSettingsState } from '../../util/services.tsx';
 import { ChatView, ChatViewMessage } from './ChatView.tsx';
-import { SimpleSidebar } from './SimpleSidebar.tsx';
-import { ForgeContextPanel } from './ForgeContextPanel.tsx';
+import { ForgeChatHeader } from './ForgeChatHeader.tsx';
 import type { SlashCommandContext } from '../utils/slashCommandRouter.tsx';
+import { FORGE_EVOLUTION_POLICY, FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts.ts';
 import '../forgeBrand.css';
 
 const contentToText = (value: unknown): string => {
@@ -35,14 +35,8 @@ const contentToText = (value: unknown): string => {
 
 const messageText = (message: any): string => contentToText(message.displayContent ?? message.content ?? '');
 
-const privateSessionTitle = (createdAt: string): string => {
-	const date = new Date(createdAt);
-	if (Number.isNaN(date.getTime())) return 'Conversation';
-	return `Session ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
-};
-
-// Canned product actions can carry detailed execution guidance to the agent while the
-// conversation shows only the user's high-level intent. Free-form user text is never changed.
+// Product actions may carry richer execution guidance to the backend while the visible
+// conversation stays concise. Free-form user text is always shown exactly as entered.
 const generatedTaskDisplayLabels = new Map<string, string>([
 	['Understand this codebase and explain the architecture I need for my task.', 'Understand this project'],
 	['Implement this feature end-to-end, run targeted checks, and review the final diff.', 'Build this feature'],
@@ -57,7 +51,11 @@ const generatedTaskDisplayLabels = new Map<string, string>([
 	['Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.', 'Use the attached context'],
 	['Inspect the attached context and continue with the task.', 'Use the attached context'],
 	['Continue with the attached context.', 'Use the attached context'],
+	[FORGE_PROJECT_EVOLUTION_TASK, 'Evolve this project'],
+	[FORGE_SKILL_EVOLUTION_TASK, 'Evolve project skills'],
 ]);
+
+const withEvolutionPolicy = (message: string): string => `${message}\n\n${FORGE_EVOLUTION_POLICY}`;
 
 export const ConversationShell: React.FC = () => {
 	const accessor = useAccessor();
@@ -91,23 +89,8 @@ export const ConversationShell: React.FC = () => {
 			.filter((message): message is ChatViewMessage => message !== null);
 	}, [currentThread]);
 
-	const threadItems = useMemo(() => Object.values(threadsState.allThreads)
-		.filter((thread): thread is NonNullable<typeof thread> => !!thread)
-		.map(thread => {
-			const visibleMessages = thread.messages.filter((message: any) => message.role === 'user' || message.role === 'assistant');
-			return {
-				id: thread.id,
-				title: visibleMessages.length > 0 ? privateSessionTitle(thread.createdAt) : 'New conversation',
-				preview: visibleMessages.length > 0 ? `${visibleMessages.length} messages` : 'Ready for a new task',
-				timestamp: new Date(thread.lastModified || thread.createdAt).getTime(),
-				isActive: thread.id === currentThreadId,
-			};
-		})
-		.sort((a, b) => b.timestamp - a.timestamp), [currentThreadId, threadsState.allThreads]);
-
 	const stagedSelections = currentThread?.state.stagingSelections ?? [];
 	const stagedFiles = useMemo(() => stagedSelections.filter(selection => selection.type === 'File').map(selection => selection.uri.fsPath), [stagedSelections]);
-	const stagedImages = useMemo(() => stagedSelections.filter(selection => selection.type === 'Image').map(selection => selection.uri.fsPath.split(/[\\/]/).pop() || selection.uri.fsPath), [stagedSelections]);
 
 	const sendMessage = useCallback(async (message: string) => {
 		const trimmed = message.trim();
@@ -117,38 +100,46 @@ export const ConversationShell: React.FC = () => {
 		const effectiveMessage = trimmed || (selections.length > 0 ? 'Inspect the attached context and continue with the task.' : '');
 		if (!effectiveMessage) return;
 
-		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: effectiveMessage, _chatSelections: selections, threadId });
+		const backendMessage = withEvolutionPolicy(effectiveMessage);
+		const displayLabel = generatedTaskDisplayLabels.get(effectiveMessage) ?? effectiveMessage;
 
-		const displayLabel = generatedTaskDisplayLabels.get(effectiveMessage);
-		if (displayLabel) {
+		const applyVisibleLabel = () => {
 			const state = chatThreadsService.state;
 			const thread = state.allThreads[threadId];
-			if (thread) {
-				let targetIndex = -1;
-				for (let index = thread.messages.length - 1; index >= 0; index--) {
-					const candidate = thread.messages[index];
-					if (candidate.role === 'user' && candidate.displayContent === effectiveMessage) {
-						targetIndex = index;
-						break;
-					}
-				}
-				if (targetIndex >= 0) {
-					const nextMessages = thread.messages.slice();
-					const userMessage = nextMessages[targetIndex];
-					if (userMessage.role === 'user') {
-						nextMessages[targetIndex] = { ...userMessage, displayContent: displayLabel };
-						chatThreadsService.dangerousSetState({
-							...state,
-							allThreads: {
-								...state.allThreads,
-								[threadId]: { ...thread, messages: nextMessages },
-							},
-						});
-					}
+			if (!thread) return;
+
+			let targetIndex = -1;
+			for (let index = thread.messages.length - 1; index >= 0; index--) {
+				const candidate = thread.messages[index];
+				if (candidate.role === 'user' && (candidate.content === backendMessage || candidate.displayContent === backendMessage)) {
+					targetIndex = index;
+					break;
 				}
 			}
-		}
+			if (targetIndex < 0) return;
 
+			const nextMessages = thread.messages.slice();
+			const userMessage = nextMessages[targetIndex];
+			if (userMessage.role !== 'user' || userMessage.displayContent === displayLabel) return;
+			nextMessages[targetIndex] = { ...userMessage, displayContent: displayLabel };
+			chatThreadsService.dangerousSetState({
+				...state,
+				allThreads: {
+					...state.allThreads,
+					[threadId]: { ...thread, messages: nextMessages },
+				},
+			});
+		};
+
+		// The service adds the user message synchronously before its first async boundary.
+		// Rewrite displayContent immediately so product guidance never appears in the chat UI.
+		const responsePromise = chatThreadsService.addUserMessageAndStreamResponse({ userMessage: backendMessage, _chatSelections: selections, threadId });
+		applyVisibleLabel();
+		queueMicrotask(applyVisibleLabel);
+		window.setTimeout(applyVisibleLabel, 0);
+
+		await responsePromise;
+		applyVisibleLabel();
 		chatThreadsService.setCurrentThreadState({ stagingSelections: [] });
 	}, [chatThreadsService]);
 
@@ -167,22 +158,18 @@ export const ConversationShell: React.FC = () => {
 	return (
 		<div className='forge-premium-shell relative h-full w-full min-h-0 min-w-0 overflow-hidden'>
 			<div className='forge-brand-aurora' aria-hidden='true' />
-			<div className='relative z-[1] flex h-full w-full min-h-0 min-w-0 overflow-hidden'>
-				<SimpleSidebar
-					threads={threadItems}
-					activeThreadId={currentThreadId}
-					onSelectThread={threadId => chatThreadsService.switchToThread(threadId)}
-					onNewThread={() => { chatThreadsService.createNewThread(); }}
-					onDeleteThread={threadId => chatThreadsService.deleteThread(threadId)}
-					onSettingsClick={() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }}
+			<div className='forge-chat-layout relative z-[1] h-full w-full min-h-0 min-w-0 overflow-hidden'>
+				<ForgeChatHeader
 					workspaceName={workspaceName}
+					workspaceReady={workspaceReady}
+					isStreaming={isStreaming}
 					slashContext={slashContext}
 				/>
-
 				<ChatView
 					messages={messages}
 					isStreaming={isStreaming}
 					onSendMessage={sendMessage}
+					onNewThread={() => { chatThreadsService.createNewThread(); }}
 					slashContext={slashContext}
 					workspaceReady={workspaceReady}
 					selectedFiles={stagedFiles}
@@ -191,8 +178,6 @@ export const ConversationShell: React.FC = () => {
 					onOpenSettings={() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }}
 					onRevertMessage={messageIndex => chatThreadsService.revertToMessage({ threadId: currentThreadId, messageIdx: messageIndex })}
 				/>
-
-				<ForgeContextPanel files={stagedFiles} images={stagedImages} workspaceReady={workspaceReady} onSendMessage={message => { void sendMessage(message); }} />
 			</div>
 		</div>
 	);
