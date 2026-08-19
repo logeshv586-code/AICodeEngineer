@@ -7,9 +7,11 @@ import React, { useCallback, useMemo } from 'react';
 import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useRawAccessor, useSettingsState } from '../../util/services.tsx';
 import { ChatView, ChatViewMessage } from './ChatView.tsx';
 import { ForgeChatHeader } from './ForgeChatHeader.tsx';
+import { ForgePanelIntro } from './ForgePanelIntro.tsx';
 import type { SlashCommandContext } from '../utils/slashCommandRouter.tsx';
 import { FORGE_EVOLUTION_POLICY, FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts.ts';
 import '../forgeBrand.css';
+import '../forgeRightPanel.css';
 
 const contentToText = (value: unknown): string => {
 	if (typeof value === 'string') return value;
@@ -155,9 +157,10 @@ export const ConversationShell: React.FC = () => {
 	}), [chatThreadsService, commandService, rawAccessor, sendMessage]);
 
 	const selectedModel = settingsState.modelSelectionOfFeature.Chat;
+	const isEmpty = messages.length === 0;
 
 	return (
-		<div className='forge-premium-shell relative h-full w-full min-h-0 min-w-0 overflow-hidden'>
+		<div className='forge-premium-shell forge-ai-panel-right relative h-full w-full min-h-0 min-w-0 overflow-hidden'>
 			<div className='forge-brand-aurora' aria-hidden='true' />
 			<div className='forge-chat-layout relative z-[1] h-full w-full min-h-0 min-w-0 overflow-hidden'>
 				<ForgeChatHeader
@@ -167,6 +170,11 @@ export const ConversationShell: React.FC = () => {
 					isStreaming={isStreaming}
 					slashContext={slashContext}
 				/>
+				{isEmpty && <ForgePanelIntro
+					workspaceName={workspaceName}
+					onEvolveProject={() => { void sendMessage(FORGE_PROJECT_EVOLUTION_TASK); }}
+					onEvolveSkills={() => { void sendMessage(FORGE_SKILL_EVOLUTION_TASK); }}
+				/>}
 				<ChatView
 					messages={messages}
 					isStreaming={isStreaming}
@@ -179,6 +187,7 @@ export const ConversationShell: React.FC = () => {
 					modelName={selectedModel?.modelName ?? ''}
 					onOpenSettings={() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }}
 					onRevertMessage={messageIndex => chatThreadsService.revertToMessage({ threadId: currentThreadId, messageIdx: messageIndex })}
+					className={isEmpty ? 'forge-chat-with-intro' : ''}
 				/>
 			</div>
 		</div>
