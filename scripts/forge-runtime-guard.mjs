@@ -19,8 +19,10 @@ const startupServiceRuntimeFiles = [
 	'out/vs/workbench/contrib/void/common/sendLLMMessageService.js',
 	'out/vs/workbench/contrib/void/common/voidModelService.js',
 	'out/vs/workbench/contrib/void/common/refreshModelService.js',
+	'out/vs/workbench/contrib/void/common/forge/contracts/ISemanticSearchService.js',
 	'out/vs/workbench/contrib/void/common/forge/intelligence/adaptiveModelRouter.js',
 	'out/vs/workbench/contrib/void/common/forge/intelligence/taskProfile.js',
+	'out/vs/workbench/contrib/void/browser/forge/semanticSearchService.js',
 ];
 
 const requiredRuntimeFiles = [
@@ -31,6 +33,7 @@ const requiredRuntimeFiles = [
 	'out/vs/workbench/contrib/void/browser/forge/events/forgeEventBus.js',
 	'out/vs/workbench/contrib/void/browser/forge/execution/agents/agentRegistry.js',
 	'out/vs/workbench/contrib/void/browser/forge/execution/blackboard/blackboard.js',
+	'out/vs/workbench/contrib/void/forge/semanticSearchService.js',
 	'out/vs/workbench/contrib/void/forge/events/forgeEventBus.js',
 	'out/vs/workbench/contrib/void/forge/execution/agents/agentRegistry.js',
 	'out/vs/workbench/contrib/void/forge/execution/blackboard/blackboard.js',
