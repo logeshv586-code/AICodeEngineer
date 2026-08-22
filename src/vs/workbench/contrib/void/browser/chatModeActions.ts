@@ -3,8 +3,9 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
+import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IVoidSettingsService } from '../common/voidSettingsService.js';
 import { ChatMode } from '../common/voidSettingsTypes.js';
 
@@ -18,7 +19,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: VOID_SET_CHAT_MODE_ACTION_ID,
-			title: 'Forge AI: Set Chat Mode',
+			title: localize2('forgeSetChatMode', 'Forge AI: Set Chat Mode'),
 		});
 	}
 
