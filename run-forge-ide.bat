@@ -4,6 +4,9 @@ title Launching Forge Platform IDE...
 set VSCODE_DEV=1
 set VSCODE_CLI=1
 set ELECTRON_ENABLE_LOGGING=1
+rem VS Code extension hosts export this flag. If inherited, electron.exe runs as
+rem plain Node and exits without creating the Forge window.
+set ELECTRON_RUN_AS_NODE=
 set NODE_ENV=development
 
 pushd "%~dp0"

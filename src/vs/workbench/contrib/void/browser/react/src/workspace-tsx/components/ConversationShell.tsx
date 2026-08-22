@@ -3,12 +3,12 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useRawAccessor, useSettingsState } from '../../util/services.tsx';
 import { ChatView, ChatViewMessage } from './ChatView.tsx';
 import { ForgeChatHeader } from './ForgeChatHeader.tsx';
 import { ForgePanelIntro } from './ForgePanelIntro.tsx';
-import type { SlashCommandContext } from '../utils/slashCommandRouter.tsx';
+import { createAllCommands, type SlashCommandContext } from '../utils/slashCommandRouter.tsx';
 import { FORGE_EVOLUTION_POLICY, FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts.ts';
 import '../forgeBrand.css';
 import '../forgeRightPanel.css';
@@ -60,6 +60,7 @@ const generatedTaskDisplayLabels = new Map<string, string>([
 const withEvolutionPolicy = (message: string): string => `${message}\n\n${FORGE_EVOLUTION_POLICY}`;
 
 export const ConversationShell: React.FC = () => {
+	const hasPreparedWelcomeRef = useRef(false);
 	const accessor = useAccessor();
 	const rawAccessor = useRawAccessor();
 	const threadsState = useChatThreadsState();
@@ -75,6 +76,13 @@ export const ConversationShell: React.FC = () => {
 	const workspaceReady = workspace.folders.length > 0;
 	const workspaceName = workspace.folders[0]?.name ?? 'No workspace open';
 	const workspacePath = workspace.folders[0]?.uri.fsPath;
+
+	useEffect(() => {
+		if (hasPreparedWelcomeRef.current) return;
+		hasPreparedWelcomeRef.current = true;
+		const restoredThread = chatThreadsService.getCurrentThread();
+		if (restoredThread?.messages.length) chatThreadsService.createNewThread();
+	}, [chatThreadsService]);
 
 	const messages = useMemo<ChatViewMessage[]>(() => {
 		if (!currentThread) return [];
@@ -156,6 +164,11 @@ export const ConversationShell: React.FC = () => {
 		sendMessage: message => { void sendMessage(message); },
 	}), [chatThreadsService, commandService, rawAccessor, sendMessage]);
 
+	const runIntroCommand = useCallback((commandName: string) => {
+		const command = createAllCommands(slashContext).find(candidate => candidate.name === commandName);
+		if (command) void Promise.resolve(command.execute({ ...slashContext, args: '' }));
+	}, [slashContext]);
+
 	const selectedModel = settingsState.modelSelectionOfFeature.Chat;
 	const isEmpty = messages.length === 0;
 
@@ -163,17 +176,18 @@ export const ConversationShell: React.FC = () => {
 		<div className='forge-premium-shell forge-ai-panel-right relative h-full w-full min-h-0 min-w-0 overflow-hidden'>
 			<div className='forge-brand-aurora' aria-hidden='true' />
 			<div className='forge-chat-layout relative z-[1] h-full w-full min-h-0 min-w-0 overflow-hidden'>
-				<ForgeChatHeader
+				{!isEmpty && <ForgeChatHeader
 					workspaceName={workspaceName}
 					workspacePath={workspacePath}
 					workspaceReady={workspaceReady}
 					isStreaming={isStreaming}
 					slashContext={slashContext}
-				/>
+				/>}
 				{isEmpty && <ForgePanelIntro
 					workspaceName={workspaceName}
 					onEvolveProject={() => { void sendMessage(FORGE_PROJECT_EVOLUTION_TASK); }}
 					onEvolveSkills={() => { void sendMessage(FORGE_SKILL_EVOLUTION_TASK); }}
+					onCommand={runIntroCommand}
 				/>}
 				<ChatView
 					messages={messages}

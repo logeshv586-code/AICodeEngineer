@@ -3,24 +3,24 @@
  * treats the React surface as a compact far-right IDE assistant rather than a full editor page.
  */
 
-.forge-ai-panel-right {
+.void-forge-ai-panel-right {
 	background:
 		radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--forge-iris) 7%, transparent), transparent 31%),
 		var(--forge-bg-0);
 	border-left: 1px solid color-mix(in srgb, var(--forge-line) 78%, transparent);
 }
 
-.forge-ai-panel-right .forge-chat-layout {
+.void-forge-ai-panel-right .void-forge-chat-layout {
 	background: transparent;
 }
 
-.forge-ai-panel-right .forge-chat-header {
+.void-forge-ai-panel-right .void-forge-chat-header {
 	padding: 8px 11px 7px;
 	background: color-mix(in srgb, var(--forge-bg-0) 94%, transparent);
 	backdrop-filter: blur(10px);
 }
 
-.forge-ai-panel-right .forge-chat-section-label {
+.void-forge-ai-panel-right .void-forge-chat-section-label {
 	font-size: 9px;
 	letter-spacing: 0.13em;
 	font-weight: 700;
@@ -30,31 +30,33 @@
 	color: transparent;
 }
 
-.forge-ai-panel-right .forge-chat-workspace-name {
+.void-forge-ai-panel-right .void-forge-chat-workspace-name {
 	font-size: 10px;
 	color: var(--forge-muted);
 }
 
-.forge-ai-panel-right .forge-chat-healthline {
+.void-forge-ai-panel-right .void-forge-chat-healthline {
 	margin-top: 4px;
 	font-size: 9px;
 }
 
-.forge-panel-intro {
-	flex: 0 0 auto;
-	padding: 20px 16px 10px;
-	max-width: 620px;
+.void-forge-panel-intro {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: clamp(28px, 7vh, 76px) 18px 14px;
+	max-width: 680px;
 	width: 100%;
 	margin: 0 auto;
 }
 
-.forge-panel-hero {
-	padding: 4px 3px 13px;
+.void-forge-panel-hero {
+	padding: 4px 8px 17px;
 }
 
-.forge-panel-title {
+.void-forge-premium-shell .void-forge-panel-title {
 	margin: 0;
-	font-size: clamp(26px, 5vw, 38px);
+	font-size: clamp(30px, 5vw, 42px);
 	line-height: 1;
 	font-weight: 720;
 	letter-spacing: -0.045em;
@@ -64,15 +66,15 @@
 	color: transparent;
 }
 
-.forge-panel-subtitle {
+.void-forge-panel-subtitle {
 	margin: 8px 0 0;
 	font-size: 14px;
 	line-height: 1.35;
 	color: var(--forge-text-2);
 }
 
-.forge-panel-workspace {
-	margin: 6px 0 0;
+.void-forge-panel-workspace {
+	display: none;
 	font-size: 9.5px;
 	line-height: 1.35;
 	color: var(--forge-muted-2);
@@ -81,17 +83,17 @@
 	text-overflow: ellipsis;
 }
 
-.forge-panel-workspace strong {
+.void-forge-panel-workspace strong {
 	font-weight: 600;
 	color: var(--forge-muted);
 }
 
-.forge-panel-capabilities {
+.void-forge-panel-capabilities {
 	display: grid;
 	gap: 2px;
 }
 
-.forge-panel-capability {
+.void-forge-panel-capability {
 	appearance: none;
 	width: 100%;
 	display: grid;
@@ -107,12 +109,12 @@
 	cursor: pointer;
 }
 
-.forge-panel-capability:hover {
+.void-forge-panel-capability:hover {
 	background: color-mix(in srgb, var(--vscode-list-hoverBackground, #2a2d2e) 64%, transparent);
 	border-color: color-mix(in srgb, var(--forge-line) 70%, transparent);
 }
 
-.forge-panel-capability-icon {
+.void-forge-panel-capability-icon {
 	width: 34px;
 	height: 34px;
 	display: inline-flex;
@@ -124,67 +126,56 @@
 	color: #8b8dff;
 }
 
-.forge-panel-capability-copy {
+.void-forge-panel-capability-copy {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
 	gap: 2px;
 }
 
-.forge-panel-capability-title {
+.void-forge-panel-capability-title {
 	font-size: 11.5px;
 	line-height: 1.25;
 	font-weight: 600;
 	color: var(--forge-text);
 }
 
-.forge-panel-capability-description {
+.void-forge-panel-capability-description {
 	font-size: 9.5px;
 	line-height: 1.35;
 	color: var(--forge-muted);
 }
 
-.forge-panel-command-hint {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin: 10px 3px 0;
-	padding: 8px 9px;
-	border: 1px solid color-mix(in srgb, var(--forge-line) 72%, transparent);
-	border-radius: 7px;
-	background: color-mix(in srgb, var(--forge-bg-2) 62%, transparent);
-	font-size: 9px;
-	line-height: 1.35;
-	color: var(--forge-muted);
+.void-forge-panel-command-list { margin-top: 10px; border: 1px solid color-mix(in srgb, var(--forge-line) 84%, transparent); border-radius: 8px; overflow: hidden; background: color-mix(in srgb, var(--forge-bg-1) 76%, transparent); box-shadow: 0 16px 46px rgba(0, 0, 0, .16); }
+.void-forge-panel-command { appearance: none; width: 100%; min-height: 43px; display: grid; grid-template-columns: 31px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 11px; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--forge-line) 70%, transparent); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.void-forge-panel-command:last-child { border-bottom: 0; }
+.void-forge-panel-command:hover, .void-forge-panel-command-active { background: linear-gradient(90deg, color-mix(in srgb, var(--forge-cyan) 5%, transparent), color-mix(in srgb, var(--forge-iris) 8%, transparent)); }
+.void-forge-panel-command-active { outline: 1px solid color-mix(in srgb, var(--forge-iris) 58%, transparent); outline-offset: -1px; }
+.void-forge-panel-command-icon { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--forge-iris) 22%, var(--forge-line)); border-radius: 7px; color: #8286ff; background: color-mix(in srgb, var(--forge-bg-2) 76%, transparent); }
+.void-forge-panel-command-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; font-size: 10.5px; color: var(--forge-text); }
+.void-forge-panel-command-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8.75px; color: var(--forge-muted); }
+.void-forge-panel-command code { padding-left: 10px; color: var(--forge-text-2); font: 9.5px/1 var(--vscode-editor-font-family, monospace); white-space: nowrap; }
+
+.void-forge-chat-with-intro .void-forge-brand-scroll {
+	display: none;
 }
 
-.forge-panel-command-key {
-	width: 22px;
-	height: 22px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 22px;
-	border-radius: 5px;
-	background: color-mix(in srgb, var(--forge-iris) 14%, transparent);
-	color: #9a8cff;
-	font: 600 12px/1 var(--vscode-editor-font-family, monospace);
+.void-forge-chat-with-intro {
+	flex: 0 0 auto;
+	height: auto;
+	min-height: auto;
 }
 
-.forge-chat-with-intro .forge-brand-scroll {
-	min-height: 0;
-}
-
-.forge-chat-with-intro .forge-brand-empty-card {
+.void-forge-chat-with-intro .void-forge-brand-empty-card {
 	display: none !important;
 }
 
 /* Screenshot-aligned composer: one plus button, one input, and two small utility chips. */
-.forge-right-composer-shell {
+.void-forge-right-composer-shell {
 	padding: 7px 10px 10px;
 }
 
-.forge-right-composer-row {
+.void-forge-right-composer-row {
 	display: grid;
 	grid-template-columns: 32px minmax(0, 1fr);
 	gap: 7px;
@@ -193,7 +184,7 @@
 	margin: 0 auto;
 }
 
-.forge-right-plus-button {
+.void-forge-right-plus-button {
 	width: 32px;
 	height: 32px;
 	display: inline-flex;
@@ -206,12 +197,12 @@
 	cursor: pointer;
 }
 
-.forge-right-plus-button:hover {
+.void-forge-right-plus-button:hover {
 	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 	color: var(--forge-text);
 }
 
-.forge-right-composer {
+.void-forge-right-composer {
 	width: 100%;
 	margin: 0;
 	border-radius: 8px;
@@ -219,24 +210,24 @@
 	background: color-mix(in srgb, var(--vscode-input-background, var(--forge-bg-2)) 88%, transparent);
 }
 
-.forge-right-composer:focus-within {
+.void-forge-right-composer:focus-within {
 	border-color: #7b7fff;
 	box-shadow: 0 0 0 1px color-mix(in srgb, #7b7fff 32%, transparent);
 }
 
-.forge-right-composer-input-row {
+.void-forge-right-composer-input-row {
 	display: flex;
 	align-items: flex-end;
 	gap: 7px;
 	padding: 4px 7px 4px 10px;
 }
 
-.forge-right-composer-input-row textarea {
+.void-forge-right-composer-input-row textarea {
 	min-height: 34px;
 	padding: 8px 0 6px;
 }
 
-.forge-right-composer-meta {
+.void-forge-right-composer-meta {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -246,15 +237,15 @@
 	min-width: 0;
 }
 
-.forge-right-composer-meta-left,
-.forge-right-composer-meta-right {
+.void-forge-right-composer-meta-left,
+.void-forge-right-composer-meta-right {
 	display: flex;
 	align-items: center;
 	gap: 5px;
 	min-width: 0;
 }
 
-.forge-right-meta-button {
+.void-forge-right-meta-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
@@ -270,12 +261,12 @@
 	white-space: nowrap;
 }
 
-.forge-right-meta-button:hover {
+.void-forge-right-meta-button:hover {
 	color: var(--forge-text);
 	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
-.forge-right-agent-ready {
+.void-forge-right-agent-ready {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
@@ -284,7 +275,7 @@
 	white-space: nowrap;
 }
 
-.forge-right-agent-ready::before {
+.void-forge-right-agent-ready::before {
 	content: '';
 	width: 6px;
 	height: 6px;
@@ -294,15 +285,15 @@
 }
 
 @media (max-width: 430px) {
-	.forge-panel-intro { padding: 16px 11px 8px; }
-	.forge-panel-title { font-size: 27px; }
-	.forge-panel-subtitle { font-size: 12px; }
-	.forge-panel-capability { grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding-inline: 5px; }
-	.forge-panel-capability-icon { width: 30px; height: 30px; }
-	.forge-panel-capability-description { font-size: 9px; }
-	.forge-right-composer-shell { padding-inline: 7px; }
-	.forge-right-composer-row { grid-template-columns: 30px minmax(0, 1fr); gap: 5px; }
-	.forge-right-plus-button { width: 30px; height: 30px; }
-	.forge-right-composer-meta { width: calc(100% - 35px); }
-	.forge-right-agent-ready { display: none; }
+	.void-forge-panel-intro { padding: 16px 11px 8px; }
+	.void-forge-panel-title { font-size: 27px; }
+	.void-forge-panel-subtitle { font-size: 12px; }
+	.void-forge-panel-capability { grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding-inline: 5px; }
+	.void-forge-panel-capability-icon { width: 30px; height: 30px; }
+	.void-forge-panel-capability-description { font-size: 9px; }
+	.void-forge-right-composer-shell { padding-inline: 7px; }
+	.void-forge-right-composer-row { grid-template-columns: 30px minmax(0, 1fr); gap: 5px; }
+	.void-forge-right-plus-button { width: 30px; height: 30px; }
+	.void-forge-right-composer-meta { width: calc(100% - 35px); }
+	.void-forge-right-agent-ready { display: none; }
 }

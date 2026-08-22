@@ -12,8 +12,12 @@ export const FORGE_EVOLUTION_POLICY = `
 <forge_evolution_policy>
 Treat the current workspace code, tests, local project memory, semantic index and active skills as the source of truth for every task.
 
+Classify the request before acting (explanation, diagnosis, coding, logic/reasoning, automation, design, or mixed). For implementation tasks, turn the request into explicit acceptance criteria, inspect only relevant context, choose the strongest suitable model and focused skills, then plan, execute, verify, and review. For mixed tasks, keep one accountable primary workflow and use specialist capabilities only where they materially improve the result.
+
 After completing the requested work, perform a bounded evolution pass on only the code and workflows that were relevant to the task:
 - Re-read the changed or important files and validate the result with the most useful targeted checks.
+- Test important logic at boundaries and failure paths, not only the happy path. For UI and design work, verify the rendered result with browser evidence when that capability is available.
+- For automation, preserve approval gates for destructive or externally consequential actions, make retries idempotent where practical, and report durable completion state instead of stopping after a suggestion.
 - Prefer existing registry skills before inventing new project-local guidance.
 - If a reusable project-specific pattern has been proven by the code, you may create or improve a concise workspace skill under .agents/skills so future runs handle that pattern better. Never rewrite the global skill registry automatically.
 - Keep the local code index and workspace skills refreshable after changes so the next agent run starts from current knowledge.

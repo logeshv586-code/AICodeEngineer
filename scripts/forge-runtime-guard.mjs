@@ -83,7 +83,9 @@ const run = (command, args) => {
 	const result = spawnSync(command, args, {
 		cwd: workspaceRoot,
 		stdio: 'inherit',
-		shell: process.platform === 'win32',
+		// Windows needs a shell for npm.cmd, but routing node.exe through cmd.exe
+		// breaks installations under paths such as "C:\\Program Files\\nodejs".
+		shell: process.platform === 'win32' && /\.cmd$/i.test(command),
 	});
 	if (result.error) {
 		console.error(`[forge-guard] Could not run ${command}: ${result.error.message}`);

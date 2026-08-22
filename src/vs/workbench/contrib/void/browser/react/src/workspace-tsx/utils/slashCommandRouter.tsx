@@ -90,7 +90,7 @@ const callForgeTool = async (accessor: ServicesAccessor, toolName: string, param
 	}
 };
 
-function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
+export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 	const { accessor, commandService, chatThreadsService, sendMessage } = ctx;
 	return [
 		{ name: '/agent', label: 'Chat Mode', category: 'Agent', description: 'Switch to normal chat mode', icon: <MessageSquare size={14} />, execute() { void commandService.executeCommand('void.setChatMode', 'normal'); } },

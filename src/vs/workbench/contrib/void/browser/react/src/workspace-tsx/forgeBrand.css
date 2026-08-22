@@ -1,6 +1,6 @@
 /* Forge chat surface — use the host editor theme first, with Forge accents only where useful. */
 
-.forge-premium-shell {
+.void-forge-premium-shell {
 	--forge-bg-0: var(--vscode-sideBar-background, #181818);
 	--forge-bg-1: var(--vscode-editor-background, #1f1f1f);
 	--forge-bg-2: var(--vscode-input-background, #242424);
@@ -28,35 +28,35 @@
 	isolation: isolate;
 }
 
-.forge-premium-shell * { box-sizing: border-box; }
-.forge-premium-shell ::selection { background: var(--vscode-editor-selectionBackground, rgba(70, 90, 150, 0.55)); color: inherit; }
+.void-forge-premium-shell * { box-sizing: border-box; }
+.void-forge-premium-shell ::selection { background: var(--vscode-editor-selectionBackground, rgba(70, 90, 150, 0.55)); color: inherit; }
 
-.forge-premium-shell button:focus-visible,
-.forge-premium-shell [role='button']:focus-visible,
-.forge-premium-shell textarea:focus-visible,
-.forge-premium-shell input:focus-visible,
-.forge-premium-shell a:focus-visible {
+.void-forge-premium-shell button:focus-visible,
+.void-forge-premium-shell [role='button']:focus-visible,
+.void-forge-premium-shell textarea:focus-visible,
+.void-forge-premium-shell input:focus-visible,
+.void-forge-premium-shell a:focus-visible {
 	outline: 2px solid var(--forge-focus-ring);
 	outline-offset: 2px;
 }
 
 /* The old decorative aurora remains as a compatibility hook but is intentionally hidden. */
-.forge-brand-aurora { display: none; }
+.void-forge-brand-aurora { display: none; }
 
-.forge-chat-layout {
+.void-forge-chat-layout {
 	display: flex;
 	flex-direction: column;
 	background: var(--forge-bg-0);
 }
 
 /* Compact editor-style header: no second conversation sidebar and no right context rail. */
-.forge-chat-header {
+.void-forge-chat-header {
 	border-bottom: 1px solid var(--forge-line);
 	background: var(--forge-bg-0);
 	padding: 8px 10px 7px;
 }
 
-.forge-chat-header-main {
+.void-forge-chat-header-main {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -64,35 +64,35 @@
 	min-width: 0;
 }
 
-.forge-chat-workspace {
+.void-forge-chat-workspace {
 	display: flex;
 	align-items: center;
 	gap: 7px;
 	min-width: 0;
 }
 
-.forge-chat-section-label {
+.void-forge-chat-section-label {
 	font-size: 9px;
 	font-weight: 650;
 	letter-spacing: 0.1em;
 	color: var(--forge-cyan);
 }
 
-.forge-chat-workspace-name {
+.void-forge-chat-workspace-name {
 	font-size: 11px;
 	font-weight: 500;
 	color: var(--forge-text-2);
 }
 
-.forge-chat-header-actions {
+.void-forge-chat-header-actions {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	flex-shrink: 0;
 }
 
-.forge-chat-action,
-.forge-chat-icon-action {
+.void-forge-chat-action,
+.void-forge-chat-icon-action {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -108,24 +108,24 @@
 	padding: 0 7px;
 }
 
-.forge-chat-icon-action {
+.void-forge-chat-icon-action {
 	width: 27px;
 	padding: 0;
 }
 
-.forge-chat-action:hover,
-.forge-chat-icon-action:hover {
+.void-forge-chat-action:hover,
+.void-forge-chat-icon-action:hover {
 	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 	color: var(--forge-text);
 }
 
-.forge-chat-action:disabled,
-.forge-chat-icon-action:disabled {
+.void-forge-chat-action:disabled,
+.void-forge-chat-icon-action:disabled {
 	opacity: 0.42;
 	cursor: default;
 }
 
-.forge-chat-healthline {
+.void-forge-chat-healthline {
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -136,64 +136,64 @@
 	color: var(--forge-muted-2);
 }
 
-.forge-chat-health-dot {
+.void-forge-chat-health-dot {
 	width: 6px;
 	height: 6px;
 	border-radius: 999px;
 	background: var(--forge-muted-2);
 	flex-shrink: 0;
 }
-.forge-chat-health-ready { background: var(--forge-success); }
-.forge-chat-health-syncing { background: var(--forge-cyan); }
-.forge-chat-health-error { background: var(--forge-danger); }
-.forge-chat-health-separator { opacity: 0.45; }
+.void-forge-chat-health-ready { background: var(--forge-success); }
+.void-forge-chat-health-syncing { background: var(--forge-cyan); }
+.void-forge-chat-health-error { background: var(--forge-danger); }
+.void-forge-chat-health-separator { opacity: 0.45; }
 
-.forge-brand-wordmark { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.forge-brand-wordmark-copy { min-width: 0; line-height: 1.05; }
-.forge-brand-name { font-size: 12px; font-weight: 650; color: var(--forge-text); }
-.forge-brand-tagline { margin-top: 3px; font-size: 9px; color: var(--forge-muted); white-space: nowrap; }
-.forge-brand-wordmark-compact .forge-brand-name { font-size: 11px; }
+.void-forge-brand-wordmark { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.void-forge-brand-wordmark-copy { min-width: 0; line-height: 1.05; }
+.void-forge-brand-name { font-size: 12px; font-weight: 650; color: var(--forge-text); }
+.void-forge-brand-tagline { margin-top: 3px; font-size: 9px; color: var(--forge-muted); white-space: nowrap; }
+.void-forge-brand-wordmark-compact .void-forge-brand-name { font-size: 11px; }
 
 /* Legacy navigation classes are kept for other fallback views, but the active ConversationShell no longer renders them. */
-.forge-brand-nav-wrap { background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
-.forge-brand-rail { width: 44px; min-width: 44px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 5px; background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
-.forge-brand-rail-mark,
-.forge-brand-rail-button { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; background: transparent; color: var(--forge-muted); cursor: pointer; }
-.forge-brand-rail-button:hover { color: var(--forge-text); background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)); }
-.forge-brand-rail-button-active { color: var(--forge-text); background: var(--vscode-list-activeSelectionBackground, #37373d); border-color: var(--forge-line); }
-.forge-brand-rail-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.forge-brand-rail-divider { width: 20px; height: 1px; margin: 2px 0; background: var(--forge-line); }
-.forge-brand-sidebar { background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
-.forge-brand-sidebar-header { border-bottom: 1px solid var(--forge-line); }
-.forge-brand-sidebar-search { border: 1px solid var(--vscode-input-border, var(--forge-line)); border-radius: 5px; background: var(--vscode-input-background, var(--forge-bg-2)); }
-.forge-brand-sidebar-search:focus-within { border-color: var(--forge-focus-ring); }
-.forge-brand-sidebar-footer { border-top: 1px solid var(--forge-line); }
+.void-forge-brand-nav-wrap { background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
+.void-forge-brand-rail { width: 44px; min-width: 44px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 5px; background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
+.void-forge-brand-rail-mark,
+.void-forge-brand-rail-button { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; background: transparent; color: var(--forge-muted); cursor: pointer; }
+.void-forge-brand-rail-button:hover { color: var(--forge-text); background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)); }
+.void-forge-brand-rail-button-active { color: var(--forge-text); background: var(--vscode-list-activeSelectionBackground, #37373d); border-color: var(--forge-line); }
+.void-forge-brand-rail-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.void-forge-brand-rail-divider { width: 20px; height: 1px; margin: 2px 0; background: var(--forge-line); }
+.void-forge-brand-sidebar { background: var(--forge-bg-0); border-right: 1px solid var(--forge-line); }
+.void-forge-brand-sidebar-header { border-bottom: 1px solid var(--forge-line); }
+.void-forge-brand-sidebar-search { border: 1px solid var(--vscode-input-border, var(--forge-line)); border-radius: 5px; background: var(--vscode-input-background, var(--forge-bg-2)); }
+.void-forge-brand-sidebar-search:focus-within { border-color: var(--forge-focus-ring); }
+.void-forge-brand-sidebar-footer { border-top: 1px solid var(--forge-line); }
 
-.forge-brand-primary {
+.void-forge-brand-primary {
 	background: var(--vscode-button-background, #0e639c);
 	border: 1px solid transparent;
 	color: var(--vscode-button-foreground, #fff);
 	border-radius: 5px;
 }
-.forge-brand-primary:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+.void-forge-brand-primary:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
 
-.forge-brand-tool {
+.void-forge-brand-tool {
 	background: transparent;
 	border: 1px solid transparent;
 	color: var(--forge-muted);
 }
-.forge-brand-tool:hover { color: var(--forge-text); background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)); }
+.void-forge-brand-tool:hover { color: var(--forge-text); background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31)); }
 
-.forge-brand-thread { border: 1px solid transparent; background: transparent; }
-.forge-brand-thread:hover { background: var(--vscode-list-hoverBackground, #2a2d2e); }
-.forge-brand-thread-active { background: var(--vscode-list-activeSelectionBackground, #37373d); color: var(--vscode-list-activeSelectionForeground, var(--forge-text)); }
+.void-forge-brand-thread { border: 1px solid transparent; background: transparent; }
+.void-forge-brand-thread:hover { background: var(--vscode-list-hoverBackground, #2a2d2e); }
+.void-forge-brand-thread-active { background: var(--vscode-list-activeSelectionBackground, #37373d); color: var(--vscode-list-activeSelectionForeground, var(--forge-text)); }
 
-.forge-brand-chat {
+.void-forge-brand-chat {
 	background: var(--forge-bg-0);
 	min-height: 0;
 }
 
-.forge-brand-empty-card {
+.void-forge-brand-empty-card {
 	width: min(520px, calc(100% - 28px));
 	padding: 20px 16px;
 	border: 0;
@@ -201,26 +201,26 @@
 	box-shadow: none;
 }
 
-.forge-brand-empty-card .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
-.forge-brand-suggestion { min-height: 40px; background: transparent; border: 1px solid var(--forge-line); color: var(--forge-muted); text-align: center; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
-.forge-brand-suggestion:hover { color: var(--forge-text); background: var(--vscode-list-hoverBackground, #2a2d2e); }
+.void-forge-brand-empty-card .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
+.void-forge-brand-suggestion { min-height: 40px; background: transparent; border: 1px solid var(--forge-line); color: var(--forge-muted); text-align: center; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+.void-forge-brand-suggestion:hover { color: var(--forge-text); background: var(--vscode-list-hoverBackground, #2a2d2e); }
 
-.forge-brand-user-bubble {
+.void-forge-brand-user-bubble {
 	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.11));
 	border: 1px solid var(--forge-line);
 	box-shadow: none;
 }
 
-.forge-brand-assistant-row { border-top: 1px solid color-mix(in srgb, var(--forge-line) 65%, transparent); }
-.forge-brand-assistant-row:hover { background: color-mix(in srgb, var(--vscode-list-hoverBackground, #2a2d2e) 35%, transparent); }
+.void-forge-brand-assistant-row { border-top: 1px solid color-mix(in srgb, var(--forge-line) 65%, transparent); }
+.void-forge-brand-assistant-row:hover { background: color-mix(in srgb, var(--vscode-list-hoverBackground, #2a2d2e) 35%, transparent); }
 
-.forge-brand-composer-shell {
+.void-forge-brand-composer-shell {
 	padding: 8px 10px 10px;
 	background: var(--forge-bg-0);
 	border-top: 1px solid color-mix(in srgb, var(--forge-line) 65%, transparent);
 }
 
-.forge-brand-composer {
+.void-forge-brand-composer {
 	width: min(860px, 100%);
 	margin: 0 auto;
 	border: 1px solid var(--vscode-input-border, var(--forge-line));
@@ -229,35 +229,35 @@
 	box-shadow: none;
 	overflow: hidden;
 }
-.forge-brand-composer:focus-within { border-color: var(--forge-focus-ring); }
+.void-forge-brand-composer:focus-within { border-color: var(--forge-focus-ring); }
 
 /* Keep provider internals out of the primary non-developer surface. */
-.forge-brand-composer button[title='Model settings'] span { display: none; }
-.forge-brand-composer button[title='Model settings']::after { content: 'Model'; }
+.void-forge-brand-composer button[title='Model settings'] span { display: none; }
+.void-forge-brand-composer button[title='Model settings']::after { content: 'Model'; }
 
-.forge-brand-chip {
+.void-forge-brand-chip {
 	background: transparent;
 	border: 1px solid var(--forge-line);
 	color: var(--forge-muted);
 	border-radius: 5px;
 }
 
-.forge-brand-send {
+.void-forge-brand-send {
 	background: var(--vscode-button-background, #0e639c);
 	color: var(--vscode-button-foreground, #fff);
 	box-shadow: none;
 }
-.forge-brand-send:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+.void-forge-brand-send:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
 
 /* Kept only for fallback/legacy renderers. The active chat shell does not render this rail. */
-.forge-brand-context-panel { width: 232px !important; background: var(--forge-bg-0); border-left: 1px solid var(--forge-line); }
-.forge-brand-context-card { background: transparent; border: 1px solid var(--forge-line); border-radius: 6px; }
+.void-forge-brand-context-panel { width: 232px !important; background: var(--forge-bg-0); border-left: 1px solid var(--forge-line); }
+.void-forge-brand-context-card { background: transparent; border: 1px solid var(--forge-line); border-radius: 6px; }
 
-.forge-brand-scroll::-webkit-scrollbar,
+.void-forge-brand-scroll::-webkit-scrollbar,
 body > div:has(> div[style*="z-index: 99999"]) ::-webkit-scrollbar { width: 6px; height: 6px; }
-.forge-brand-scroll::-webkit-scrollbar-thumb,
+.void-forge-brand-scroll::-webkit-scrollbar-thumb,
 body > div:has(> div[style*="z-index: 99999"]) ::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)); border-radius: 999px; }
-.forge-brand-scroll::-webkit-scrollbar-thumb:hover,
+.void-forge-brand-scroll::-webkit-scrollbar-thumb:hover,
 body > div:has(> div[style*="z-index: 99999"]) ::-webkit-scrollbar-thumb:hover { background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7)); }
 
 /*
@@ -404,36 +404,36 @@ div[style*="z-index: 99999"] button > span:last-child {
 }
 
 @media (max-width: 1180px) {
-	.forge-brand-context-panel { display: none; }
+	.void-forge-brand-context-panel { display: none; }
 }
 
 @media (max-width: 620px) {
-	.forge-chat-action span { display: none; }
-	.forge-chat-action { width: 27px; padding: 0; }
-	.forge-chat-health-separator,
-	.forge-chat-healthline span:last-child { display: none; }
-	.forge-brand-empty-card { width: calc(100% - 18px); padding-inline: 10px; }
+	.void-forge-chat-action span { display: none; }
+	.void-forge-chat-action { width: 27px; padding: 0; }
+	.void-forge-chat-health-separator,
+	.void-forge-chat-healthline span:last-child { display: none; }
+	.void-forge-brand-empty-card { width: calc(100% - 18px); padding-inline: 10px; }
 }
 
 @media (max-width: 460px) {
-	.forge-chat-workspace-name { max-width: 120px; }
-	.forge-chat-section-label { display: none; }
+	.void-forge-chat-workspace-name { max-width: 120px; }
+	.void-forge-chat-section-label { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-	.forge-brand-primary,
-	.forge-brand-tool,
-	.forge-brand-suggestion,
-	.forge-brand-thread,
-	.forge-brand-rail-button,
-	.forge-chat-action,
-	.forge-chat-icon-action { transition: background 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease; }
+	.void-forge-brand-primary,
+	.void-forge-brand-tool,
+	.void-forge-brand-suggestion,
+	.void-forge-brand-thread,
+	.void-forge-brand-rail-button,
+	.void-forge-chat-action,
+	.void-forge-chat-icon-action { transition: background 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.forge-premium-shell *,
-	.forge-premium-shell *::before,
-	.forge-premium-shell *::after {
+	.void-forge-premium-shell *,
+	.void-forge-premium-shell *::before,
+	.void-forge-premium-shell *::after {
 		scroll-behavior: auto !important;
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
