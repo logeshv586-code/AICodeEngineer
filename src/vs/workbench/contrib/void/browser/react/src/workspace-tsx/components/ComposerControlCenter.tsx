@@ -66,6 +66,24 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 		}
 	}, [canSubmit, isStreaming, onSubmit]);
 
+	const handleCommandsClick = useCallback(() => {
+		if (isDisabled) return;
+		const element = textareaRef && typeof textareaRef === 'object' && 'current' in textareaRef
+			? textareaRef.current
+			: null;
+		if (!element) return;
+		element.focus();
+		// Reuse the exact same key path as a physical `/` press so the parent
+		// chat view opens the real SlashCommandPalette instead of maintaining a
+		// second command implementation here.
+		element.dispatchEvent(new KeyboardEvent('keydown', {
+			key: '/',
+			code: 'Slash',
+			bubbles: true,
+			cancelable: true,
+		}));
+	}, [isDisabled, textareaRef]);
+
 	const handleTextareaChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
 		onChange(event.target.value);
 		const target = event.target;
@@ -124,7 +142,7 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 						<button type='button' onClick={() => { if (onPickFiles) void onPickFiles(); }} disabled={!onPickFiles || isDisabled} className='forge-brand-tool w-8 h-8 flex items-center justify-center rounded-lg cursor-pointer disabled:opacity-30' title='Attach code or document files'><Paperclip size={13} /></button>
 						<button type='button' onClick={() => imageInputRef.current?.click()} disabled={!onAddAttachment || isDisabled} className='forge-brand-tool w-8 h-8 flex items-center justify-center rounded-lg cursor-pointer disabled:opacity-30' title='Attach images'><ImageIcon size={13} /></button>
 						{canUseVoice && <button type='button' onClick={onVoiceToggle} disabled={!onVoiceToggle || isDisabled} className={`forge-brand-tool w-8 h-8 flex items-center justify-center rounded-lg cursor-pointer disabled:opacity-30 ${isListening ? '!text-[var(--forge-danger)] !bg-red-500/10 animate-pulse' : ''}`} title={isListening ? 'Stop voice input' : 'Voice input'}><Mic size={13} /></button>}
-						<span className='forge-brand-chip h-8 px-2 flex items-center gap-1 rounded-lg text-[9px]'><Command size={10} /> / commands</span>
+						<button type='button' onClick={handleCommandsClick} disabled={isDisabled} className='forge-brand-chip h-8 px-2 flex items-center gap-1 rounded-lg text-[9px] cursor-pointer disabled:opacity-30' title='Open slash commands'><Command size={10} /> / commands</button>
 					</div>
 					<div className='flex items-center gap-2 text-[8.5px] text-[var(--forge-muted-2)]'><span>{isStreaming ? 'Forge is working — Stop cancels safely' : 'Enter sends · Shift+Enter adds a line'}</span>{onOpenSettings && <button type='button' onClick={onOpenSettings} className='forge-brand-tool w-7 h-7 flex items-center justify-center rounded-lg' title='Forge settings'><Settings size={10} /></button>}</div>
 				</div>
