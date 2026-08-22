@@ -72,7 +72,7 @@ export const AgentWorkspace: React.FC = () => {
 			`Run this as a Forge workflow: ${name}.`,
 			description ? `Description: ${description}` : '',
 			`Goal: ${goal}`,
-			'Create an executable plan, inspect the minimum necessary workspace context, implement the task with tools, run targeted verification, fix failures, review the final diff, and continue until the goal is materially complete. Use browser/design/Work Mode integrations only when the task requires them.',
+			'Classify the task and define acceptance criteria. Create an executable plan, inspect the minimum necessary workspace context, implement with the appropriate coding, reasoning, automation, or design tools, test boundary and failure cases, fix failures, review the final diff, and continue until the goal is materially complete. Use browser evidence for UI work and preserve approval gates for consequential automation.',
 		].filter(Boolean).join('\n\n');
 
 		void chat.addUserMessageAndStreamResponse({ threadId, userMessage: prompt })

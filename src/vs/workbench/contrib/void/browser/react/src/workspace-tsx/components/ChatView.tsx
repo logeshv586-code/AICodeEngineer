@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Sparkles, Command, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Sparkles, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -47,25 +47,12 @@ export interface ChatViewProps {
 	onRevertMessage?: (messageIndex: number) => void;
 }
 
-const suggestions = [
-	{ title: 'Understand', text: 'Understand this codebase and explain the architecture I need for my task.' },
-	{ title: 'Build', text: 'Implement this feature end-to-end, run targeted checks, and review the final diff.' },
-	{ title: 'Debug', text: 'Find the root cause of the current bug, fix it, and run a regression check.' },
-	{ title: 'Browser', text: 'Inspect the app in the browser, fix the UI issue, and verify it visually.' },
-	{ title: 'Review', text: 'Review the current changes for correctness, security, and regressions. Fix actionable issues.' },
-	{ title: 'Automate', text: 'Create a safe Work Mode automation for this recurring requirement.' },
-];
-
-const EmptyState: React.FC<{ onSuggestionClick: (text: string) => void; onCommandsClick: (event: React.MouseEvent<HTMLButtonElement>) => void }> = ({ onSuggestionClick, onCommandsClick }) => (
+const EmptyState: React.FC = () => (
 	<div className='flex h-full items-center justify-center select-none px-5 py-8'>
 		<div className='forge-brand-empty-card text-center'>
-			<div className='flex justify-center mb-4'><ForgeBrandMark size={52} /></div>
-			<div className='text-[17px] font-semibold tracking-[-0.02em] text-[var(--forge-text)]'>What should we build?</div>
-			<div className='text-[11px] leading-relaxed text-[var(--forge-muted)] mt-2 mb-5 max-w-[430px] mx-auto'>Tell Forge the outcome, not every step. It can understand the repository, edit across files, run tools and tests, use the browser, work with designs, and create automations.</div>
-			<div className='grid grid-cols-2 gap-2 text-left'>
-				{suggestions.map(item => <button key={item.title} type='button' onClick={() => onSuggestionClick(item.text)} className='forge-brand-suggestion rounded-xl p-2.5 cursor-pointer'><div className='text-[10.5px] font-semibold text-[var(--forge-text-2)]'>{item.title}</div><div className='text-[9px] leading-relaxed text-[var(--forge-muted-2)] mt-0.5 line-clamp-2'>{item.text}</div></button>)}
-			</div>
-			<button type='button' onClick={onCommandsClick} className='forge-brand-tool mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9.5px] font-mono cursor-pointer'><Command size={11} /><span>/ commands & skills</span></button>
+			<div className='flex justify-center mb-3'><ForgeBrandMark size={42} /></div>
+			<div className='text-[15px] font-medium tracking-[-0.015em] text-[var(--forge-text)]'>How can Forge help with this project?</div>
+			<div className='text-[10.5px] leading-relaxed text-[var(--forge-muted)] mt-2 max-w-[420px] mx-auto'>Describe what you want to change or build. Forge will inspect the project, use the right tools and skills, make the changes, and verify the result.</div>
 		</div>
 	</div>
 );
@@ -313,14 +300,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setLocalAttachments(previous => previous.filter((_, i) => i !== localIndex));
 	}, [attachments.length, localAttachments, onRemoveAttachment, removeStagedAttachment]);
 
-	const handleSuggestion = useCallback((text: string) => {
-		if (isSubmitting || isStreaming) return;
-		setIsSubmitting(true);
-		void sendWithAdaptiveModel(text)
-			.catch(error => { console.error('[Forge Chat] Suggested task failed:', error); notify(`Forge could not start this task: ${error instanceof Error ? error.message : String(error)}`, 'error'); })
-			.finally(() => setIsSubmitting(false));
-	}, [isSubmitting, isStreaming, notify, sendWithAdaptiveModel]);
-	const handleOpenCommands = useCallback((event: React.MouseEvent<HTMLButtonElement>) => { setSlashAnchor(event.currentTarget.getBoundingClientRect()); setIsSlashOpen(true); }, []);
 	const handleSlashSelect = useCallback((cmd: SlashCommand, args: string) => {
 		setIsSlashOpen(false);
 		setSlashAnchor(null);
@@ -341,7 +320,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		{slashContext && <SlashCommandPalette isOpen={isSlashOpen} onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }} onSelect={handleSlashSelect} anchorRect={slashAnchor} context={slashContext} />}
 		<div className='forge-brand-scroll flex-1 overflow-y-auto'>
 			<div className='mx-auto w-full max-w-[980px] min-h-full'>
-				{messages.length === 0 ? <EmptyState onSuggestionClick={handleSuggestion} onCommandsClick={handleOpenCommands} /> : <>
+				{messages.length === 0 ? <EmptyState /> : <>
 					{messages.map((message, index) => {
 						const revert = message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!);
 						const copy = message.content ? () => { void copyText(message.content); } : undefined;

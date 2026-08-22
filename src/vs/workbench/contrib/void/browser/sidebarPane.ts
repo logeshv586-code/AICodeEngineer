@@ -45,6 +45,8 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { forgeLog } from './forge/debug/diagnostics.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 // compare against search.contribution.ts and debug.contribution.ts, scm.contribution.ts (source control)
 
@@ -170,8 +172,14 @@ export class SidebarStartContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.startupVoidSidebar';
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		this.commandService.executeCommand(VOID_OPEN_SIDEBAR_ACTION_ID)
+		this.commandService.executeCommand(VOID_OPEN_SIDEBAR_ACTION_ID);
+		// Start Forge as the primary project surface, matching the welcome design.
+		// Clear restored editor and panel layouts so Forge receives the full work area.
+		// Opening a source file restores the editor part through the normal workbench flow.
+		this.layoutService.setPartHidden(true, Parts.EDITOR_PART, mainWindow);
+		this.layoutService.setPartHidden(true, Parts.PANEL_PART, mainWindow);
 	}
 }
 registerWorkbenchContribution2(SidebarStartContribution.ID, SidebarStartContribution, WorkbenchPhase.AfterRestored);
