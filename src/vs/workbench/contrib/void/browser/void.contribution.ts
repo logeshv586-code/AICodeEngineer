@@ -13,6 +13,7 @@ import './editCodeService.js'
 
 // register Sidebar pane, state, actions (keybinds, menus) (Ctrl+L)
 import './sidebarActions.js'
+import './chatModeActions.js'
 import './sidebarPane.js'
 // Embedded URL browser shown from the left activity bar.
 import './eyeBrowserPane.js'
