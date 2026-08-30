@@ -12,6 +12,7 @@ const chatService = read('src/vs/workbench/contrib/void/browser/chatThreadServic
 const conversion = read('src/vs/workbench/contrib/void/browser/convertToLLMMessageService.ts');
 const transport = read('src/vs/workbench/contrib/void/electron-main/llmMessage/sendLLMMessage.impl.ts');
 const capabilities = read('src/vs/workbench/contrib/void/common/modelCapabilities.ts');
+const slashRouter = read('src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/slashCommandRouter.tsx');
 
 const checks = [];
 const check = (name, ok, detail) => checks.push({ name, ok: !!ok, detail });
@@ -31,6 +32,16 @@ check(
     "await this._settingsService.setModelSelectionOfFeature('Chat', decision.selection)",
   ]),
   'Adaptive routing may change the Chat model only when Auto Model Selection is enabled.',
+);
+
+check(
+  'auto slash command uses real settings service',
+  hasAll(slashRouter, [
+    "import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js'",
+    'accessor.get(IVoidSettingsService)',
+    "setGlobalSetting('autoModelSelection', enabled)",
+  ]) && !slashRouter.includes("accessor.get('IVoidSettingsService')"),
+  '/auto must resolve the typed VS Code settings service instead of passing an invalid string to the dependency injector.',
 );
 
 check(
