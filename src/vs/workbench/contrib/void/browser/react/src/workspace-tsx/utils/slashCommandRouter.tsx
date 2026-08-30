@@ -19,6 +19,7 @@ import { ISkillsService } from '../../../skillsService.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IMCPService } from '../../../../../common/mcpService.js';
 import { ISemanticSearchService } from '../../../../../common/forge/contracts/ISemanticSearchService.js';
+import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
 import { FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from './evolutionPrompts.js';
 
 export interface SlashCommand {
@@ -214,9 +215,9 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 
 		{ name: '/models', label: 'Select Model', category: 'System', description: 'Open Forge provider/model settings', icon: <Sparkles size={14} />, execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/auto', label: 'Toggle Auto Model', category: 'System', description: 'Select the best configured model for each task', icon: <Sparkles size={14} />, async execute() {
-			const settings = accessor.get('IVoidSettingsService');
+			const settings = accessor.get(IVoidSettingsService);
 			const enabled = !settings.state.globalSettings.autoModelSelection;
-			await settings.setGlobalSetting('autoModelSelection', enabled);
+			settings.setGlobalSetting('autoModelSelection', enabled);
 			notify(accessor, `Automatic model selection ${enabled ? 'enabled' : 'disabled'}.`);
 		} },
 		{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },
