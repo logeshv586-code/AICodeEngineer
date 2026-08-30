@@ -11,12 +11,25 @@ import process from 'node:process';
 import { _electron as electron } from '@playwright/test';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
-const executablePath = path.join(repositoryRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const executablePath = process.platform === 'win32'
+	? path.join(repositoryRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
+	: process.platform === 'darwin'
+		? path.join(repositoryRoot, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron')
+		: path.join(repositoryRoot, 'node_modules', 'electron', 'dist', 'electron');
 const screenshotPath = process.env.FORGE_WELCOME_SCREENSHOT
 	?? path.join(os.tmpdir(), `forge-welcome-${process.pid}.png`);
 const smokeProfilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-welcome-smoke-'));
 const smokeExtensionsPath = path.join(smokeProfilePath, 'extensions');
-fs.mkdirSync(smokeExtensionsPath);
+const smokeUserPath = path.join(smokeProfilePath, 'User');
+fs.mkdirSync(smokeExtensionsPath, { recursive: true });
+fs.mkdirSync(smokeUserPath, { recursive: true });
+fs.writeFileSync(path.join(smokeUserPath, 'settings.json'), JSON.stringify({
+	'workbench.startupEditor': 'none',
+	'workbench.welcomePage.walkthroughs.openOnInstall': false,
+	'security.workspace.trust.enabled': false,
+	'telemetry.telemetryLevel': 'off',
+	'update.mode': 'none',
+}, null, 2));
 const launchEnvironment = { ...process.env };
 
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
@@ -35,6 +48,8 @@ try {
 			repositoryRoot,
 			`--user-data-dir=${smokeProfilePath}`,
 			`--extensions-dir=${smokeExtensionsPath}`,
+			'--skip-welcome',
+			'--skip-release-notes',
 		],
 		cwd: repositoryRoot,
 		env: launchEnvironment,
