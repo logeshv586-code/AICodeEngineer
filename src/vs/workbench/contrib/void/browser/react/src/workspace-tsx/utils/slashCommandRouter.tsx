@@ -290,13 +290,29 @@ export const SlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({ isOpen
 
 	if (!isOpen) return null;
 	const flatCommands = Object.values(grouped).flat();
-	const style: React.CSSProperties = anchorRect ? { position: 'fixed', left: anchorRect.left, bottom: window.innerHeight - anchorRect.top + 8, width: Math.min(420, window.innerWidth - 24), zIndex: 99999 } : { position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', width: Math.min(440, window.innerWidth - 24), zIndex: 99999 };
+	const viewportPadding = 8;
+	const paletteWidth = Math.min(420, window.innerWidth - viewportPadding * 2);
+	const paletteLeft = anchorRect
+		? Math.min(Math.max(viewportPadding, anchorRect.left), window.innerWidth - paletteWidth - viewportPadding)
+		: Math.max(viewportPadding, (window.innerWidth - paletteWidth) / 2);
+	const paletteBottom = anchorRect ? window.innerHeight - anchorRect.top + 8 : 24;
+	const paletteMaxHeight = Math.max(160, Math.min(380, window.innerHeight - paletteBottom - viewportPadding));
+	const listMaxHeight = Math.max(108, paletteMaxHeight - 38);
+	const style: React.CSSProperties = {
+		position: 'fixed',
+		left: paletteLeft,
+		bottom: paletteBottom,
+		width: paletteWidth,
+		maxHeight: paletteMaxHeight,
+		boxSizing: 'border-box',
+		zIndex: 99999,
+	};
 
 	return createPortal(
 		<div className='forge-slash-overlay fixed inset-0 z-[99998]' onClick={onClose}>
 			<div role='dialog' aria-label='Forge slash commands' style={style} className='forge-slash-palette rounded-lg border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl overflow-hidden' onClick={event => event.stopPropagation()} onKeyDown={handleKeyDown}>
 				<div className='forge-slash-search flex items-center gap-2 px-3 py-2 border-b border-zinc-800/60'><span className='forge-slash-prefix text-zinc-500 text-xs font-mono'>/</span><input ref={inputRef} value={filter} onChange={event => setFilter(event.target.value)} placeholder='Type a command or skill…' className='forge-slash-input flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-600 outline-none' /><span className='forge-slash-escape text-[10px] text-zinc-600'>ESC</span></div>
-				<div ref={listRef} className='forge-slash-list max-h-[320px] overflow-y-auto py-1'>
+				<div ref={listRef} className='forge-slash-list overflow-y-auto py-1' style={{ maxHeight: listMaxHeight }}>
 					{flatCommands.length === 0 ? <div className='forge-slash-empty px-3 py-4 text-xs text-zinc-600 text-center'>No commands found</div> : Object.entries(grouped).map(([category, commands]) => <div className='forge-slash-group' key={category}>
 						<div className='forge-slash-category px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-zinc-600'>{category}</div>
 						{commands.map(command => {

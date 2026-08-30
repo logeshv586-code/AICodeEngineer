@@ -189,7 +189,6 @@ export const ConversationShell: React.FC = () => {
 					modelName={selectedModel?.modelName ?? ''}
 					onOpenSettings={() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }}
 					onRevertMessage={messageIndex => chatThreadsService.revertToMessage({ threadId: currentThreadId, messageIdx: messageIndex })}
-					className={isEmpty ? 'forge-chat-with-intro' : ''}
 				/>
 			</div>
 		</div>

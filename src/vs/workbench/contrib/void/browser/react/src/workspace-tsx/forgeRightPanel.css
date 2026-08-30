@@ -156,20 +156,6 @@
 .void-forge-panel-command-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8.75px; color: var(--forge-muted); }
 .void-forge-panel-command code { padding-left: 10px; color: var(--forge-text-2); font: 9.5px/1 var(--vscode-editor-font-family, monospace); white-space: nowrap; }
 
-.void-forge-chat-with-intro .void-forge-brand-scroll {
-	display: none;
-}
-
-.void-forge-chat-with-intro {
-	flex: 0 0 auto;
-	height: auto;
-	min-height: auto;
-}
-
-.void-forge-chat-with-intro .void-forge-brand-empty-card {
-	display: none !important;
-}
-
 /* Screenshot-aligned composer: one plus button, one input, and two small utility chips. */
 .void-forge-right-composer-shell {
 	padding: 7px 10px 10px;

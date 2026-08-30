@@ -116,7 +116,7 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 
 	const contextCount = selectedFiles.length + attachments.length;
 	return (
-		<div className='forge-brand-composer-shell forge-right-composer-shell shrink-0' onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
+		<div data-forge-composer className='forge-brand-composer-shell forge-right-composer-shell shrink-0' onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
 			<input ref={imageInputRef} type='file' multiple accept='image/*' className='hidden' onChange={handleImageInput} />
 
 			<div className='forge-right-composer-row'>

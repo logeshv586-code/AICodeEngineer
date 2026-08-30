@@ -289,7 +289,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [notify, slashContext]);
 
 	const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (event.key === '/' && !draftText && !isSlashOpen) { event.preventDefault(); setSlashAnchor(event.currentTarget.getBoundingClientRect()); setIsSlashOpen(true); return; }
+		if (event.key === '/' && !draftText && !isSlashOpen) {
+			event.preventDefault();
+			const composer = event.currentTarget.closest<HTMLElement>('[data-forge-composer]');
+			setSlashAnchor(composer?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect());
+			setIsSlashOpen(true);
+			return;
+		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void handleSend(); return; }
 		if (event.key === 'Escape' && isSlashOpen) { setIsSlashOpen(false); setSlashAnchor(null); }
 	}, [draftText, handleSend, isSlashOpen]);
