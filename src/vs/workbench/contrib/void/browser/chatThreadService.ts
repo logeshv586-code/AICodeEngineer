@@ -41,6 +41,7 @@ import { IMCPService } from '../common/mcpService.js';
 import { RawMCPToolCall } from '../common/mcpServiceTypes.js';
 import { getModelCapabilities } from '../common/modelCapabilities.js';
 import { getToolErrorLabel } from '../common/toolActivityMessages.js';
+import { chooseAdaptiveModel } from '../common/forge/intelligence/adaptiveModelRouter.js';
 
 
 // related to retrying when LLM message has error
@@ -856,7 +857,10 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		// _runToolCall does not need setStreamState({idle}) before it, but it needs it after it. (handles its own setStreamState)
 
 		// above just defines helpers, below starts the actual function
-		const { chatMode } = this._settingsService.state.globalSettings // should not change as we loop even if user changes it, so it goes here
+		// Forge has one execution surface: every conversation is an agent run with
+		// workspace tools. Legacy persisted chat/gather values are normalized by the
+		// settings service, and this invariant protects already-running sessions.
+		const chatMode = 'agent' as const
 		const { overridesOfModel } = this._settingsService.state
 
 		let nMessagesSent = 0
@@ -1346,35 +1350,16 @@ We only need to do it for files that were edited since `from`, ie files between 
 	private async _selectAutoModelForPrompt(prompt: string): Promise<void> {
 		if (!this._settingsService.state.globalSettings.autoModelSelection) return
 
-		const options = this._settingsService.state._modelOptions;
-		if (options.length === 0) return;
+		const currentSelection = this._settingsService.state.modelSelectionOfFeature.Chat;
+		const decision = chooseAdaptiveModel({
+			prompt,
+			candidates: this._settingsService.state._modelOptions,
+			currentSelection,
+		});
+		if (!decision.selection || !decision.switched) return;
 
-		const task = prompt.toLowerCase();
-		const isComplex = /architect|architecture|refactor|debug|bug|security|migrate|implement|build|write|edit|test|review|multi.?file|mcp|tool/.test(task);
-		const isQuick = /summarize|explain|rename|format|simple|quick|translate|short answer/.test(task);
-
-		const ranked = options.map(option => {
-			const name = option.selection.modelName.toLowerCase();
-			const capabilities = getModelCapabilities(option.selection.providerName, option.selection.modelName, this._settingsService.state.overridesOfModel);
-			let score = 0;
-			if (isComplex) {
-				if (capabilities.reasoningCapabilities !== false) score += 4;
-				if (capabilities.contextWindow >= 100_000) score += 3;
-				if (/pro|opus|sonnet|reason|think|large|max|70b|72b|405b/.test(name)) score += 3;
-			}
-			if (isQuick) {
-				if (/flash|mini|small|haiku|8b|fast|turbo/.test(name)) score += 3;
-				if (capabilities.reasoningCapabilities === false) score += 1;
-			}
-			if (/image|screenshot|diagram|vision|visual/.test(task) && /vision|gemini|gpt-4o|claude-3/.test(name)) score += 5;
-			if (option.selection.providerName === this._settingsService.state.modelSelectionOfFeature.Chat?.providerName) score += 0.25;
-			return { option, score };
-		}).sort((a, b) => b.score - a.score);
-
-		const best = ranked[0]?.option.selection;
-		const current = this._settingsService.state.modelSelectionOfFeature.Chat;
-		if (!best || (current && current.providerName === best.providerName && current.modelName === best.modelName)) return;
-		await this._settingsService.setModelSelectionOfFeature('Chat', best);
+		await this._settingsService.setModelSelectionOfFeature('Chat', decision.selection);
+		console.log(`[Forge Model Router] ${decision.reason}`);
 	}
 
 	/** Restore files and trim the conversation to the checkpoint before a message. */

@@ -6,11 +6,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Send, Square, Paperclip, Mic, Image as ImageIcon, AtSign, WandSparkles, Code2, Palette, ChevronDown, ChevronUp } from 'lucide-react';
 import { VoidInputBox2, TextAreaFns } from '../../util/inputs.tsx';
-import { SlashCommand, getSlashCommands } from '../utils/slashCommands.js';
+import { createAllCommands, SlashCommand, SlashCommandContext } from '../utils/slashCommandRouter.tsx';
 import { ModelCapability } from '../utils/modelCapabilityManifest.js';
 import { ModelDropdown } from '../../void-settings-tsx/ModelDropdown.tsx';
 import { FeatureName } from '../../../../common/voidSettingsTypes.js';
-import { useAccessor, useSettingsState } from '../../util/services.tsx';
+import { useAccessor } from '../../util/services.tsx';
 
 const FILE_ACCEPT = 'image/*,.pdf,.txt,.md,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.json,.jsonl,.css,.scss,.html,.svg,.xml,.yaml,.yml,.toml,.rs,.go,.java,.kt,.kts,.c,.h,.cpp,.hpp,.cs,.php,.rb,.sh,.ps1,.sql';
 
@@ -42,6 +42,7 @@ interface UniversalComposerProps {
 	onArtToggle?: () => void;
 	codeEnabled?: boolean;
 	onCodeToggle?: () => void;
+	slashContext: SlashCommandContext;
 }
 
 export const UniversalComposer: React.FC<UniversalComposerProps> = ({
@@ -69,9 +70,9 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 	onVoiceToggle,
 	artEnabled = false,
 	codeEnabled = false,
+	slashContext,
 }) => {
 	const accessor = useAccessor();
-	const settingsState = useSettingsState();
 	const [isSlashOpen, setIsSlashOpen] = useState(false);
 	const [slashQuery, setSlashQuery] = useState('');
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -96,17 +97,17 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 		return () => window.removeEventListener('forge:open-attachment-picker', handler);
 	}, [openAttachmentPicker]);
 
-	const slashCommands = getSlashCommands();
+	const slashCommands = createAllCommands(slashContext);
 	const filteredCommands = slashQuery
 		? slashCommands.filter(command => command.name.toLowerCase().includes(slashQuery.toLowerCase()) || command.label.toLowerCase().includes(slashQuery.toLowerCase()) || command.category.toLowerCase().includes(slashQuery.toLowerCase()))
 		: slashCommands;
 
 	const handleSlashSelect = useCallback(async (command: SlashCommand) => {
-		try { await command.execute('', accessor); }
+		try { await command.execute({ ...slashContext, args: slashQuery.trim() }); }
 		catch (error) { accessor.get('INotificationService').error(`/${command.name} failed: ${error instanceof Error ? error.message : String(error)}`); }
 		setIsSlashOpen(false);
 		setSlashQuery('');
-	}, [accessor]);
+	}, [accessor, slashContext, slashQuery]);
 
 	const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === '/' && !value && !isSlashOpen) {
@@ -174,7 +175,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 			{isSlashOpen && (
 				<div className='absolute bottom-full left-0 mb-2 w-72 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl z-50 overflow-hidden'>
 					<div className='px-3 py-2 border-b border-zinc-700/60'><input type='text' value={slashQuery} onChange={event => setSlashQuery(event.target.value)} placeholder='Type a command…' className='w-full bg-transparent text-zinc-200 text-sm outline-none placeholder:text-zinc-600' autoFocus /></div>
-					<div className='max-h-64 overflow-y-auto'>{filteredCommands.length === 0 ? <div className='px-3 py-2 text-xs text-zinc-500'>No commands found</div> : filteredCommands.map(command => <button key={command.name} type='button' onClick={() => void handleSlashSelect(command)} className='w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 transition-colors text-left'><span className='text-xs font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded'>/{command.name}</span><span className='text-xs text-zinc-300'>{command.label}</span></button>)}</div>
+					<div className='max-h-64 overflow-y-auto'>{filteredCommands.length === 0 ? <div className='px-3 py-2 text-xs text-zinc-500'>No commands found</div> : filteredCommands.map(command => <button key={command.name} type='button' onClick={() => void handleSlashSelect(command)} className='w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 transition-colors text-left'><span className='text-xs font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded'>{command.name}</span><span className='text-xs text-zinc-300'>{command.label}</span></button>)}</div>
 				</div>
 			)}
 
@@ -201,7 +202,7 @@ export const UniversalComposer: React.FC<UniversalComposerProps> = ({
 			<div className='relative rounded-xl bg-zinc-900/80 border border-zinc-700/60 focus-within:border-zinc-500/60 transition-colors'>
 				<div className='flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-800/80'>
 					<label className='flex min-w-0 items-center gap-1 text-xs text-zinc-300'><AtSign size={13} className='text-[var(--forge-coco-cloud)]' /><span className='text-zinc-500'>Agent</span>{agentOptions.length > 0 ? <select value={selectedAgentId ?? agentOptions[0].id} onChange={event => onAgentChange?.(event.target.value)} className='max-w-[150px] truncate bg-transparent font-medium text-zinc-200 outline-none'>{agentOptions.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select> : <span className='truncate font-medium'>{agentName}</span>}</label>
-					<span className='shrink-0 text-[10px] text-zinc-500'>{settingsState.globalSettings.chatMode === 'normal' ? 'Chat' : settingsState.globalSettings.chatMode === 'gather' ? 'Gather' : 'Agent'} <span className='text-[var(--forge-coco-accent)]'>✦</span></span>
+					<span className='shrink-0 text-[10px] text-zinc-500'>Agent <span className='text-[var(--forge-coco-accent)]'>✦</span></span>
 				</div>
 
 				{isExpanded && <div className='flex items-center gap-1 px-2 pt-1.5 border-b border-zinc-800/50 pb-1.5'>

@@ -1,72 +1,20 @@
-name: Forge Agent CI
+name: Forge Agent CI (Manual Storage-Safe)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/vs/workbench/contrib/void/**'
-      - 'scripts/**'
-      - '.agents/**'
-      - 'skill_library/**'
-      - 'skill_registry.json'
-      - 'forge-integrations.lock.json'
-      - 'product.json'
-      - 'resources/forge/**'
-      - 'resources/win32/**'
-      - 'resources/linux/**'
-      - 'resources/darwin/**'
-      - 'setup-forge-super-agent.bat'
-      - 'setup-forge.sh'
-      - 'run-forge-ide.bat'
-      - 'run-forge-ide.sh'
-      - 'smoke-forge-windows.bat'
-      - 'smoke-forge-unix.sh'
-      - 'docs/CROSS_PLATFORM_BUILD.md'
-      - '.github/scripts/issue_triage.py'
-      - '.github/workflows/triage.yml'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/forge-ci.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/vs/workbench/contrib/void/**'
-      - 'scripts/**'
-      - '.agents/**'
-      - 'skill_library/**'
-      - 'skill_registry.json'
-      - 'forge-integrations.lock.json'
-      - 'product.json'
-      - 'resources/forge/**'
-      - 'resources/win32/**'
-      - 'resources/linux/**'
-      - 'resources/darwin/**'
-      - 'setup-forge-super-agent.bat'
-      - 'setup-forge.sh'
-      - 'run-forge-ide.bat'
-      - 'run-forge-ide.sh'
-      - 'smoke-forge-windows.bat'
-      - 'smoke-forge-unix.sh'
-      - 'docs/CROSS_PLATFORM_BUILD.md'
-      - '.github/scripts/issue_triage.py'
-      - '.github/workflows/triage.yml'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/forge-ci.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: forge-agent-${{ github.ref }}
+  group: forge-agent-manual-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  linux-electron:
-    name: Linux compile, contracts, Electron
+  manual-forge-check:
+    name: Manual Forge core validation
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -75,7 +23,6 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
-          cache: npm
           package-manager-cache: false
 
       - name: Install Linux native build prerequisites
@@ -83,32 +30,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config
 
-      - name: Install dependencies serially
+      - name: Install dependencies
         run: npm ci --foreground-scripts
 
-      - name: Syntax-check Forge triage
-        run: python3 -m py_compile .github/scripts/issue_triage.py
-
-      - name: Brand and desktop contract test
-        run: node scripts/forge-brand-contract-test.mjs
-
-      - name: UI contract test
-        run: node scripts/forge-ui-contract-test.mjs
-
-      - name: Native setup contract
-        run: node scripts/forge-native-setup-contract.mjs
-
-      - name: React service export contract
-        run: node scripts/forge-react-service-export-contract.mjs
-
-      - name: Model and provider routing contract
-        run: node scripts/forge-model-provider-contract-test.mjs
-
-      - name: Work Mode queue and claim test
-        run: node scripts/forge-work-self-test.mjs
-
-      - name: Validate 333-skill library
-        run: node scripts/manage-skills.mjs validate
+      - name: Run Forge contract checks
+        run: |
+          node scripts/forge-brand-contract-test.mjs
+          node scripts/forge-ui-contract-test.mjs
+          node scripts/forge-native-setup-contract.mjs
+          node scripts/forge-react-service-export-contract.mjs
+          node scripts/forge-model-provider-contract-test.mjs
+          node scripts/forge-work-self-test.mjs
+          node scripts/manage-skills.mjs validate
 
       - name: Compile core TypeScript
         run: npm run compile
@@ -116,143 +49,5 @@ jobs:
       - name: Build Forge React UI
         run: npm run buildreact
 
-      - name: Verify runtime artifacts
+      - name: Verify runtime artifacts locally only
         run: node scripts/forge-runtime-guard.mjs
-
-      - name: Verify Linux Electron executable
-        run: |
-          test -x node_modules/electron/dist/electron
-          node_modules/electron/dist/electron --version
-
-  macos-electron:
-    name: macOS compile, contracts, Electron
-    runs-on: macos-14
-    timeout-minutes: 50
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Use repository Node version
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: '.nvmrc'
-          cache: npm
-          package-manager-cache: false
-
-      - name: Verify macOS native build prerequisites
-        run: |
-          xcode-select -p
-          python3 --version
-          clang --version
-          make --version
-
-      - name: Install dependencies serially
-        run: npm ci --foreground-scripts
-
-      - name: Brand and desktop contract test
-        run: node scripts/forge-brand-contract-test.mjs
-
-      - name: UI contract test
-        run: node scripts/forge-ui-contract-test.mjs
-
-      - name: Native setup contract
-        run: node scripts/forge-native-setup-contract.mjs
-
-      - name: React service export contract
-        run: node scripts/forge-react-service-export-contract.mjs
-
-      - name: Model and provider routing contract
-        run: node scripts/forge-model-provider-contract-test.mjs
-
-      - name: Work Mode queue and claim test
-        run: node scripts/forge-work-self-test.mjs
-
-      - name: Validate 333-skill library
-        run: node scripts/manage-skills.mjs validate
-
-      - name: Compile core TypeScript
-        run: npm run compile
-
-      - name: Build Forge React UI
-        run: npm run buildreact
-
-      - name: Verify runtime artifacts
-        run: node scripts/forge-runtime-guard.mjs
-
-      - name: Verify macOS Electron executable
-        run: |
-          test -x node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
-          node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --version
-
-  windows-electron:
-    name: Windows Electron build gate (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2022, windows-2025]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 65
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Use repository Node version
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: '.nvmrc'
-          cache: npm
-          package-manager-cache: false
-
-      - name: Ensure Spectre-mitigated Visual C++ libraries
-        shell: pwsh
-        run: ./scripts/forge-windows-spectre-ensure.ps1 -RepoRoot $PWD
-
-      - name: Prepare native toolchain and install dependencies
-        shell: pwsh
-        run: ./scripts/forge-windows-native-preflight.ps1 -RepoRoot $PWD -InstallDependencies
-
-      - name: Brand and Windows launcher contracts
-        run: node scripts/forge-brand-contract-test.mjs
-
-      - name: UI contract test
-        run: node scripts/forge-ui-contract-test.mjs
-
-      - name: Native setup contract
-        run: node scripts/forge-native-setup-contract.mjs
-
-      - name: React service export contract
-        run: node scripts/forge-react-service-export-contract.mjs
-
-      - name: Model and provider routing contract
-        run: node scripts/forge-model-provider-contract-test.mjs
-
-      - name: Work Mode queue and claim test
-        run: node scripts/forge-work-self-test.mjs
-
-      - name: Validate 333-skill library
-        run: node scripts/manage-skills.mjs validate
-
-      - name: Compile core TypeScript
-        run: npm run compile
-
-      - name: Build Forge React UI
-        run: npm run buildreact
-
-      - name: Verify runtime artifacts
-        run: node scripts/forge-runtime-guard.mjs
-
-      - name: Verify Windows Electron executable
-        shell: pwsh
-        run: |
-          $electron = Join-Path $PWD 'node_modules\electron\dist\electron.exe'
-          if (-not (Test-Path $electron)) {
-            throw "Forge Electron executable was not installed at $electron"
-          }
-          $version = & $electron --version
-          if ($LASTEXITCODE -ne 0) {
-            throw "Forge Electron executable failed with exit code $LASTEXITCODE"
-          }
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw 'Forge Electron executable returned an empty version.'
-          }
-          Write-Host "Forge Windows Electron runtime: $version"

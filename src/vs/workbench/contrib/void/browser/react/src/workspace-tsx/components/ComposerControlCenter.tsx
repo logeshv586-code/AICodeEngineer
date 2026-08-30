@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useCallback, useRef } from 'react';
-import { AtSign, Command, Paperclip, Plus, Send, Sparkles, Square, X } from 'lucide-react';
+import { AtSign, Command, Paperclip, Plus, Send, Square, X } from 'lucide-react';
+import { ModelDropdown } from '../../void-settings-tsx/ModelDropdown.tsx';
 
 export interface Attachment {
 	readonly uri: string;
@@ -51,7 +52,7 @@ const attachmentName = (attachment: Attachment): string => attachment.name || at
 
 export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 	value, onChange, onSubmit, onAbort, isStreaming, isDisabled = false,
-	selectedFiles = [], providerName, modelName, onOpenSettings,
+	selectedFiles = [],
 	attachments = [], onAddAttachment, onPickFiles, onAttachmentError, onRemoveAttachment,
 	onKeyDown: onComposerKeyDown, placeholder = 'Describe the outcome you want Forge to deliver…', textareaRef,
 }) => {
@@ -64,6 +65,24 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 			if (!isStreaming && canSubmit) onSubmit();
 		}
 	}, [canSubmit, isStreaming, onSubmit]);
+
+	const handleCommandsClick = useCallback(() => {
+		if (isDisabled) return;
+		const element = textareaRef && typeof textareaRef === 'object' && 'current' in textareaRef
+			? textareaRef.current
+			: null;
+		if (!element) return;
+		element.focus();
+		// Reuse the exact same key path as a physical `/` press so the parent
+		// chat view opens the real SlashCommandPalette instead of maintaining a
+		// second command implementation here.
+		element.dispatchEvent(new KeyboardEvent('keydown', {
+			key: '/',
+			code: 'Slash',
+			bubbles: true,
+			cancelable: true,
+		}));
+	}, [isDisabled, textareaRef]);
 
 	const handleTextareaChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
 		onChange(event.target.value);
@@ -96,8 +115,6 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 	}, [addImages, onAttachmentError]);
 
 	const contextCount = selectedFiles.length + attachments.length;
-	const modelConfigured = !!(providerName || modelName);
-
 	return (
 		<div className='forge-brand-composer-shell forge-right-composer-shell shrink-0' onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
 			<input ref={imageInputRef} type='file' multiple accept='image/*' className='hidden' onChange={handleImageInput} />
@@ -148,11 +165,11 @@ export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 
 			<div className='forge-right-composer-meta'>
 				<div className='forge-right-composer-meta-left'>
-					<span className='forge-right-meta-button' title='Type / to open Forge commands'><Command size={10} /> / commands</span>
+					<button type='button' onClick={handleCommandsClick} disabled={isDisabled} className='forge-right-meta-button' title='Open Forge slash commands'><Command size={10} /> / commands</button>
 					<button type='button' className='forge-right-meta-button' onClick={() => { if (onPickFiles) void onPickFiles(); }} disabled={!onPickFiles || isDisabled} title='Add code or document context'><AtSign size={10} /> Add context</button>
 				</div>
 				<div className='forge-right-composer-meta-right'>
-					{onOpenSettings && <button type='button' onClick={onOpenSettings} className='forge-right-meta-button' title='Model settings' aria-label='Open AI model settings'><Sparkles size={10} />{modelConfigured ? 'Auto' : 'Model'}</button>}
+					<ModelDropdown featureName='Chat' className='forge-right-meta-button' />
 					<span className='forge-right-agent-ready'>{isStreaming ? 'Agent working' : 'Agent ready'}</span>
 				</div>
 			</div>

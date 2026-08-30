@@ -147,6 +147,7 @@ const _stateWithMergedDefaultModels = (state: VoidSettingsState): VoidSettingsSt
 const _validatedModelState = (state: Omit<VoidSettingsState, '_modelOptions'>): VoidSettingsState => {
 
 	let newSettingsOfProvider = state.settingsOfProvider
+	const globalSettings: GlobalSettings = { ...state.globalSettings, chatMode: 'agent' }
 
 	// recompute _didFillInProviderSettings
 	for (const providerName of providerNames) {
@@ -183,7 +184,7 @@ const _validatedModelState = (state: Omit<VoidSettingsState, '_modelOptions'>): 
 	for (const featureName of featureNames) {
 
 		const { filter } = modelFilterOfFeatureName[featureName]
-		const filterOpts = { chatMode: state.globalSettings.chatMode, overridesOfModel: state.overridesOfModel }
+		const filterOpts = { chatMode: globalSettings.chatMode, overridesOfModel: state.overridesOfModel }
 		const modelOptionsForThisFeature = newModelOptions.filter((o) => filter(o.selection, filterOpts))
 
 		const modelSelectionAtFeature = newModelSelectionOfFeature[featureName]
@@ -200,6 +201,7 @@ const _validatedModelState = (state: Omit<VoidSettingsState, '_modelOptions'>): 
 
 	const newState = {
 		...state,
+		globalSettings,
 		settingsOfProvider: newSettingsOfProvider,
 		modelSelectionOfFeature: newModelSelectionOfFeature,
 		overridesOfModel: state.overridesOfModel,

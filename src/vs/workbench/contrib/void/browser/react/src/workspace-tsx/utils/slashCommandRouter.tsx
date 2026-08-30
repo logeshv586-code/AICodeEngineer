@@ -38,7 +38,7 @@ export interface SlashCommandContext {
 	args: string;
 	onClose: () => void;
 	setActiveTool: (tool: string) => void;
-	sendMessage: (msg: string) => void;
+	sendMessage: (msg: string, displayLabel?: string) => void;
 }
 
 export interface SlashCommandPaletteProps {
@@ -63,6 +63,10 @@ const notify = (accessor: ServicesAccessor, message: string, level: 'info' | 'wa
 	if (level === 'error') service.error(message);
 	else if (level === 'warn') service.warn(message);
 	else service.info(message);
+};
+
+const dispatchAttachmentPicker = (kind: 'file' | 'image') => {
+	window.dispatchEvent(new CustomEvent('forge:open-attachment-picker', { detail: { kind } }));
 };
 
 const callForgeToolJson = async <T,>(accessor: ServicesAccessor, toolName: string, params: Record<string, unknown>): Promise<T | null> => {
@@ -91,10 +95,12 @@ const callForgeTool = async (accessor: ServicesAccessor, toolName: string, param
 };
 
 export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
-	const { accessor, commandService, chatThreadsService, sendMessage } = ctx;
-	return [
-		{ name: '/agent', label: 'Chat Mode', category: 'Agent', description: 'Switch to normal chat mode', icon: <MessageSquare size={14} />, execute() { void commandService.executeCommand('void.setChatMode', 'normal'); } },
-		{ name: '/agent,code', label: 'Agent Code', category: 'Agent', description: 'Enable agent mode for code edits', icon: <Code2 size={14} />, execute() { void commandService.executeCommand('void.setChatMode', 'agent'); } },
+	const { accessor, commandService, chatThreadsService } = ctx;
+	let activeCommandName: string | undefined;
+	const sendMessage = (message: string) => ctx.sendMessage(message, activeCommandName);
+	const commands: SlashCommand[] = [
+		{ name: '/agent', label: 'Agent Mode', category: 'Agent', description: 'Use workspace tools to chat, inspect, and edit code', icon: <MessageSquare size={14} />, execute() { notify(accessor, 'Forge always runs in Agent mode.'); } },
+		{ name: '/agent,code', label: 'Agent Code', category: 'Agent', description: 'Implement and verify a coding task', icon: <Code2 size={14} />, execute(commandContext) { sendMessage(`Inspect the relevant workspace code, implement the requested change, and verify it. ${commandContext.args}`.trim()); } },
 		{ name: '/agent,parallel', label: 'Parallel Agents', category: 'Agent', description: 'Split independent work across coordinated agents', icon: <Bot size={14} />, execute() { sendMessage('Use parallel agents only for independent work. Coordinate results, avoid conflicting edits, then verify the combined change.'); } },
 		{ name: '/agent,review', label: 'Review Code', category: 'Agent', description: 'Review the current workspace changes', icon: <CheckCircle size={14} />, execute() { sendMessage('Review the current workspace changes for correctness, security, performance, maintainability, and regressions. Fix actionable issues when safe and verify them.'); } },
 		{ name: '/agent,test', label: 'Run Tests', category: 'Agent', description: 'Run relevant tests and fix failures', icon: <FlaskConical size={14} />, execute() { sendMessage('Run the most relevant tests, diagnose failures, fix the implementation or tests as appropriate, and rerun verification.'); } },
@@ -110,7 +116,7 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/evolve', label: 'Project Evolution', category: 'Evolution', description: 'Inspect the current code and apply or suggest the next safe upgrade', icon: <Sparkles size={14} />, execute() { sendMessage(FORGE_PROJECT_EVOLUTION_TASK); } },
 		{ name: '/evolve,skills', label: 'Skills Evolution', category: 'Evolution', description: 'Improve project-local skills from proven code patterns', icon: <BookOpen size={14} />, execute() { sendMessage(FORGE_SKILL_EVOLUTION_TASK); } },
 
-		{ name: '/workflow,start', label: 'Start Workflow', category: 'Workflow', description: 'Plan and execute a multi-step task', icon: <Play size={14} />, execute() { sendMessage(`Run this as a Forge workflow. Plan, implement, verify, fix failures, and review the final result. ${ctx.args}`.trim()); } },
+		{ name: '/workflow,start', label: 'Start Workflow', category: 'Workflow', description: 'Plan and execute a multi-step task', icon: <Play size={14} />, execute(commandContext) { sendMessage(`Run this as a Forge workflow. Plan, implement, verify, fix failures, and review the final result. ${commandContext.args}`.trim()); } },
 		{ name: '/workflow,stop', label: 'Stop Workflow', category: 'Workflow', description: 'Abort the active agent/workflow run', icon: <Square size={14} />, async execute() {
 			const threadId = chatThreadsService.state.currentThreadId;
 			if (!threadId) { notify(accessor, 'There is no active workflow thread.', 'warn'); return; }
@@ -124,7 +130,7 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/context,folder', label: 'Open Folder', category: 'Context', description: 'Open a workspace folder', icon: <FolderOpen size={14} />, execute() { void commandService.executeCommand('workbench.action.files.openFolder'); } },
 		{ name: '/context,git', label: 'Git Status', category: 'Context', description: 'Open source control status', icon: <GitCommit size={14} />, execute() { void commandService.executeCommand('workbench.view.scm'); } },
 
-		{ name: '/search,semantic', label: 'Semantic Search', category: 'Search', description: 'Search the codebase by meaning', icon: <Search size={14} />, execute() { sendMessage(`Search the codebase semantically for: ${ctx.args || 'the current task'}. Use the Understand Anything graph only when it adds value.`); } },
+		{ name: '/search,semantic', label: 'Semantic Search', category: 'Search', description: 'Search the codebase by meaning', icon: <Search size={14} />, execute(commandContext) { sendMessage(`Search the codebase semantically for: ${commandContext.args || 'the current task'}. Use the Understand Anything graph only when it adds value.`); } },
 		{ name: '/search,file', label: 'Find File', category: 'Search', description: 'Quick file finder', icon: <FileText size={14} />, execute() { void commandService.executeCommand('workbench.action.quickOpen'); } },
 		{ name: '/search,text', label: 'Search Text', category: 'Search', description: 'Search text across files', icon: <Search size={14} />, execute() { void commandService.executeCommand('workbench.action.findInFiles'); } },
 		{ name: '/search,references', label: 'Find References', category: 'Search', description: 'Find references to the current symbol', icon: <Search size={14} />, execute() { void commandService.executeCommand('editor.action.referenceSearch.trigger'); } },
@@ -139,14 +145,14 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/git,diff', label: 'Git Diff', category: 'Tools', description: 'Review the current diff', icon: <GitCommit size={14} />, execute() { sendMessage('Review the current git diff, summarize the changes, and flag regressions or incomplete work.'); } },
 		{ name: '/debug', label: 'Start Debugging', category: 'Tools', description: 'Start the workbench debugger', icon: <Bug size={14} />, execute() { void commandService.executeCommand('workbench.action.debug.start'); } },
 
-		{ name: '/browser', label: 'Browser Agent', category: 'Super Agent', description: 'Use the persistent browser for UI/web tasks', icon: <Globe size={14} />, execute() { sendMessage(`Use the Forge browser agent for this task. Inspect compact DOM first, interact only as needed, make required code changes, and verify in the browser. ${ctx.args}`.trim()); } },
+		{ name: '/browser', label: 'Browser Agent', category: 'Super Agent', description: 'Use the persistent browser for UI/web tasks', icon: <Globe size={14} />, execute(commandContext) { sendMessage(`Use the Forge browser agent for this task. Inspect compact DOM first, interact only as needed, make required code changes, and verify in the browser. ${commandContext.args}`.trim()); } },
 		{ name: '/browser-status', label: 'Browser Status', category: 'Super Agent', description: 'Inspect local browser runtime without an LLM call', icon: <Globe size={14} />, execute() { return callForgeTool(accessor, 'forge_browser', { action: 'status' }, 'Browser'); } },
 		{ name: '/graph', label: 'Code Graph Status', category: 'Super Agent', description: 'Inspect Understand Anything graph status locally', icon: <Network size={14} />, execute() { const workspace = accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri.fsPath; return callForgeTool(accessor, 'forge_understand', { action: 'status', ...(workspace ? { workspace } : {}) }, 'Code graph'); } },
-		{ name: '/design', label: 'Design Agent', category: 'Super Agent', description: 'Use Open Design for a design-to-code task', icon: <Palette size={14} />, execute() { sendMessage(`Treat this as a design implementation task. Use Open Design where it adds value, keep editable artifacts, implement production-ready code, and verify visually in the browser. ${ctx.args}`.trim()); } },
+		{ name: '/design', label: 'Design Agent', category: 'Super Agent', description: 'Use Open Design for a design-to-code task', icon: <Palette size={14} />, execute(commandContext) { sendMessage(`Treat this as a design implementation task. Use Open Design where it adds value, keep editable artifacts, implement production-ready code, and verify visually in the browser. ${commandContext.args}`.trim()); } },
 		{ name: '/design-status', label: 'Open Design Status', category: 'Super Agent', description: 'Inspect Open Design runtime locally', icon: <Palette size={14} />, execute() { return callForgeTool(accessor, 'forge_sidecar', { action: 'status', name: 'open-design' }, 'Open Design'); } },
 		{ name: '/health', label: 'Integration Health', category: 'Super Agent', description: 'Run the local integration doctor', icon: <Activity size={14} />, execute() { return callForgeTool(accessor, 'forge_integrations', { action: 'doctor' }, 'Integrations'); } },
-		{ name: '/work', label: 'Work Mode', category: 'Super Agent', description: 'Inspect Work Mode or create an automation from natural language', icon: <ListChecks size={14} />, execute() {
-			const requirement = ctx.args.trim();
+		{ name: '/work', label: 'Work Mode', category: 'Super Agent', description: 'Inspect Work Mode or create an automation from natural language', icon: <ListChecks size={14} />, execute(commandContext) {
+			const requirement = commandContext.args.trim();
 			if (requirement) {
 				sendMessage(`Create or update a persistent Forge Work Mode automation for this requirement: ${requirement}\n\nUse the forge_workflow tool. Prefer a prompt workflow. Use command workflows only when a fixed command is truly required, and preserve explicit approval unless I clearly request unattended execution. Confirm the interpreted schedule and task.`);
 				return;
@@ -159,8 +165,8 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 			if (!pending.length) { notify(accessor, 'Work Mode has no pending items.'); return; }
 			notify(accessor, `Pending Work Mode: ${pending.slice(0, 10).map(item => `${item.id} · ${item.status} · ${item.title}`).join(' | ')}${pending.length > 10 ? ` · +${pending.length - 10} more` : ''}`);
 		} },
-		{ name: '/work-approve', label: 'Approve Work Command', category: 'Super Agent', description: 'Approve one queued command by pending id', icon: <CheckCircle size={14} />, async execute() {
-			const query = ctx.args.trim();
+		{ name: '/work-approve', label: 'Approve Work Command', category: 'Super Agent', description: 'Approve one queued command by pending id', icon: <CheckCircle size={14} />, async execute(commandContext) {
+			const query = commandContext.args.trim();
 			if (!query) { notify(accessor, 'Usage: /work-approve <pending-id>', 'warn'); return; }
 			const pending = await callForgeToolJson<PendingWorkItem[]>(accessor, 'forge_workflow', { action: 'pending' });
 			if (!pending) return;
@@ -173,8 +179,8 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 			await callForgeToolJson(accessor, 'forge_workflow', { action: 'ack', id: item.id, result: execution.result || execution });
 			notify(accessor, `Approved and executed "${item.title}".`);
 		} },
-		{ name: '/work-remove', label: 'Remove Work Automation', category: 'Super Agent', description: 'Remove a Work Mode workflow by id', icon: <Square size={14} />, async execute() {
-			const id = ctx.args.trim();
+		{ name: '/work-remove', label: 'Remove Work Automation', category: 'Super Agent', description: 'Remove Work Mode workflow by id', icon: <Square size={14} />, async execute(commandContext) {
+			const id = commandContext.args.trim();
 			if (!id) { notify(accessor, 'Usage: /work-remove <workflow-id>', 'warn'); return; }
 			const result = await callForgeToolJson<{ removed: boolean }>(accessor, 'forge_workflow', { action: 'remove', id });
 			if (result) notify(accessor, result.removed ? `Removed Work Mode workflow ${id}.` : `No workflow found with id ${id}.`, result.removed ? 'info' : 'warn');
@@ -193,8 +199,8 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 			}
 		} },
 
-		{ name: '/skill', label: 'Search Skills', category: 'Skills', description: 'Search the 333-skill registry locally', icon: <BookOpen size={14} />, async execute() {
-			const query = ctx.args.trim();
+		{ name: '/skill', label: 'Search Skills', category: 'Skills', description: 'Search the 333-skill registry locally', icon: <BookOpen size={14} />, async execute(commandContext) {
+			const query = commandContext.args.trim();
 			if (!query) { notify(accessor, 'Usage: /skill <query> (e.g. /skill jetson)'); return; }
 			const results = await accessor.get(ISkillsService).searchSkills(query);
 			const top = results.slice(0, 8);
@@ -207,11 +213,26 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		} },
 
 		{ name: '/models', label: 'Select Model', category: 'System', description: 'Open Forge provider/model settings', icon: <Sparkles size={14} />, execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
+		{ name: '/auto', label: 'Toggle Auto Model', category: 'System', description: 'Select the best configured model for each task', icon: <Sparkles size={14} />, async execute() {
+			const settings = accessor.get('IVoidSettingsService');
+			const enabled = !settings.state.globalSettings.autoModelSelection;
+			await settings.setGlobalSetting('autoModelSelection', enabled);
+			notify(accessor, `Automatic model selection ${enabled ? 'enabled' : 'disabled'}.`);
+		} },
+		{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },
+		{ name: '/image', label: 'Attach Image', category: 'System', description: 'Attach an image to the next agent task', icon: <Palette size={14} />, execute() { dispatchAttachmentPicker('image'); } },
 		{ name: '/settings', label: 'Settings', category: 'System', description: 'Open Forge settings', icon: <Settings size={14} />, shortcut: 'Ctrl+,', execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/help', label: 'Help', category: 'System', description: 'Show core Forge command groups locally', icon: <HelpCircle size={14} />, execute() {
 			notify(accessor, 'Forge commands: Agent /agent,* · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings. Type 2+ letters after / to autocomplete registry skills.');
 		} },
 	];
+	return commands.map(command => ({
+		...command,
+		execute: commandContext => {
+			activeCommandName = command.name;
+			return command.execute(commandContext);
+		},
+	}));
 }
 
 export const SlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({ isOpen, onClose, onSelect, anchorRect, context }) => {

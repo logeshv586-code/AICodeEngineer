@@ -13,10 +13,8 @@ import { StreamRenderer } from './StreamRenderer';
 import { ComposerControlCenter, Attachment, NewAttachment } from './ComposerControlCenter';
 import { ForgeBrandMark } from './ForgeBrandMark';
 import { useStreamEvents, StreamEvent } from '../utils/streamEvents';
-import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
 import { IMetricsService } from '../../../../../common/metricsService.js';
 import { StagingSelectionItem } from '../../../../../common/chatThreadServiceTypes.js';
-import { chooseAdaptiveModel } from '../../../../../common/forge/intelligence/adaptiveModelRouter.js';
 import { ISkillsService } from '../../../skillsService.js';
 
 export interface ChatViewMessage {
@@ -46,16 +44,6 @@ export interface ChatViewProps {
 	onRemoveAttachment?: (index: number) => void;
 	onRevertMessage?: (messageIndex: number) => void;
 }
-
-const EmptyState: React.FC = () => (
-	<div className='flex h-full items-center justify-center select-none px-5 py-8'>
-		<div className='forge-brand-empty-card text-center'>
-			<div className='flex justify-center mb-3'><ForgeBrandMark size={42} /></div>
-			<div className='text-[15px] font-medium tracking-[-0.015em] text-[var(--forge-text)]'>How can Forge help with this project?</div>
-			<div className='text-[10.5px] leading-relaxed text-[var(--forge-muted)] mt-2 max-w-[420px] mx-auto'>Describe what you want to change or build. Forge will inspect the project, use the right tools and skills, make the changes, and verify the result.</div>
-		</div>
-	</div>
-);
 
 const MessageActions: React.FC<{ onRevert?: () => void; onCopy?: () => void; onDuplicateThread?: () => void }> = ({ onRevert, onCopy, onDuplicateThread }) => {
 	if (!onRevert && !onCopy && !onDuplicateThread) return null;
@@ -203,16 +191,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		if (slashContext) {
 			try {
-				const settingsService = slashContext.accessor.get(IVoidSettingsService);
-				if (settingsService.state.globalSettings.autoModelSelection) {
-					const currentSelection = settingsService.state.modelSelectionOfFeature.Chat;
-					const decision = chooseAdaptiveModel({ prompt: trimmed, candidates: settingsService.state._modelOptions, currentSelection });
-					if (decision.selection && (decision.selection.providerName !== currentSelection?.providerName || decision.selection.modelName !== currentSelection?.modelName)) {
-						await settingsService.setModelSelectionOfFeature('Chat', decision.selection);
-						console.log(`[Forge Model Router] ${decision.reason}`);
-					}
-				}
-				if (!settingsService.state.modelSelectionOfFeature.Chat) {
+				const settingsService = slashContext.accessor.get('IVoidSettingsService');
+				const canAutoSelect = settingsService.state.globalSettings.autoModelSelection && settingsService.state._modelOptions.length > 0;
+				if (!settingsService.state.modelSelectionOfFeature.Chat && !canAutoSelect) {
 					notify('Choose a Chat model before sending a task. Forge opened model settings for you.', 'warn');
 					onOpenSettings?.();
 					return false;
@@ -320,7 +301,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		{slashContext && <SlashCommandPalette isOpen={isSlashOpen} onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }} onSelect={handleSlashSelect} anchorRect={slashAnchor} context={slashContext} />}
 		<div className='forge-brand-scroll flex-1 overflow-y-auto'>
 			<div className='mx-auto w-full max-w-[980px] min-h-full'>
-				{messages.length === 0 ? <EmptyState /> : <>
+				{messages.length > 0 && <>
 					{messages.map((message, index) => {
 						const revert = message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!);
 						const copy = message.content ? () => { void copyText(message.content); } : undefined;

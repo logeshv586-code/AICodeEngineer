@@ -13,12 +13,12 @@ import { ChatMarkdownRender, ChatMessageLocation, getApplyBoxId } from '../markd
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ErrorDisplay } from './ErrorDisplay.tsx';
-import { BlockCode, TextAreaFns, VoidCustomDropdownBox, VoidInputBox2, VoidSlider, VoidSwitch, VoidDiffEditor } from '../util/inputs.tsx';
+import { BlockCode, TextAreaFns, VoidInputBox2, VoidSlider, VoidSwitch, VoidDiffEditor } from '../util/inputs.tsx';
 import { ModelDropdown, } from '../void-settings-tsx/ModelDropdown.tsx';
 import { PastThreadsList } from './SidebarThreadSelector.tsx';
 import { VOID_CTRL_L_ACTION_ID } from '../../../actionIDs.js';
 import { VOID_OPEN_SETTINGS_ACTION_ID } from '../../../voidSettingsPane.js';
-import { ChatMode, displayInfoOfProviderName, FeatureName, isFeatureNameDisabled } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
+import { displayInfoOfProviderName, FeatureName, isFeatureNameDisabled } from '../../../../../../../workbench/contrib/void/common/voidSettingsTypes.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { SlashCommandContext } from '../workspace-tsx/utils/slashCommandRouter';
 import { WarningBox } from '../void-settings-tsx/WarningBox.tsx';
@@ -303,47 +303,6 @@ const ReasoningOptionSlider = ({ featureName }: { featureName: FeatureName }) =>
 
 
 
-const nameOfChatMode = {
-	'normal': 'Chat',
-	'gather': 'Gather',
-	'agent': 'Agent',
-}
-
-const detailOfChatMode = {
-	'normal': 'Normal chat',
-	'gather': 'Reads files, but can\'t edit',
-	'agent': 'Edits files and uses tools',
-}
-
-
-const ChatModeDropdown = ({ className }: { className: string }) => {
-	const accessor = useAccessor()
-
-	const voidSettingsService = accessor.get('IVoidSettingsService')
-	const settingsState = useSettingsState()
-
-	const options: ChatMode[] = useMemo(() => ['normal', 'gather', 'agent'], [])
-
-	const onChangeOption = useCallback((newVal: ChatMode) => {
-		voidSettingsService.setGlobalSetting('chatMode', newVal)
-	}, [voidSettingsService])
-
-	return <VoidCustomDropdownBox
-		className={className}
-		options={options}
-		selectedOption={settingsState.globalSettings.chatMode}
-		onChangeOption={onChangeOption}
-		getOptionDisplayName={(val) => nameOfChatMode[val]}
-		getOptionDropdownName={(val) => nameOfChatMode[val]}
-		getOptionDropdownDetail={(val) => detailOfChatMode[val]}
-		getOptionsEqual={(a, b) => a === b}
-	/>
-
-}
-
-
-
-
 
 interface VoidChatAreaProps {
 	// Required
@@ -478,9 +437,9 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 				className="hidden"
 			/>
 
-			{/* Interactive Mode Tag Header matching Image 4 */}
+			{/* Forge uses one agent execution mode for chat and code work. */}
 			<div className="flex items-center gap-1.5 mb-2">
-				<ChatModeDropdown className="text-xs font-semibold text-zinc-200 bg-zinc-800/80 hover:bg-zinc-700/80 rounded-md px-2 py-0.5 border border-zinc-700/60 cursor-pointer" />
+				<span className="text-xs font-semibold text-zinc-200 bg-zinc-800/80 rounded-md px-2 py-0.5 border border-zinc-700/60">Agent</span>
 			</div>
 
 			{/* Selections section */}
@@ -3617,6 +3576,7 @@ export const SidebarChat = () => {
 					onArtToggle={() => setArtEnabled(!artEnabled)}
 				codeEnabled={codeEnabled}
 					onCodeToggle={() => setCodeEnabled(!codeEnabled)}
+				slashContext={slashContextValue}
 			/>
 		</div>
 	</div>
@@ -3654,6 +3614,7 @@ export const SidebarChat = () => {
 					onArtToggle={() => setArtEnabled(!artEnabled)}
 				codeEnabled={codeEnabled}
 					onCodeToggle={() => setCodeEnabled(!codeEnabled)}
+				slashContext={slashContextValue}
 			/>
 		</div>
 	</div>

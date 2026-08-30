@@ -123,7 +123,6 @@ export const classifyForgeTask = (prompt: string): ForgeTaskProfile => {
 	if (needsAutomation) suggestedIntegrations.push('aionui');
 	if (needsBrowser) suggestedIntegrations.push('forge-browser');
 	if (isCoding || isDebug || isRefactor || isArchitecture) suggestedIntegrations.push('skillopt');
-	if (needsDeepReasoning && (isCoding || isDebug || isArchitecture)) suggestedIntegrations.push('agent-lightning');
 
 	if (needsCodeGraph) reasons.push('large or cross-file code context');
 	if (needsBrowser) reasons.push('browser interaction or web verification');

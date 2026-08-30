@@ -7,8 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useRawAccessor, useSettingsState } from '../../util/services.tsx';
 import { ChatView, ChatViewMessage } from './ChatView.tsx';
 import { ForgeChatHeader } from './ForgeChatHeader.tsx';
-import { ForgePanelIntro } from './ForgePanelIntro.tsx';
-import { createAllCommands, type SlashCommandContext } from '../utils/slashCommandRouter.tsx';
+import { type SlashCommandContext } from '../utils/slashCommandRouter.tsx';
 import { FORGE_EVOLUTION_POLICY, FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts.ts';
 import '../forgeBrand.css';
 import '../forgeRightPanel.css';
@@ -103,7 +102,7 @@ export const ConversationShell: React.FC = () => {
 	const stagedSelections = currentThread?.state.stagingSelections ?? [];
 	const stagedFiles = useMemo(() => stagedSelections.filter(selection => selection.type === 'File').map(selection => selection.uri.fsPath), [stagedSelections]);
 
-	const sendMessage = useCallback(async (message: string) => {
+	const sendMessage = useCallback(async (message: string, displayLabelOverride?: string) => {
 		const trimmed = message.trim();
 		let threadId = chatThreadsService.state.currentThreadId;
 		if (!threadId || !chatThreadsService.state.allThreads[threadId]) threadId = chatThreadsService.createNewThread();
@@ -112,7 +111,7 @@ export const ConversationShell: React.FC = () => {
 		if (!effectiveMessage) return;
 
 		const backendMessage = withEvolutionPolicy(effectiveMessage);
-		const displayLabel = generatedTaskDisplayLabels.get(effectiveMessage) ?? effectiveMessage;
+		const displayLabel = displayLabelOverride ?? generatedTaskDisplayLabels.get(effectiveMessage) ?? effectiveMessage;
 
 		const applyVisibleLabel = () => {
 			const state = chatThreadsService.state;
@@ -161,13 +160,8 @@ export const ConversationShell: React.FC = () => {
 		args: '',
 		onClose: () => {},
 		setActiveTool: () => {},
-		sendMessage: message => { void sendMessage(message); },
+		sendMessage: (message, displayLabel) => { void sendMessage(message, displayLabel); },
 	}), [chatThreadsService, commandService, rawAccessor, sendMessage]);
-
-	const runIntroCommand = useCallback((commandName: string) => {
-		const command = createAllCommands(slashContext).find(candidate => candidate.name === commandName);
-		if (command) void Promise.resolve(command.execute({ ...slashContext, args: '' }));
-	}, [slashContext]);
 
 	const selectedModel = settingsState.modelSelectionOfFeature.Chat;
 	const isEmpty = messages.length === 0;
@@ -182,12 +176,6 @@ export const ConversationShell: React.FC = () => {
 					workspaceReady={workspaceReady}
 					isStreaming={isStreaming}
 					slashContext={slashContext}
-				/>}
-				{isEmpty && <ForgePanelIntro
-					workspaceName={workspaceName}
-					onEvolveProject={() => { void sendMessage(FORGE_PROJECT_EVOLUTION_TASK); }}
-					onEvolveSkills={() => { void sendMessage(FORGE_SKILL_EVOLUTION_TASK); }}
-					onCommand={runIntroCommand}
 				/>}
 				<ChatView
 					messages={messages}

@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import * as ReactDOM from 'react-dom/client'
 import { _registerServices } from './services.js';
 
@@ -15,6 +15,11 @@ export const mountFnGenerator = (Component: (params: any) => React.ReactNode) =>
 		console.error('index.tsx error: document was undefined')
 		return
 	}
+
+	// The workbench may reuse the sidebar host while the React bundle is loading.
+	// Clear any DOM left by the previous/legacy Forge view before registering
+	// services or creating the new root so removed starter cards never flash.
+	rootElement.replaceChildren();
 
 	// ╔══════════════════════════════════════════════════════════════╗
 	// ║  TEMPORARY DEBUG INSTRUMENTATION — REMOVE AFTER DIAGNOSIS  ║

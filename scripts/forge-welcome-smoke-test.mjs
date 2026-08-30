@@ -33,34 +33,38 @@ try {
 	});
 
 	const window = application.windows()[0] ?? await application.waitForEvent('window', { timeout: 60_000 });
-	const welcome = window.locator('.void-forge-panel-intro');
-	await welcome.waitFor({ state: 'visible', timeout: 60_000 });
-	await window.getByRole('heading', { name: 'Forge AI', exact: true }).waitFor({ state: 'visible' });
 	await window.getByPlaceholder('Describe the outcome you want Forge to deliver…').waitFor({ state: 'visible' });
 
+	await window.getByRole('button', { name: '/ commands', exact: true }).click();
+	await window.getByRole('dialog', { name: 'Forge slash commands' }).waitFor({ state: 'visible' });
+	await window.getByText('/agent,code', { exact: true }).waitFor({ state: 'visible' });
+	await window.getByText('/auto', { exact: true }).waitFor({ state: 'visible' });
+	await window.keyboard.press('Escape');
+
+	await window.locator('.void-forge-right-composer-meta-right button').first().click();
+	await window.getByText('Auto Mode', { exact: true }).waitFor({ state: 'visible' });
+	await window.keyboard.press('Escape');
+
 	const commandCount = await window.locator('.void-forge-panel-command').count();
+	const welcomeCount = await window.locator('.void-forge-panel-intro').count();
 	const restoredMessageCount = await window.locator('.void-forge-brand-user-bubble').count();
 	const openSlashPaletteCount = await window.locator('.void-forge-slash-palette:visible').count();
-	const welcomeBounds = await welcome.boundingBox();
 	const forgeSurfaceBounds = await window.locator('.part.auxiliarybar').boundingBox();
-	const restoredPanelVisible = await window.locator('.part.panel').isVisible();
 	const viewportWidth = await window.evaluate(() => innerWidth);
 
-	assert.equal(commandCount, 11, 'The welcome screen must show all 11 primary Forge commands.');
+	assert.equal(commandCount, 0, 'Startup must not render the old slash-command welcome screen.');
+	assert.equal(welcomeCount, 0, 'Startup must not render the image-like Forge intro board.');
 	assert.equal(restoredMessageCount, 0, 'The startup screen must not restore a message into the active conversation.');
 	assert.equal(openSlashPaletteCount, 0, 'The slash-command palette must be closed on startup.');
-	assert.ok(welcomeBounds && welcomeBounds.width >= 500, 'The welcome board must use the main work surface.');
-	assert.equal(restoredPanelVisible, false, 'A restored Terminal or bottom panel must not displace Forge on startup.');
 	assert.ok(
-		forgeSurfaceBounds && forgeSurfaceBounds.width >= viewportWidth * 0.6,
-		'The Forge surface must occupy the main work area beside Explorer.',
+		forgeSurfaceBounds && forgeSurfaceBounds.width >= Math.min(280, viewportWidth * 0.25),
+		'The Forge chat surface must remain usable in the right auxiliary panel.',
 	);
 
 	await window.screenshot({ path: screenshotPath });
 	console.log(JSON.stringify({
 		status: 'passed',
 		commandCount,
-		welcomeWidth: Math.round(welcomeBounds.width),
 		forgeSurfaceWidth: Math.round(forgeSurfaceBounds.width),
 		screenshotPath,
 	}, null, 2));
