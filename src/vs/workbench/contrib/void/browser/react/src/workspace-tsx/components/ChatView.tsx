@@ -15,6 +15,7 @@ import { ComposerControlCenter, Attachment, NewAttachment } from './ComposerCont
 import { ForgeBrandMark } from './ForgeBrandMark';
 import { useStreamEvents, StreamEvent } from '../utils/streamEvents';
 import { IMetricsService } from '../../../../../common/metricsService.js';
+import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
 import { StagingSelectionItem } from '../../../../../common/chatThreadServiceTypes.js';
 import { ISkillsService } from '../../../skillsService.js';
 
@@ -120,7 +121,7 @@ const mimeTypeForFile = (filePath: string): string => {
 	return map[ext] || 'application/octet-stream';
 };
 
-const WORKSPACE_AGENT_POLICY = `You are operating inside the user's currently opened Forge IDE workspace. Treat the opened folder, active editor, staged context, terminal, and project files as the source of truth. Read the relevant workspace files before making claims or changes. Use IDE file/search/edit/terminal tools directly when needed. For a run request, detect the real project type and start command from manifests/configuration instead of guessing. Execute it, inspect the actual output, diagnose failures, make coherent fixes when requested, and rerun verification. Do not search for, recommend, install, or discuss domain skills unless the user explicitly asks for a skill. Do not replace execution with a plan or a hypothetical command.`;
+const WORKSPACE_AGENT_POLICY = `You are operating inside the user's currently opened Forge IDE workspace. Treat the opened folder, active editor, staged context, terminal, and project files as the source of truth. Read the relevant workspace files before making claims or changes. Use IDE file/search/edit/terminal tools directly when needed. For a run request, detect the real project type and start command from manifests/configuration instead of guessing. Execute it, inspect the actual output, diagnose failures, make coherent fixes when requested, and rerun verification. For long-running development servers, use open_persistent_terminal and run_persistent_command so the process remains attached to Forge while you inspect its output. Do not search for, recommend, install, or discuss domain skills unless the user explicitly asks for a skill. Do not replace execution with a plan or a hypothetical command.`;
 
 const expandForgeCommand = (text: string): string => {
 	const trimmed = text.trim();
@@ -130,7 +131,7 @@ const expandForgeCommand = (text: string): string => {
 		const task = (match[2] || '').trim();
 		const focus: Record<string, string> = {
 			agent: 'Coordinate the needed implementation, debugging, runtime/environment, testing, and review specialists as one team. Keep ownership of one shared workspace and avoid conflicting edits.',
-			run: 'Run the current project now. Inspect package/build/runtime files, choose the correct command, use a persistent terminal for a dev server when appropriate, and verify the application actually starts.',
+			run: 'Run the current project now. Inspect package/build/runtime files, choose the correct command, use open_persistent_terminal plus run_persistent_command for a long-running development server, inspect the live output, and verify the application actually starts.',
 			fix: 'Reproduce the current issue where possible, identify the root cause, implement the smallest coherent fix, and run targeted regression checks.',
 			test: 'Run the most relevant project tests, lint/type/build checks as appropriate, fix actionable failures caused by the implementation, and rerun verification.',
 			review: 'Review the current workspace changes for correctness, regressions, maintainability, security, and runtime behavior; fix confirmed issues when safe and verify them.',
@@ -228,7 +229,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		if (slashContext) {
 			try {
-				const settingsService = slashContext.accessor.get('IVoidSettingsService');
+				const settingsService = slashContext.accessor.get(IVoidSettingsService);
 				const canAutoSelect = settingsService.state.globalSettings.autoModelSelection && settingsService.state._modelOptions.length > 0;
 				if (!settingsService.state.modelSelectionOfFeature.Chat && !canAutoSelect) {
 					notify('Choose a Chat model before sending a task. Forge opened model settings for you.', 'warn');
