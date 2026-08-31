@@ -36,6 +36,8 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 	const [knowledgeState, setKnowledgeState] = useState<KnowledgeState>('idle');
 	const [snapshot, setSnapshot] = useState<KnowledgeSnapshot>({ registrySkills: 0, workspaceSkills: 0 });
 	const disposedRef = useRef(false);
+	const wasStreamingRef = useRef(false);
+	const refreshInFlightRef = useRef(false);
 
 	useEffect(() => {
 		disposedRef.current = false;
@@ -43,11 +45,13 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 	}, []);
 
 	const refreshKnowledge = useCallback(async (forceReindex: boolean) => {
-		if (!slashContext) return;
+		if (!slashContext || refreshInFlightRef.current) return;
 		if (!workspaceReady || !workspacePath) {
 			setKnowledgeState('idle');
 			return;
 		}
+
+		refreshInFlightRef.current = true;
 		setKnowledgeState('syncing');
 		try {
 			const skillsService = slashContext.accessor.get(ISkillsService);
@@ -70,15 +74,42 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 			// broken project; retry quietly and keep the agent usable meanwhile.
 			console.debug('[Forge Project Knowledge] Background preparation still in progress:', error);
 			if (!disposedRef.current) setKnowledgeState('preparing');
+		} finally {
+			refreshInFlightRef.current = false;
 		}
 	}, [slashContext, workspacePath, workspaceReady]);
 
+	// Initial snapshot for a newly opened/switched workspace. This effect deliberately
+	// does not depend on knowledgeState, so a syncing -> ready transition cannot create
+	// a render-driven refresh loop.
 	useEffect(() => {
-		if (!workspaceReady || !workspacePath) return;
+		if (!workspaceReady || !workspacePath) {
+			setKnowledgeState('idle');
+			return;
+		}
 		void refreshKnowledge(false);
-		const timer = window.setInterval(() => {
-			if (!isStreaming) void refreshKnowledge(false);
-		}, knowledgeState === 'ready' ? 30_000 : 3_000);
+	}, [refreshKnowledge, workspacePath, workspaceReady]);
+
+	// Re-index once an agent run finishes so edits made by the model become searchable
+	// immediately. While the agent is running, avoid competing index work.
+	useEffect(() => {
+		if (isStreaming) {
+			wasStreamingRef.current = true;
+			return;
+		}
+		if (wasStreamingRef.current) {
+			wasStreamingRef.current = false;
+			void refreshKnowledge(true);
+		}
+	}, [isStreaming, refreshKnowledge]);
+
+	// First-time installation can take a little while. Poll status quietly until ready,
+	// then back off to a low-frequency health refresh. There is no immediate call here;
+	// the initial/work-complete effects above own immediate refreshes.
+	useEffect(() => {
+		if (!workspaceReady || !workspacePath || isStreaming) return;
+		const delay = knowledgeState === 'ready' ? 30_000 : 3_000;
+		const timer = window.setInterval(() => { void refreshKnowledge(false); }, delay);
 		return () => window.clearInterval(timer);
 	}, [isStreaming, knowledgeState, refreshKnowledge, workspacePath, workspaceReady]);
 
