@@ -18,6 +18,7 @@ import { IMetricsService } from '../../../../../common/metricsService.js';
 import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
 import { StagingSelectionItem } from '../../../../../common/chatThreadServiceTypes.js';
 import { ISkillsService } from '../../../skillsService.js';
+import { ITerminalToolService } from '../../../../terminalToolService.js';
 
 export interface ChatViewMessage {
 	readonly id: string;
@@ -121,6 +122,12 @@ const mimeTypeForFile = (filePath: string): string => {
 	return map[ext] || 'application/octet-stream';
 };
 
+const isProjectRunRequest = (text: string): boolean => {
+	const trimmed = text.trim();
+	if (/^\/run(?:\s|$)/i.test(trimmed)) return true;
+	return /\b(?:run|start|launch|execute)\s+(?:the\s+)?(?:current\s+)?(?:project|app|application|code)\b/i.test(trimmed);
+};
+
 // Product commands are expanded into concise backend instructions. Workspace context,
 // tool definitions, and the full Agent execution contract belong to the system prompt;
 // they should never be copied into the visible user bubble.
@@ -132,7 +139,7 @@ const expandForgeCommand = (text: string): string => {
 		const task = (match[2] || '').trim();
 		const focus: Record<string, string> = {
 			agent: 'Work on this task as one coordinated Forge agent workflow. Inspect the current workspace first, use real IDE tools for actions, coordinate implementation/debugging/testing/review without conflicting edits, and verify the final result.',
-			run: 'Run the currently opened project now. Inspect its manifest and runtime files first, determine the actual start command, execute it through Forge terminal tools, use a persistent terminal for a long-running development server, inspect real output, and verify that the application starts.',
+			run: 'Run the currently opened project now. Inspect its manifest and runtime files first, determine the actual start command, execute it through Forge terminal tools, use the already-open Forge persistent terminal for a long-running development server, inspect real output, and verify that the application starts. Opening a terminal is not task completion: run the detected command and inspect its output before answering.',
 			fix: 'Reproduce the current issue using the opened workspace, identify the root cause, implement the smallest coherent fix with IDE tools, and run targeted regression verification.',
 			test: 'Run the most relevant tests, lint/type/build checks for the opened workspace, fix actionable failures caused by the implementation, and rerun verification.',
 			review: 'Review the current workspace changes for correctness, regressions, maintainability, security, and runtime behavior; fix confirmed issues when safe and verify them.',
@@ -140,8 +147,8 @@ const expandForgeCommand = (text: string): string => {
 		return `${focus[command]}${task ? `\n\nUser task: ${task}` : ''}`;
 	}
 
-	if (/\b(?:run|start|launch|execute)\s+(?:the\s+)?(?:current\s+)?(?:project|app|application|code)\b/i.test(trimmed)) {
-		return `Run the currently opened project now. Inspect its manifest/runtime files, determine the actual start command, execute it with Forge terminal tools, use a persistent terminal for a long-running server, inspect real output, and verify startup.\n\nUser request: ${trimmed}`;
+	if (isProjectRunRequest(trimmed)) {
+		return `Run the currently opened project now. Inspect its manifest/runtime files, determine the actual start command, execute it with Forge terminal tools, use the already-open Forge persistent terminal for a long-running server, inspect real output, and verify startup. Opening a terminal is not completion: run the detected command and inspect its output before answering.\n\nUser request: ${trimmed}`;
 	}
 
 	return trimmed;
@@ -222,10 +229,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return false;
 	}, [notify, slashContext]);
 
+	const ensurePersistentRunTerminal = useCallback(async (raw: string) => {
+		if (!slashContext || !isProjectRunRequest(raw)) return;
+		try {
+			const terminalService = slashContext.accessor.get(ITerminalToolService);
+			if (terminalService.listPersistentTerminalIds().length === 0) {
+				await terminalService.createPersistentTerminal({ cwd: null });
+			}
+		} catch (error) {
+			// Do not block the request. The normal agent tool loop can still open a
+			// terminal itself; this preflight exists mainly so small local models have
+			// a concrete persistent terminal ID available on their very first turn.
+			console.warn('[Forge Run Preflight] Could not prepare persistent terminal:', error);
+		}
+	}, [slashContext]);
+
 	const sendWithAdaptiveModel = useCallback(async (text: string): Promise<boolean> => {
 		const raw = text.trim();
 		if (!raw) return false;
 		if (await handleLocalSkillCommand(raw)) return false;
+		await ensurePersistentRunTerminal(raw);
 		const prepared = expandForgeCommand(raw);
 
 		if (slashContext) {
@@ -246,7 +269,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// user bubble keeps exactly what the user typed (for example "/run my app").
 		await Promise.resolve(onSendMessage(prepared, raw));
 		return true;
-	}, [handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
+	}, [ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
 
 	const handleSend = useCallback(async () => {
 		if (isStreaming || isSubmitting) return;
