@@ -11,29 +11,49 @@ import { ISemanticSearchService } from '../../common/forge/contracts/ISemanticSe
 import { FORGE_CHANNEL_NAME } from '../../common/forge/contracts/forgeIPC.js';
 import { IndexStats, SemanticSearchHit, SemanticSearchOpts } from '../../common/forge/types/semanticSearchTypes.js';
 import { ForgeMainService } from './services/forgeMainService.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 
+/**
+ * Kept for backward compatibility with older settings migrations. CocoIndex is now an
+ * internal Forge runtime and is always prepared for opened code workspaces.
+ */
 export const COCOINDEX_AUTO_INDEX_STORAGE_KEY = 'forge.cocoindex.autoIndexCodeProjects';
 
 export class SemanticSearchService implements ISemanticSearchService {
 	readonly _serviceBrand: undefined;
 	private readonly forgeMainService: ForgeMainService;
+	private autoPrepareGeneration = 0;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		const channel = mainProcessService.getChannel(FORGE_CHANNEL_NAME);
 		this.forgeMainService = new ForgeMainService(channel);
-		setTimeout(() => { void this._autoPrepareOpenWorkspaces(); }, 1500);
+
+		// Project knowledge is part of the IDE runtime, not a user-facing toggle.
+		// Prepare it shortly after startup and whenever workspace folders change.
+		setTimeout(() => { void this._autoPrepareOpenWorkspaces(); }, 750);
 		this.workspaceContextService.onDidChangeWorkspaceFolders(() => { void this._autoPrepareOpenWorkspaces(); });
 	}
 
 	private async _autoPrepareOpenWorkspaces(): Promise<void> {
-		if (!this.storageService.getBoolean(COCOINDEX_AUTO_INDEX_STORAGE_KEY, StorageScope.APPLICATION, true)) return;
-		await Promise.allSettled(this.workspaceContextService.getWorkspace().folders.map(folder =>
-			this.forgeMainService.autoPrepareCocoIndexWorkspace(folder.uri.fsPath)));
+		const generation = ++this.autoPrepareGeneration;
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		if (folders.length === 0) return;
+
+		const results = await Promise.allSettled(
+			folders.map(folder => this.forgeMainService.autoPrepareCocoIndexWorkspace(folder.uri.fsPath)),
+		);
+
+		// Workspace changes can race a slow first-time install. Ignore stale errors and
+		// retry the active workspace once; the main process handles install/init/index.
+		if (generation !== this.autoPrepareGeneration) return;
+		const failed = results.some(result => result.status === 'rejected');
+		if (failed) {
+			setTimeout(() => {
+				if (generation === this.autoPrepareGeneration) void this._autoPrepareOpenWorkspaces();
+			}, 2500);
+		}
 	}
 
 	private getWorkspacePath(): string {
