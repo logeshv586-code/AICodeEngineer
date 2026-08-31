@@ -9,7 +9,7 @@ import { ISkillsService } from '../../../skillsService.js';
 import { ISemanticSearchService } from '../../../../../common/forge/contracts/ISemanticSearchService.js';
 import type { SlashCommandContext } from '../utils/slashCommandRouter';
 
-type KnowledgeState = 'idle' | 'syncing' | 'ready' | 'error';
+type KnowledgeState = 'idle' | 'syncing' | 'ready' | 'preparing';
 
 type KnowledgeSnapshot = {
 	registrySkills: number;
@@ -35,7 +35,6 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 }) => {
 	const [knowledgeState, setKnowledgeState] = useState<KnowledgeState>('idle');
 	const [snapshot, setSnapshot] = useState<KnowledgeSnapshot>({ registrySkills: 0, workspaceSkills: 0 });
-	const wasStreamingRef = useRef(false);
 	const disposedRef = useRef(false);
 
 	useEffect(() => {
@@ -43,80 +42,72 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 		return () => { disposedRef.current = true; };
 	}, []);
 
-	const refreshKnowledge = useCallback(async (refreshIndex: boolean) => {
+	const refreshKnowledge = useCallback(async (forceReindex: boolean) => {
 		if (!slashContext) return;
+		if (!workspaceReady || !workspacePath) {
+			setKnowledgeState('idle');
+			return;
+		}
 		setKnowledgeState('syncing');
 		try {
 			const skillsService = slashContext.accessor.get(ISkillsService);
 			await skillsService.reloadSkills();
-
-			let indexStats: { totalFiles: number; totalChunks: number } | undefined;
-			if (refreshIndex && workspaceReady && workspacePath) {
-				const stats = await slashContext.accessor.get(ISemanticSearchService).indexWorkspace(workspacePath);
-				indexStats = { totalFiles: stats.totalFiles, totalChunks: stats.totalChunks };
-			}
-
+			const semanticSearch = slashContext.accessor.get(ISemanticSearchService);
+			const stats = forceReindex
+				? await semanticSearch.indexWorkspace(workspacePath)
+				: await semanticSearch.getStats(workspacePath);
 			if (disposedRef.current) return;
-			setSnapshot(previous => ({
-				...previous,
+			setSnapshot({
 				registrySkills: skillsService.getRegistrySkillCount(),
 				workspaceSkills: skillsService.getAllSkills().length,
-				...(indexStats ?? {}),
-			}));
+				totalFiles: stats.totalFiles,
+				totalChunks: stats.totalChunks,
+			});
 			setKnowledgeState('ready');
 		} catch (error) {
-			console.warn('[Forge Evolution] Could not refresh project knowledge:', error);
-			if (!disposedRef.current) setKnowledgeState('error');
+			// First launch can legitimately be here while the internal CocoIndex runtime
+			// installs and initializes in the main process. Do not present that as a
+			// broken project; retry quietly and keep the agent usable meanwhile.
+			console.debug('[Forge Project Knowledge] Background preparation still in progress:', error);
+			if (!disposedRef.current) setKnowledgeState('preparing');
 		}
 	}, [slashContext, workspacePath, workspaceReady]);
 
 	useEffect(() => {
+		if (!workspaceReady || !workspacePath) return;
 		void refreshKnowledge(false);
-	}, [refreshKnowledge]);
-
-	useEffect(() => {
-		if (isStreaming) {
-			wasStreamingRef.current = true;
-			return;
-		}
-		if (!wasStreamingRef.current) return;
-		wasStreamingRef.current = false;
-		void refreshKnowledge(true);
-	}, [isStreaming, refreshKnowledge]);
+		const timer = window.setInterval(() => {
+			if (!isStreaming) void refreshKnowledge(false);
+		}, knowledgeState === 'ready' ? 30_000 : 3_000);
+		return () => window.clearInterval(timer);
+	}, [isStreaming, knowledgeState, refreshKnowledge, workspacePath, workspaceReady]);
 
 	const statusText = !workspaceReady
-		? 'Open a folder to enable project knowledge'
+		? 'Open a folder to enable project context'
 		: knowledgeState === 'syncing'
-			? 'Refreshing project knowledge…'
-			: knowledgeState === 'error'
-				? 'Project knowledge needs refresh'
+			? 'Syncing project context…'
+			: knowledgeState === 'preparing'
+				? 'Preparing project context in background…'
 				: snapshot.totalFiles !== undefined
 					? `${snapshot.totalFiles} files indexed`
-					: 'Project ready';
+					: 'Project context ready';
 
-	const skillText = snapshot.registrySkills > 0
-		? `${snapshot.registrySkills} skills · ${snapshot.workspaceSkills} workspace`
-		: `${snapshot.workspaceSkills} workspace skills`;
-
-	return (
-		<header className='forge-chat-header shrink-0'>
-			<div className='forge-chat-header-main'>
-				<div className='forge-chat-workspace min-w-0'>
-					<span className='forge-chat-section-label'>FORGE AI</span>
-					<span className='forge-chat-workspace-name truncate' title={workspaceName}>{workspaceName}</span>
-				</div>
-				<div className='forge-chat-header-actions'>
-					<button type='button' className='forge-chat-icon-action' onClick={() => { void refreshKnowledge(true); }} disabled={!workspaceReady || knowledgeState === 'syncing'} title='Refresh project knowledge and workspace skills' aria-label='Refresh project knowledge'>
-						<RefreshCw size={13} className={knowledgeState === 'syncing' ? 'animate-spin' : ''} />
-					</button>
-				</div>
+	return <header className='forge-chat-header shrink-0'>
+		<div className='forge-chat-header-main'>
+			<div className='forge-chat-workspace min-w-0'>
+				<span className='forge-chat-section-label'>FORGE AI</span>
+				<span className='forge-chat-workspace-name truncate' title={workspaceName}>{workspaceName}</span>
 			</div>
-			<div className='forge-chat-healthline' aria-live='polite'>
-				<span className={`forge-chat-health-dot forge-chat-health-${knowledgeState}`} />
-				<span className='truncate'>{statusText}</span>
-				<span className='forge-chat-health-separator'>•</span>
-				<span className='truncate' title={`${snapshot.registrySkills} registry skills, ${snapshot.workspaceSkills} active workspace skills`}>{skillText}</span>
+			<div className='forge-chat-header-actions'>
+				<button type='button' className='forge-chat-icon-action' onClick={() => { void refreshKnowledge(true); }} disabled={!workspaceReady || knowledgeState === 'syncing'} title='Refresh current project context' aria-label='Refresh current project context'>
+					<RefreshCw size={13} className={knowledgeState === 'syncing' ? 'animate-spin' : ''} />
+				</button>
 			</div>
-		</header>
-	);
+		</div>
+		<div className='forge-chat-healthline' aria-live='polite'>
+			<span className={`forge-chat-health-dot forge-chat-health-${knowledgeState === 'preparing' ? 'syncing' : knowledgeState}`} />
+			<span className='truncate'>{statusText}</span>
+			{snapshot.workspaceSkills > 0 && <><span className='forge-chat-health-separator'>•</span><span className='truncate' title={`${snapshot.workspaceSkills} project-local workspace skills`}>{snapshot.workspaceSkills} workspace skills</span></>}
+		</div>
+	</header>;
 };
