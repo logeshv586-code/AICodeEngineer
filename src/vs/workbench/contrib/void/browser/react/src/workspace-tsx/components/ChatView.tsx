@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Sparkles, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Sparkles, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown, Plus } from 'lucide-react';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { SlashCommandPalette, SlashCommandContext, SlashCommand } from '../utils/slashCommandRouter';
+import { SlashCommandContext, SlashCommand } from '../utils/slashCommandRouter';
+import { UnifiedSlashCommandPalette } from '../utils/UnifiedSlashCommandPalette.tsx';
 import { StreamRenderer } from './StreamRenderer';
 import { ComposerControlCenter, Attachment, NewAttachment } from './ComposerControlCenter';
 import { ForgeBrandMark } from './ForgeBrandMark';
 import { useStreamEvents, StreamEvent } from '../utils/streamEvents';
 import { IMetricsService } from '../../../../../common/metricsService.js';
+import { IVoidSettingsService } from '../../../../../common/voidSettingsService.js';
 import { StagingSelectionItem } from '../../../../../common/chatThreadServiceTypes.js';
 import { ISkillsService } from '../../../skillsService.js';
 
@@ -50,7 +52,7 @@ const MessageActions: React.FC<{ onRevert?: () => void; onCopy?: () => void; onD
 	return <div className='absolute right-2 top-2 hidden group-hover:flex items-center gap-0.5 rounded-lg border border-[var(--forge-line)] bg-[var(--forge-bg-1)]/95 p-0.5 shadow-xl z-10'>
 		{onCopy && <button type='button' onClick={onCopy} title='Copy message' aria-label='Copy message' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><Copy size={11} /></button>}
 		{onDuplicateThread && <button type='button' onClick={onDuplicateThread} title='Duplicate thread' aria-label='Duplicate thread' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><GitFork size={11} /></button>}
-		{onRevert && <button type='button' onClick={onRevert} title='Revert to here' aria-label='Revert to here' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><RotateCcw size={11} /></button>}
+		{onRevert && <button type='button' onClick={onRevert} title='Revert to here and edit prompt' aria-label='Revert to here and edit prompt' className='forge-brand-tool w-6 h-6 flex items-center justify-center rounded-md'><RotateCcw size={11} /></button>}
 	</div>;
 };
 
@@ -119,8 +121,33 @@ const mimeTypeForFile = (filePath: string): string => {
 	return map[ext] || 'application/octet-stream';
 };
 
+const WORKSPACE_AGENT_POLICY = `You are operating inside the user's currently opened Forge IDE workspace. Treat the opened folder, active editor, staged context, terminal, and project files as the source of truth. Read the relevant workspace files before making claims or changes. Use IDE file/search/edit/terminal tools directly when needed. For a run request, detect the real project type and start command from manifests/configuration instead of guessing. Execute it, inspect the actual output, diagnose failures, make coherent fixes when requested, and rerun verification. For long-running development servers, use open_persistent_terminal and run_persistent_command so the process remains attached to Forge while you inspect its output. Do not search for, recommend, install, or discuss domain skills unless the user explicitly asks for a skill. Do not replace execution with a plan or a hypothetical command.`;
+
+const expandForgeCommand = (text: string): string => {
+	const trimmed = text.trim();
+	const match = /^\/(agent|run|fix|test|review)(?:,[^\s]+)?(?:\s+([\s\S]*))?$/i.exec(trimmed);
+	if (match) {
+		const command = match[1].toLowerCase();
+		const task = (match[2] || '').trim();
+		const focus: Record<string, string> = {
+			agent: 'Coordinate the needed implementation, debugging, runtime/environment, testing, and review specialists as one team. Keep ownership of one shared workspace and avoid conflicting edits.',
+			run: 'Run the current project now. Inspect package/build/runtime files, choose the correct command, use open_persistent_terminal plus run_persistent_command for a long-running development server, inspect the live output, and verify the application actually starts.',
+			fix: 'Reproduce the current issue where possible, identify the root cause, implement the smallest coherent fix, and run targeted regression checks.',
+			test: 'Run the most relevant project tests, lint/type/build checks as appropriate, fix actionable failures caused by the implementation, and rerun verification.',
+			review: 'Review the current workspace changes for correctness, regressions, maintainability, security, and runtime behavior; fix confirmed issues when safe and verify them.',
+		};
+		return `${WORKSPACE_AGENT_POLICY}\n\n${focus[command]}${task ? `\n\nUser task: ${task}` : ''}`;
+	}
+
+	if (/\b(?:run|start|launch|execute)\s+(?:the\s+)?(?:current\s+)?(?:project|app|application|code)\b/i.test(trimmed)) {
+		return `${WORKSPACE_AGENT_POLICY}\n\nRun request: ${trimmed}`;
+	}
+
+	return trimmed;
+};
+
 export const ChatView: React.FC<ChatViewProps> = ({
-	messages, isStreaming = false, onSendMessage, slashContext, className = '', workspaceReady = false,
+	messages, isStreaming = false, onSendMessage, onNewThread, slashContext, className = '', workspaceReady = false,
 	workspaceFileCount, selectedFiles = [], providerName, modelName, onOpenSettings, tokenCount, maxTokens,
 	attachments = [], onRemoveAttachment, onRevertMessage,
 }) => {
@@ -137,6 +164,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const effectiveAttachments = useMemo(() => [...attachments, ...localAttachments], [attachments, localAttachments]);
 
 	useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streamState.events.length, isStreaming]);
+
+	const focusDraftAtEnd = useCallback((value?: string) => {
+		window.setTimeout(() => {
+			const element = textareaRef.current;
+			if (!element) return;
+			element.focus();
+			const length = (value ?? element.value).length;
+			element.setSelectionRange(length, length);
+		}, 20);
+	}, []);
 
 	const notify = useCallback((message: string, level: 'info' | 'warn' | 'error' = 'info') => {
 		try {
@@ -185,13 +222,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [notify, slashContext]);
 
 	const sendWithAdaptiveModel = useCallback(async (text: string): Promise<boolean> => {
-		const trimmed = text.trim();
-		if (!trimmed) return false;
-		if (await handleLocalSkillCommand(trimmed)) return false;
+		const raw = text.trim();
+		if (!raw) return false;
+		if (await handleLocalSkillCommand(raw)) return false;
+		const prepared = expandForgeCommand(raw);
 
 		if (slashContext) {
 			try {
-				const settingsService = slashContext.accessor.get('IVoidSettingsService');
+				const settingsService = slashContext.accessor.get(IVoidSettingsService);
 				const canAutoSelect = settingsService.state.globalSettings.autoModelSelection && settingsService.state._modelOptions.length > 0;
 				if (!settingsService.state.modelSelectionOfFeature.Chat && !canAutoSelect) {
 					notify('Choose a Chat model before sending a task. Forge opened model settings for you.', 'warn');
@@ -203,7 +241,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		await Promise.resolve(onSendMessage(trimmed));
+		await Promise.resolve(onSendMessage(prepared));
 		return true;
 	}, [handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
 
@@ -284,9 +322,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const handleSlashSelect = useCallback((cmd: SlashCommand, args: string) => {
 		setIsSlashOpen(false);
 		setSlashAnchor(null);
-		if (cmd.category === 'Skills (Registry)' && !args) { setDraftText(`${cmd.name} `); setTimeout(() => textareaRef.current?.focus(), 50); return; }
-		if (slashContext) void Promise.resolve(cmd.execute({ ...slashContext, args })).catch(error => { console.error('[Forge Slash] Command failed:', error); notify(`Command ${cmd.name} failed: ${error instanceof Error ? error.message : String(error)}`, 'error'); });
-	}, [notify, slashContext]);
+		const suffix = args.trim();
+		const nextDraft = `${cmd.name}${suffix ? ` ${suffix}` : ''} `;
+		setDraftText(nextDraft);
+		focusDraftAtEnd(nextDraft);
+	}, [focusDraftAtEnd]);
 
 	const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === '/' && !draftText && !isSlashOpen) {
@@ -300,16 +340,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (event.key === 'Escape' && isSlashOpen) { setIsSlashOpen(false); setSlashAnchor(null); }
 	}, [draftText, handleSend, isSlashOpen]);
 
+	const revertAndRestoreDraft = useCallback((message: ChatViewMessage, renderedIndex: number) => {
+		if (message.messageIndex === undefined) return;
+		onRevertMessage?.(message.messageIndex);
+		const source = message.role === 'user'
+			? message
+			: [...messages.slice(0, renderedIndex)].reverse().find(candidate => candidate.role === 'user');
+		if (source?.content) {
+			setDraftText(source.content);
+			focusDraftAtEnd(source.content);
+		}
+	}, [focusDraftAtEnd, messages, onRevertMessage]);
+
 	const lastAssistantIndex = [...messages].reverse().findIndex(message => message.role === 'assistant');
 	const streamEventsForLastResponse = lastAssistantIndex >= 0 ? streamState.events : [];
 
 	return <div className={`forge-brand-chat flex flex-1 min-w-0 min-h-0 flex-col h-full ${className}`}>
-		{slashContext && <SlashCommandPalette isOpen={isSlashOpen} onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }} onSelect={handleSlashSelect} anchorRect={slashAnchor} context={slashContext} />}
+		{slashContext && <UnifiedSlashCommandPalette isOpen={isSlashOpen} onClose={() => { setIsSlashOpen(false); setSlashAnchor(null); }} onSelect={handleSlashSelect} anchorRect={slashAnchor} context={slashContext} />}
 		<div className='forge-brand-scroll flex-1 overflow-y-auto'>
 			<div className='mx-auto w-full max-w-[980px] min-h-full'>
+				{messages.length === 0 && <div className='flex min-h-[220px] items-center justify-center px-5'>
+					<div className='max-w-sm text-center text-[11px] leading-5 text-[var(--forge-muted)]'>Forge is connected to the opened workspace. Ask it to inspect, change, test, or run the current project.{onNewThread && <div className='mt-3'><button type='button' onClick={onNewThread} className='forge-brand-tool inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px]'><Plus size={11} /> New chat</button></div>}</div>
+				</div>}
 				{messages.length > 0 && <>
 					{messages.map((message, index) => {
-						const revert = message.messageIndex === undefined ? undefined : () => onRevertMessage?.(message.messageIndex!);
+						const revert = message.messageIndex === undefined ? undefined : () => revertAndRestoreDraft(message, index);
 						const copy = message.content ? () => { void copyText(message.content); } : undefined;
 						if (message.role === 'user') return <UserMessage key={message.id} message={message} onRevert={revert} onCopy={copy} />;
 						const isLastAssistant = index === messages.length - 1;
