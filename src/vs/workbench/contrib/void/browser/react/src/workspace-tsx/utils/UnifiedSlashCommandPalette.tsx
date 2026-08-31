@@ -31,9 +31,8 @@ const PRODUCT_COMMANDS: SlashCommand[] = [
  * Product-facing command palette.
  *
  * Keep the visible surface intentionally small: one collaborative agent mode plus
- * four outcome commands. The advanced legacy command registry remains available to
- * internal/fallback surfaces, while this palette avoids exposing dozens of agent
- * variants that describe the same workflow in different words.
+ * four outcome commands. Selecting a command only puts it into the composer so the
+ * user can add or edit the instruction before sending it.
  */
 export const UnifiedSlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 	isOpen,
@@ -46,16 +45,13 @@ export const UnifiedSlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const panelRef = useRef<HTMLDivElement>(null);
-	// SlashCommandPaletteProps is shared with the legacy palette; keeping the context
-	// parameter preserves that contract even though draft-first product commands do not
-	// execute services directly.
 	void context;
-	const commands = PRODUCT_COMMANDS;
+
 	const filtered = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
-		if (!normalized) return commands;
-		return commands.filter(item => `${item.name} ${item.label} ${item.description}`.toLowerCase().includes(normalized));
-	}, [commands, query]);
+		if (!normalized) return PRODUCT_COMMANDS;
+		return PRODUCT_COMMANDS.filter(item => `${item.name} ${item.label} ${item.description}`.toLowerCase().includes(normalized));
+	}, [query]);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -76,26 +72,28 @@ export const UnifiedSlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 
 	if (!isOpen || typeof document === 'undefined') return null;
 
+	// Forge's utility CSS is scoped under .void-scope. Portaling to document.body
+	// made the palette render as raw browser controls across the bottom of the IDE.
+	// Keep the portal inside the React/CSS scope while retaining fixed positioning.
+	const portalTarget = document.querySelector<HTMLElement>('.void-scope') ?? document.body;
 	const viewportWidth = window.innerWidth;
 	const viewportHeight = window.innerHeight;
 	const width = Math.min(440, Math.max(280, viewportWidth - 24));
 	const left = Math.min(
-		Math.max(12, (anchorRect?.left ?? 12)),
+		Math.max(12, anchorRect?.left ?? 12),
 		Math.max(12, viewportWidth - width - 12),
 	);
 	const availableAbove = anchorRect ? anchorRect.top - 16 : viewportHeight * 0.55;
 	const maxHeight = Math.max(220, Math.min(360, availableAbove));
 	const bottom = anchorRect ? Math.max(12, viewportHeight - anchorRect.top + 8) : 92;
 
-	const choose = (item: SlashCommand) => {
-		onSelect(item, '');
-	};
+	const choose = (item: SlashCommand) => onSelect(item, '');
 
 	return createPortal(
 		<div
 			ref={panelRef}
-			className='fixed z-[10050] overflow-hidden rounded-xl border border-zinc-700/70 bg-zinc-950/98 shadow-2xl backdrop-blur'
-			style={{ left, bottom, width, maxHeight, display: 'flex', flexDirection: 'column' }}
+			className='fixed z-[10050] overflow-hidden rounded-xl border border-zinc-700/70 bg-zinc-950/98 text-zinc-100 shadow-2xl backdrop-blur'
+			style={{ position: 'fixed', zIndex: 10050, left, bottom, width, maxHeight, display: 'flex', flexDirection: 'column' }}
 			role='dialog'
 			aria-label='Forge commands'
 		>
@@ -115,14 +113,14 @@ export const UnifiedSlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 					className='w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-600'
 				/>
 			</div>
-			<div className='min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5'>
+			<div className='min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5' style={{ overscrollBehavior: 'contain', scrollbarGutter: 'stable' }}>
 				{filtered.length === 0 ? <div className='px-3 py-5 text-center text-xs text-zinc-500'>No matching command</div> : filtered.map((item, index) => (
 					<button
 						key={item.name}
 						type='button'
 						onMouseEnter={() => setActiveIndex(index)}
 						onClick={() => choose(item)}
-						className={`flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${index === activeIndex ? 'bg-zinc-800/90' : 'hover:bg-zinc-900'}`}
+						className={`flex w-full items-start gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-zinc-200 transition-colors ${index === activeIndex ? 'bg-zinc-800/90' : 'hover:bg-zinc-900'}`}
 					>
 						<span className='mt-0.5 text-cyan-400'>{item.icon}</span>
 						<span className='min-w-0 flex-1'>
@@ -134,6 +132,6 @@ export const UnifiedSlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 			</div>
 			<div className='shrink-0 border-t border-zinc-800/90 px-3 py-1.5 text-[9.5px] text-zinc-600'>Select a command, add your instruction, then press Enter to send.</div>
 		</div>,
-		document.body,
+		portalTarget,
 	);
 };

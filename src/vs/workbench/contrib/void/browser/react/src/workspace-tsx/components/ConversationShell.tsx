@@ -8,7 +8,7 @@ import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useRawAcce
 import { ChatView, ChatViewMessage } from './ChatView.tsx';
 import { ForgeChatHeader } from './ForgeChatHeader.tsx';
 import { type SlashCommandContext } from '../utils/slashCommandRouter.tsx';
-import { FORGE_EVOLUTION_POLICY, FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts.ts';
+import { FORGE_PROJECT_EVOLUTION_TASK, FORGE_SKILL_EVOLUTION_TASK } from '../utils/evolutionPrompts.ts';
 import '../forgeBrand.css';
 import '../forgeRightPanel.css';
 
@@ -55,8 +55,6 @@ const generatedTaskDisplayLabels = new Map<string, string>([
 	[FORGE_PROJECT_EVOLUTION_TASK, 'Evolve this project'],
 	[FORGE_SKILL_EVOLUTION_TASK, 'Evolve project skills'],
 ]);
-
-const withEvolutionPolicy = (message: string): string => `${message}\n\n${FORGE_EVOLUTION_POLICY}`;
 
 export const ConversationShell: React.FC = () => {
 	const hasPreparedWelcomeRef = useRef(false);
@@ -110,7 +108,10 @@ export const ConversationShell: React.FC = () => {
 		const effectiveMessage = trimmed || (selections.length > 0 ? 'Inspect the attached context and continue with the task.' : '');
 		if (!effectiveMessage) return;
 
-		const backendMessage = withEvolutionPolicy(effectiveMessage);
+		// Normal coding/run/test requests should not carry the large Forge Evolution
+		// policy as user content. The core Agent system prompt already owns workspace
+		// execution rules. Evolution stays explicit through /evolve commands.
+		const backendMessage = effectiveMessage;
 		const displayLabel = displayLabelOverride ?? generatedTaskDisplayLabels.get(effectiveMessage) ?? effectiveMessage;
 
 		const applyVisibleLabel = () => {
@@ -141,8 +142,6 @@ export const ConversationShell: React.FC = () => {
 			});
 		};
 
-		// The service adds the user message synchronously before its first async boundary.
-		// Rewrite displayContent immediately so product guidance never appears in the chat UI.
 		const responsePromise = chatThreadsService.addUserMessageAndStreamResponse({ userMessage: backendMessage, _chatSelections: selections, threadId });
 		applyVisibleLabel();
 		queueMicrotask(applyVisibleLabel);

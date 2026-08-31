@@ -60,7 +60,9 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 		? 'Auto'
 		: selection?.modelName || (configuredProviderNames.length === 0 ? 'Connect API in Settings' : 'Select a model');
 
-	const portalTarget = typeof document === 'undefined' ? null : document.body;
+	// React utility classes are scoped under .void-scope. Keep the popup in that
+	// scope so it does not lose layout/scroll styles when rendered as a portal.
+	const portalTarget = typeof document === 'undefined' ? null : (document.querySelector<HTMLElement>('.void-scope') ?? document.body);
 
 	const openSettings = () => {
 		void commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID);
@@ -193,7 +195,7 @@ export const ModelDropdown = ({ featureName, className }: { featureName: Feature
 			<div
 				ref={menuRef}
 				className='fixed z-[10040] flex flex-col overflow-hidden rounded-xl border border-[#7c83ff]/55 bg-[#111827] text-[#edf4ff] shadow-2xl'
-				style={{ left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: menuPosition.maxHeight }}
+				style={{ position: 'fixed', zIndex: 10040, left: menuPosition.left, top: menuPosition.top, width: menuPosition.width, maxHeight: menuPosition.maxHeight }}
 				onWheel={event => event.stopPropagation()}
 			>
 				<div className='shrink-0 p-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60'>

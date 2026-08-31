@@ -30,7 +30,7 @@ export interface ChatViewMessage {
 export interface ChatViewProps {
 	messages: ChatViewMessage[];
 	isStreaming?: boolean;
-	onSendMessage: (msg: string) => void | Promise<void>;
+	onSendMessage: (msg: string, displayLabelOverride?: string) => void | Promise<void>;
 	onNewThread?: () => void;
 	slashContext?: SlashCommandContext;
 	className?: string;
@@ -121,8 +121,9 @@ const mimeTypeForFile = (filePath: string): string => {
 	return map[ext] || 'application/octet-stream';
 };
 
-const WORKSPACE_AGENT_POLICY = `You are operating inside the user's currently opened Forge IDE workspace. Treat the opened folder, active editor, staged context, terminal, and project files as the source of truth. Read the relevant workspace files before making claims or changes. Use IDE file/search/edit/terminal tools directly when needed. For a run request, detect the real project type and start command from manifests/configuration instead of guessing. Execute it, inspect the actual output, diagnose failures, make coherent fixes when requested, and rerun verification. For long-running development servers, use open_persistent_terminal and run_persistent_command so the process remains attached to Forge while you inspect its output. Do not search for, recommend, install, or discuss domain skills unless the user explicitly asks for a skill. Do not replace execution with a plan or a hypothetical command.`;
-
+// Product commands are expanded into concise backend instructions. Workspace context,
+// tool definitions, and the full Agent execution contract belong to the system prompt;
+// they should never be copied into the visible user bubble.
 const expandForgeCommand = (text: string): string => {
 	const trimmed = text.trim();
 	const match = /^\/(agent|run|fix|test|review)(?:,[^\s]+)?(?:\s+([\s\S]*))?$/i.exec(trimmed);
@@ -130,17 +131,17 @@ const expandForgeCommand = (text: string): string => {
 		const command = match[1].toLowerCase();
 		const task = (match[2] || '').trim();
 		const focus: Record<string, string> = {
-			agent: 'Coordinate the needed implementation, debugging, runtime/environment, testing, and review specialists as one team. Keep ownership of one shared workspace and avoid conflicting edits.',
-			run: 'Run the current project now. Inspect package/build/runtime files, choose the correct command, use open_persistent_terminal plus run_persistent_command for a long-running development server, inspect the live output, and verify the application actually starts.',
-			fix: 'Reproduce the current issue where possible, identify the root cause, implement the smallest coherent fix, and run targeted regression checks.',
-			test: 'Run the most relevant project tests, lint/type/build checks as appropriate, fix actionable failures caused by the implementation, and rerun verification.',
+			agent: 'Work on this task as one coordinated Forge agent workflow. Inspect the current workspace first, use real IDE tools for actions, coordinate implementation/debugging/testing/review without conflicting edits, and verify the final result.',
+			run: 'Run the currently opened project now. Inspect its manifest and runtime files first, determine the actual start command, execute it through Forge terminal tools, use a persistent terminal for a long-running development server, inspect real output, and verify that the application starts.',
+			fix: 'Reproduce the current issue using the opened workspace, identify the root cause, implement the smallest coherent fix with IDE tools, and run targeted regression verification.',
+			test: 'Run the most relevant tests, lint/type/build checks for the opened workspace, fix actionable failures caused by the implementation, and rerun verification.',
 			review: 'Review the current workspace changes for correctness, regressions, maintainability, security, and runtime behavior; fix confirmed issues when safe and verify them.',
 		};
-		return `${WORKSPACE_AGENT_POLICY}\n\n${focus[command]}${task ? `\n\nUser task: ${task}` : ''}`;
+		return `${focus[command]}${task ? `\n\nUser task: ${task}` : ''}`;
 	}
 
 	if (/\b(?:run|start|launch|execute)\s+(?:the\s+)?(?:current\s+)?(?:project|app|application|code)\b/i.test(trimmed)) {
-		return `${WORKSPACE_AGENT_POLICY}\n\nRun request: ${trimmed}`;
+		return `Run the currently opened project now. Inspect its manifest/runtime files, determine the actual start command, execute it with Forge terminal tools, use a persistent terminal for a long-running server, inspect real output, and verify startup.\n\nUser request: ${trimmed}`;
 	}
 
 	return trimmed;
@@ -241,7 +242,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		await Promise.resolve(onSendMessage(prepared));
+		// The backend receives the compact execution instruction, while the visible
+		// user bubble keeps exactly what the user typed (for example "/run my app").
+		await Promise.resolve(onSendMessage(prepared, raw));
 		return true;
 	}, [handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
 
