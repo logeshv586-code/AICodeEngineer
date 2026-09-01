@@ -11,7 +11,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { EventLLMMessageOnTextParams, EventLLMMessageOnErrorParams, EventLLMMessageOnFinalMessageParams, MainSendLLMMessageParams, AbortRef, SendLLMMessageParams, MainLLMMessageAbortParams, ModelListParams, EventModelListOnSuccessParams, EventModelListOnErrorParams, OllamaModelResponse, OpenaiCompatibleModelResponse, MainModelListParams, } from '../common/sendLLMMessageTypes.js';
 import { sendLLMMessage } from './llmMessage/sendLLMMessage.js'
 import { IMetricsService } from '../common/metricsService.js';
-import { sendLLMMessageToProviderImplementation, testLLMConnection } from './llmMessage/sendLLMMessage.impl.js';
+import { sendLLMMessageToProviderImplementation } from './llmMessage/sendLLMMessage.impl.js';
+import { testLLMConnectionFast } from './llmMessage/testLLMConnection.js';
 
 // NODE IMPLEMENTATION - calls actual sendLLMMessage() and returns listeners to it
 
@@ -81,7 +82,7 @@ export class LLMMessageChannel implements IServerChannel {
 				this._callOpenAICompatibleList(params)
 			}
 			else if (command === 'testConnection') {
-				return await testLLMConnection(params)
+				return await testLLMConnectionFast(params)
 			}
 			else {
 				throw new Error(`Void sendLLM: command "${command}" not recognized.`)
