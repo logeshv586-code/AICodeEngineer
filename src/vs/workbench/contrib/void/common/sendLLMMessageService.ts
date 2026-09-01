@@ -27,10 +27,64 @@ export interface ILLMMessageService {
 	testConnection: (params: Omit<TestModelConnectionParams, 'settingsOfProvider'> & { connectionSettings?: Record<string, string> }) => Promise<TestModelConnectionResult>;
 }
 
+const builtInAgentToolNames = [
+	'read_file',
+	'ls_dir',
+	'get_dir_tree',
+	'search_pathnames_only',
+	'search_for_files',
+	'search_in_file',
+	'semantic_search',
+	'read_lint_errors',
+	'create_file_or_folder',
+	'delete_file_or_folder',
+	'edit_file',
+	'rewrite_file',
+	'run_command',
+	'run_persistent_command',
+	'open_persistent_terminal',
+	'kill_persistent_terminal',
+] as const;
+
+const localToolNameAliases: Readonly<Record<string, string>> = {
+	write_file: 'create_file_or_folder',
+	write_file_or_folder: 'create_file_or_folder',
+	create_file: 'create_file_or_folder',
+	create_folder: 'create_file_or_folder',
+	save_file: 'create_file_or_folder',
+	read: 'read_file',
+	view_file: 'read_file',
+	get_file: 'read_file',
+	modify_file: 'edit_file',
+	update_file: 'edit_file',
+	apply_diff: 'edit_file',
+	apply_patch: 'edit_file',
+	overwrite_file: 'rewrite_file',
+	replace_file: 'rewrite_file',
+	delete_file: 'delete_file_or_folder',
+	remove_file: 'delete_file_or_folder',
+	list_dir: 'ls_dir',
+	list_directory: 'ls_dir',
+	ls: 'ls_dir',
+	dir_tree: 'get_dir_tree',
+	tree: 'get_dir_tree',
+	grep: 'search_for_files',
+	search_files: 'search_for_files',
+	find_files: 'search_pathnames_only',
+	exec: 'run_command',
+	execute_command: 'run_command',
+	run_terminal_command: 'run_command',
+	bash: 'run_command',
+	terminal: 'run_command',
+	'shell.execute': 'run_command',
+	persistent_shell: 'run_persistent_command',
+};
+
 type AgentRequestMeta = {
 	chatMode: 'normal' | 'gather' | 'agent' | null;
 	latestUserText: string;
 	persistentTerminalId?: string;
+	availableToolNames: readonly string[];
 };
 
 type ParsedShellBlock = {
@@ -38,6 +92,12 @@ type ParsedShellBlock = {
 	cwd?: string;
 	rawBlock: string;
 	wasExplicitToolCode: boolean;
+};
+
+type ParsedTextualToolCall = {
+	name: string;
+	rawParams: RawToolParamsObj;
+	rawBlock: string;
 };
 
 const providerValueToText = (value: unknown): string => {
@@ -57,7 +117,7 @@ const providerValueToText = (value: unknown): string => {
 	return '';
 };
 
-const requestMetaFromParams = (params: ServiceSendLLMMessageParams): AgentRequestMeta | undefined => {
+const requestMetaFromParams = (params: ServiceSendLLMMessageParams, mcpToolNames: readonly string[] = []): AgentRequestMeta | undefined => {
 	if (params.messagesType !== 'chatMessages') return undefined;
 	const messages = params.messages as unknown as Array<Record<string, unknown>>;
 	let latestUserText = '';
@@ -69,7 +129,12 @@ const requestMetaFromParams = (params: ServiceSendLLMMessageParams): AgentReques
 	const allText = messages.map(providerValueToText).join('\n');
 	const terminalMatch = /Persistent terminal IDs available for you to run commands in:\s*([^\n<]+)/i.exec(allText);
 	const persistentTerminalId = terminalMatch?.[1]?.split(',')[0]?.trim() || undefined;
-	return { chatMode: params.chatMode, latestUserText, persistentTerminalId };
+	return {
+		chatMode: params.chatMode,
+		latestUserText,
+		persistentTerminalId,
+		availableToolNames: [...builtInAgentToolNames, ...mcpToolNames],
+	};
 };
 
 const stripQuotes = (value: string): string => {
@@ -139,14 +204,170 @@ const toToolCall = (name: string, rawParams: RawToolParamsObj): RawToolCallObj =
 	isDone: true,
 });
 
+const normalizeRecoveredToolName = (rawName: unknown, allowedToolNames: ReadonlySet<string>): string | null => {
+	if (typeof rawName !== 'string' || !rawName.trim()) return null;
+	const trimmed = rawName.trim().replace(/^<+/, '').replace(/[>\s]+$/, '');
+	const lower = trimmed.toLowerCase();
+	const canonical = localToolNameAliases[lower] ?? trimmed;
+	if (allowedToolNames.has(canonical)) return canonical;
+	if (allowedToolNames.has(trimmed)) return trimmed;
+	return null;
+};
+
+const rawParamsFromUnknown = (value: unknown): RawToolParamsObj | null => {
+	let resolved = value;
+	if (typeof resolved === 'string') {
+		const trimmed = resolved.trim();
+		if (!trimmed) return {};
+		try { resolved = JSON.parse(trimmed); }
+		catch { return null; }
+	}
+	if (resolved === null || resolved === undefined) return {};
+	if (typeof resolved !== 'object' || Array.isArray(resolved)) return null;
+
+	const rawParams: RawToolParamsObj = {};
+	for (const [key, parameterValue] of Object.entries(resolved as Record<string, unknown>)) {
+		if (parameterValue === undefined) continue;
+		if (typeof parameterValue === 'string') rawParams[key] = parameterValue;
+		else if (parameterValue === null) rawParams[key] = 'null';
+		else if (typeof parameterValue === 'number' || typeof parameterValue === 'boolean') rawParams[key] = String(parameterValue);
+		else {
+			try { rawParams[key] = JSON.stringify(parameterValue); }
+			catch { return null; }
+		}
+	}
+	return rawParams;
+};
+
+const textualToolCallFromValue = (value: unknown, rawBlock: string, allowedToolNames: ReadonlySet<string>, depth = 0): ParsedTextualToolCall | null => {
+	if (depth > 4 || value === null || value === undefined) return null;
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const parsed = textualToolCallFromValue(item, rawBlock, allowedToolNames, depth + 1);
+			if (parsed) return parsed;
+		}
+		return null;
+	}
+	if (typeof value !== 'object') return null;
+
+	const record = value as Record<string, unknown>;
+	for (const wrapperKey of ['tool_calls', 'toolCalls', 'calls']) {
+		if (!(wrapperKey in record)) continue;
+		const parsed = textualToolCallFromValue(record[wrapperKey], rawBlock, allowedToolNames, depth + 1);
+		if (parsed) return parsed;
+	}
+
+	const fn = typeof record.function === 'object' && record.function !== null
+		? record.function as Record<string, unknown>
+		: undefined;
+	const name = normalizeRecoveredToolName(
+		fn?.name ?? record.name ?? record.tool ?? record.tool_name ?? record.toolName,
+		allowedToolNames,
+	);
+	if (!name) return null;
+
+	const argsValue = fn?.arguments
+		?? record.arguments
+		?? record.args
+		?? record.parameters
+		?? record.input
+		?? record.params
+		?? {};
+	const rawParams = rawParamsFromUnknown(argsValue);
+	if (rawParams === null) return null;
+	return { name, rawParams, rawBlock };
+};
+
+const extractBalancedJSONBlocks = (text: string): string[] => {
+	const blocks: string[] = [];
+	for (let start = 0; start < text.length; start++) {
+		if (text[start] !== '{' && text[start] !== '[') continue;
+		const stack: string[] = [];
+		let inString = false;
+		let escaped = false;
+		for (let index = start; index < text.length; index++) {
+			const char = text[index];
+			if (inString) {
+				if (escaped) escaped = false;
+				else if (char === '\\') escaped = true;
+				else if (char === '"') inString = false;
+				continue;
+			}
+			if (char === '"') {
+				inString = true;
+				continue;
+			}
+			if (char === '{' || char === '[') stack.push(char);
+			else if (char === '}' || char === ']') {
+				const expected = char === '}' ? '{' : '[';
+				if (stack.pop() !== expected) break;
+				if (stack.length === 0) {
+					blocks.push(text.slice(start, index + 1));
+					start = index;
+					break;
+				}
+			}
+		}
+	}
+	return blocks;
+};
+
+const parseTextualStructuredToolCall = (fullText: string, availableToolNames: readonly string[]): ParsedTextualToolCall | null => {
+	const allowedToolNames = new Set(availableToolNames);
+	if (allowedToolNames.size === 0) return null;
+
+	const tagged = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
+	let taggedMatch: RegExpExecArray | null;
+	while ((taggedMatch = tagged.exec(fullText)) !== null) {
+		try {
+			const parsed = textualToolCallFromValue(JSON.parse(taggedMatch[1]), taggedMatch[0], allowedToolNames);
+			if (parsed) return parsed;
+		} catch { /* keep looking */ }
+	}
+
+	const fencePattern = /```(?:json|tool|tool_call|toolcall)\s*\n([\s\S]*?)```/gi;
+	let fenceMatch: RegExpExecArray | null;
+	while ((fenceMatch = fencePattern.exec(fullText)) !== null) {
+		try {
+			const parsed = textualToolCallFromValue(JSON.parse(fenceMatch[1].trim()), fenceMatch[0], allowedToolNames);
+			if (parsed) return parsed;
+		} catch { /* keep looking */ }
+	}
+
+	for (const block of extractBalancedJSONBlocks(fullText)) {
+		try {
+			const parsed = textualToolCallFromValue(JSON.parse(block), block, allowedToolNames);
+			if (parsed) return parsed;
+		} catch { /* not a JSON tool call */ }
+	}
+	return null;
+};
+
+const statusTextForTool = (name: string): string => {
+	if (['edit_file', 'rewrite_file', 'create_file_or_folder', 'delete_file_or_folder'].includes(name)) return 'Applying the requested code change…';
+	if (['read_file', 'ls_dir', 'get_dir_tree', 'search_pathnames_only', 'search_for_files', 'search_in_file', 'semantic_search', 'read_lint_errors'].includes(name)) return 'Inspecting the codebase…';
+	if (name.includes('terminal') || name.includes('command')) return 'Running the requested command…';
+	return 'Running the requested IDE tool…';
+};
+
 /**
- * Small local models sometimes ignore Forge's XML tool grammar and emit a textual
- * ```tool_code shell``` block instead. In Agent mode that should be treated as an
- * attempted terminal tool call, not rendered as advice. Recover the intent here so
- * Ollama/LM Studio models can still drive the real IDE terminal.
+ * Local and reasoning-oriented models sometimes ignore the provider-native tool
+ * protocol and print an OpenAI/DeepSeek-style JSON tool call (or a shell block) as
+ * ordinary text. In Agent mode that is execution intent, not advice. Recover only
+ * names that are actually registered for this request, including MCP tools, so
+ * arbitrary JSON in a normal answer can never become an executable action.
  */
 const recoverTextualAgentToolCall = (event: EventLLMMessageOnFinalMessageParams, meta: AgentRequestMeta | undefined): EventLLMMessageOnFinalMessageParams => {
 	if (!meta || meta.chatMode !== 'agent' || event.toolCall) return event;
+
+	const structured = parseTextualStructuredToolCall(event.fullText, meta.availableToolNames);
+	if (structured) {
+		const toolCall = toToolCall(structured.name, structured.rawParams);
+		const cleanedText = event.fullText.replace(structured.rawBlock, '').replace(/\n{3,}/g, '\n\n').trim();
+		console.debug(`[Forge Local Tool Recovery] Recovered ${toolCall.name} from structured textual tool output.`);
+		return { ...event, fullText: cleanedText || statusTextForTool(toolCall.name), toolCall };
+	}
+
 	const parsed = parseTextualShellBlock(event.fullText, meta.latestUserText);
 	if (!parsed) return event;
 
@@ -171,7 +392,7 @@ const recoverTextualAgentToolCall = (event: EventLLMMessageOnFinalMessageParams,
 	}
 
 	const cleanedText = event.fullText.replace(parsed.rawBlock, '').replace(/\n{3,}/g, '\n\n').trim();
-	console.debug(`[Forge Local Tool Recovery] Recovered ${toolCall.name} from textual tool output.`);
+	console.debug(`[Forge Local Tool Recovery] Recovered ${toolCall.name} from textual shell output.`);
 	return { ...event, fullText: cleanedText || statusText, toolCall };
 };
 
@@ -279,7 +500,7 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 		this.llmMessageHooks.onFinalMessage[requestId] = onFinalMessage
 		this.llmMessageHooks.onError[requestId] = onError
 		this.llmMessageHooks.onAbort[requestId] = onAbort
-		this.requestMeta[requestId] = requestMetaFromParams(params)
+		this.requestMeta[requestId] = requestMetaFromParams(params, mcpTools?.map(tool => tool.name) ?? [])
 
 		this.channel.call('sendLLMMessage', {
 			...proxyParams,
