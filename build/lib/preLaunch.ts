@@ -45,10 +45,15 @@ async function ensureCompiled() {
 	}
 }
 
+async function refreshForgeUIRuntime() {
+	await runProcess(process.execPath, ['scripts/forge-ui-runtime-sync.mjs']);
+}
+
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
 	await ensureCompiled();
+	await refreshForgeUIRuntime();
 
 	// Can't require this until after dependencies are installed
 	const { getBuiltInExtensions } = require('./builtInExtensions');
