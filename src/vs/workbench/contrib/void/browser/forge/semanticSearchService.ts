@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
@@ -22,10 +23,13 @@ export class SemanticSearchService implements ISemanticSearchService {
 	readonly _serviceBrand: undefined;
 	private readonly forgeMainService: ForgeMainService;
 	private autoPrepareGeneration = 0;
+	private fileChangeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+	private refreshingFromFileChange = false;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService,
 	) {
 		const channel = mainProcessService.getChannel(FORGE_CHANNEL_NAME);
 		this.forgeMainService = new ForgeMainService(channel);
@@ -34,6 +38,30 @@ export class SemanticSearchService implements ISemanticSearchService {
 		// Prepare it shortly after startup and whenever workspace folders change.
 		setTimeout(() => { void this._autoPrepareOpenWorkspaces(); }, 750);
 		this.workspaceContextService.onDidChangeWorkspaceFolders(() => { void this._autoPrepareOpenWorkspaces(); });
+
+		// Keep code intelligence current while the user or agent edits files. CocoIndex
+		// performs the actual incremental work in the main process; this renderer-side
+		// debounce prevents a save burst from spawning one index request per file event.
+		fileService.onDidFilesChange(() => this._scheduleWorkspaceRefresh());
+	}
+
+	private _scheduleWorkspaceRefresh(): void {
+		if (this.refreshingFromFileChange) return;
+		if (this.fileChangeRefreshTimer !== undefined) clearTimeout(this.fileChangeRefreshTimer);
+		this.fileChangeRefreshTimer = setTimeout(() => {
+			this.fileChangeRefreshTimer = undefined;
+			void this._refreshAfterFileChanges();
+		}, 1200);
+	}
+
+	private async _refreshAfterFileChanges(): Promise<void> {
+		if (this.refreshingFromFileChange) return;
+		this.refreshingFromFileChange = true;
+		try {
+			await this._autoPrepareOpenWorkspaces();
+		} finally {
+			this.refreshingFromFileChange = false;
+		}
 	}
 
 	private async _autoPrepareOpenWorkspaces(): Promise<void> {
