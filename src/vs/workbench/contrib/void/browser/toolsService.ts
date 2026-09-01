@@ -47,20 +47,35 @@ const validateURI = (uriStr: unknown) => {
 	if (uriStr === null) throw new Error(`Invalid LLM output: uri was null.`)
 	if (typeof uriStr !== 'string') throw new Error(`Invalid LLM output format: Provided uri must be a string, but it's a(n) ${typeof uriStr}. Full value: ${JSON.stringify(uriStr)}.`)
 
+	// Check if it's already a full URI with scheme (e.g., vscode-remote://, file://, etc.)
+	// Look for :// pattern which indicates a scheme is present
+	// Examples of supported URIs:
+	// - vscode-remote://wsl+Ubuntu/home/user/file.txt (WSL)
+	// - vscode-remote://ssh-remote+myserver/home/user/file.txt (SSH)
+	// - file:///home/user/file.txt (local file with scheme)
+	// - /home/user/file.txt (local file path, will be converted to file://)
+	// - C:\Users\file.txt (Windows local path, will be converted to file://)
 	if (uriStr.includes('://')) {
 		try {
-			return URI.parse(uriStr)
+			const uri = URI.parse(uriStr)
+			return uri
 		} catch (e) {
+			// If parsing fails, it's a malformed URI
 			throw new Error(`Invalid URI format: ${uriStr}. Error: ${e}`)
 		}
+	} else {
+		// No scheme present, treat as file path
+		// This handles regular file paths like /home/user/file.txt or C:\Users\file.txt
+		const uri = URI.file(uriStr)
+		return uri
 	}
-	return URI.file(uriStr)
 }
 
 const validateOptionalStr = (argName: string, str: unknown) => {
 	if (isFalsy(str)) return null
 	return validateStr(argName, str)
 }
+
 
 const validatePageNum = (pageNumberUnknown: unknown) => {
 	if (!pageNumberUnknown) return 1
@@ -71,19 +86,23 @@ const validatePageNum = (pageNumberUnknown: unknown) => {
 }
 
 const validateNumber = (numStr: unknown, opts: { default: number | null }) => {
-	if (typeof numStr === 'number') return numStr
+	if (typeof numStr === 'number')
+		return numStr
 	if (isFalsy(numStr)) return opts.default
+
 	if (typeof numStr === 'string') {
 		const parsedInt = Number.parseInt(numStr + '')
 		if (!Number.isInteger(parsedInt)) return opts.default
 		return parsedInt
 	}
+
 	return opts.default
 }
 
 const validateProposedTerminalId = (terminalIdUnknown: unknown) => {
 	if (!terminalIdUnknown) throw new Error(`A value for terminalID must be specified, but the value was "${terminalIdUnknown}"`)
-	return terminalIdUnknown + ''
+	const terminalId = terminalIdUnknown + ''
+	return terminalId
 }
 
 const validateBoolean = (b: unknown, opts: { default: boolean }) => {
@@ -91,16 +110,22 @@ const validateBoolean = (b: unknown, opts: { default: boolean }) => {
 		if (b === 'true') return true
 		if (b === 'false') return false
 	}
-	if (typeof b === 'boolean') return b
+	if (typeof b === 'boolean') {
+		return b
+	}
 	return opts.default
 }
 
 const checkIfIsFolder = (uriStr: string) => {
 	uriStr = uriStr.trim()
-	return uriStr.endsWith('/') || uriStr.endsWith('\\')
+	if (uriStr.endsWith('/') || uriStr.endsWith('\\')) return true
+	return false
 }
 
-const nextPageStr = (hasNextPage: boolean) => hasNextPage ? '\n\n(Additional results available on next page...)' : ''
+const nextPageStr = (hasNextPage: boolean) => {
+	if (hasNextPage) return '\n\n(Additional results available on next page...)'
+	return ''
+}
 
 const stringifyLintErrors = (lintErrors: LintErrorItem[]) => {
 	return lintErrors.map(l => `${l.message} (line ${l.startLineNumber})`).join('\n')
@@ -116,7 +141,9 @@ export interface IToolsService {
 export const IToolsService = createDecorator<IToolsService>('ToolsService');
 
 export class ToolsService implements IToolsService {
+
 	readonly _serviceBrand: undefined;
+
 	public validateParams: ValidateBuiltinParams;
 	public callTool: CallBuiltinTool;
 	public stringOfResult: BuiltinToolResultToString;
@@ -141,6 +168,10 @@ export class ToolsService implements IToolsService {
 		const ensureWorkspaceRoot = async (): Promise<URI> => {
 			const existingWorkspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri;
 			if (existingWorkspaceRoot) return existingWorkspaceRoot;
+
+			// An empty window has no safe relative-path target. Create one visible,
+			// user-owned project folder and add it to the untitled workspace so the
+			// agent can create its first project without writing to an arbitrary path.
 			const workspaceRoot = URI.joinPath(await this.pathService.userHome(), 'Forge AI Workspace');
 			if (!await fileService.exists(workspaceRoot)) await fileService.createFolder(workspaceRoot);
 			await this.workspaceEditingService.addFolders([{ uri: workspaceRoot }], true);
@@ -148,6 +179,8 @@ export class ToolsService implements IToolsService {
 		};
 		const normalizedPath = (uri: URI): string => {
 			let path = uri.path.replace(/\/+$/, '') || '/';
+			// Windows drive-letter file URIs are case-insensitive. Keep remote/POSIX
+			// workspaces case-sensitive so similarly named paths are not conflated.
 			if (uri.scheme === 'file' && /^\/[A-Za-z]:\//.test(path)) path = path.toLowerCase();
 			return path;
 		};
@@ -166,16 +199,22 @@ export class ToolsService implements IToolsService {
 		const resolveWorkspaceURI = async (uriStr: unknown): Promise<URI> => {
 			const rawPath = validateStr('uri', uriStr).trim();
 			const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri;
+
+			// Models commonly use /workspace as a placeholder. Map it to the
+			// actual workspace rather than creating a stray path on the machine.
 			if (rawPath === '/workspace' || rawPath.startsWith('/workspace/')) {
 				const root = workspaceRoot ?? await ensureWorkspaceRoot();
 				const relativePath = rawPath.slice('/workspace'.length).replace(/^[/\\]+/, '');
 				const target = relativePath ? URI.joinPath(root, ...relativePath.split(/[\\/]+/)) : root;
 				return ensureInsideWorkspace(target);
 			}
+
+			// A bare filename is also intended to be created in the active project.
 			if (!rawPath.includes('://') && !/^(?:[A-Za-z]:[\\/]|[\\/])/.test(rawPath)) {
 				const root = workspaceRoot ?? await ensureWorkspaceRoot();
 				return ensureInsideWorkspace(URI.joinPath(root, ...rawPath.split(/[\\/]+/)));
 			}
+
 			return ensureInsideWorkspace(validateURI(rawPath));
 		};
 
@@ -185,41 +224,65 @@ export class ToolsService implements IToolsService {
 				const { uri: uriStr, start_line: startLineUnknown, end_line: endLineUnknown, page_number: pageNumberUnknown } = params
 				const uri = await resolveWorkspaceURI(uriStr)
 				const pageNumber = validatePageNum(pageNumberUnknown)
+
 				let startLine = validateNumber(startLineUnknown, { default: null })
 				let endLine = validateNumber(endLineUnknown, { default: null })
+
 				if (startLine !== null && startLine < 1) startLine = null
 				if (endLine !== null && endLine < 1) endLine = null
+
 				return { uri, startLine, endLine, pageNumber }
 			},
 			ls_dir: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, page_number: pageNumberUnknown } = params
+
+				// Models occasionally omit the directory when asking for an initial
+				// listing. Use the opened workspace root so an empty repository can
+				// still proceed; with no folder open, return an actionable error.
 				const uri = isFalsy(uriStr) ? await ensureWorkspaceRoot() : await resolveWorkspaceURI(uriStr)
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				return { uri, pageNumber }
 			},
 			get_dir_tree: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const { uri: uriStr } = params
+				const { uri: uriStr, } = params
 				const uri = isFalsy(uriStr) ? await ensureWorkspaceRoot() : await resolveWorkspaceURI(uriStr)
 				return { uri }
 			},
 			search_pathnames_only: (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const { query: queryUnknown, include_pattern: includeUnknown, page_number: pageNumberUnknown } = params
+				const {
+					query: queryUnknown,
+					include_pattern: includeUnknown,
+					page_number: pageNumberUnknown
+				} = params
+
 				const queryStr = validateStr('query', queryUnknown)
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				const includePattern = validateOptionalStr('include_pattern', includeUnknown)
+
 				return { query: queryStr, includePattern, pageNumber }
+
 			},
 			search_for_files: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const { query: queryUnknown, search_in_folder: searchInFolderUnknown, is_regex: isRegexUnknown, page_number: pageNumberUnknown } = params
+				const {
+					query: queryUnknown,
+					search_in_folder: searchInFolderUnknown,
+					is_regex: isRegexUnknown,
+					page_number: pageNumberUnknown
+				} = params
 				const queryStr = validateStr('query', queryUnknown)
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				const searchInFolder = isFalsy(searchInFolderUnknown) ? null : await resolveWorkspaceURI(searchInFolderUnknown)
 				const isRegex = validateBoolean(isRegexUnknown, { default: false })
-				return { query: queryStr, isRegex, searchInFolder, pageNumber }
+				return {
+					query: queryStr,
+					isRegex,
+					searchInFolder,
+					pageNumber
+				}
 			},
 			search_in_file: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
@@ -236,11 +299,18 @@ export class ToolsService implements IToolsService {
 				const topK = validateNumber(topKUnknown, { default: 5 }) || 5;
 				return { query, top_k: topK };
 			},
+
 			read_lint_errors: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const { uri: uriUnknown } = params
-				return { uri: await resolveWorkspaceURI(uriUnknown) }
+				const {
+					uri: uriUnknown,
+				} = params
+				const uri = await resolveWorkspaceURI(uriUnknown)
+				return { uri }
 			},
+
+			// ---
+
 			create_file_or_folder: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { uri: uriUnknown, content: contentUnknown } = params
@@ -250,160 +320,250 @@ export class ToolsService implements IToolsService {
 				const content = isFolder ? undefined : validateOptionalStr('content', contentUnknown)
 				return { uri, isFolder, content: content ?? undefined }
 			},
+
 			delete_file_or_folder: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { uri: uriUnknown, is_recursive: isRecursiveUnknown } = params
 				const uri = await resolveWorkspaceURI(uriUnknown)
 				const isRecursive = validateBoolean(isRecursiveUnknown, { default: false })
-				const isFolder = checkIfIsFolder(validateStr('uri', uriUnknown))
+				const uriStr = validateStr('uri', uriUnknown)
+				const isFolder = checkIfIsFolder(uriStr)
 				return { uri, isRecursive, isFolder }
 			},
+
 			rewrite_file: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, new_content: newContentUnknown } = params
-				return { uri: await resolveWorkspaceURI(uriStr), newContent: validateStr('newContent', newContentUnknown) }
+				const uri = await resolveWorkspaceURI(uriStr)
+				const newContent = validateStr('newContent', newContentUnknown)
+				return { uri, newContent }
 			},
+
 			edit_file: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { uri: uriStr, search_replace_blocks: searchReplaceBlocksUnknown } = params
-				return { uri: await resolveWorkspaceURI(uriStr), searchReplaceBlocks: validateStr('searchReplaceBlocks', searchReplaceBlocksUnknown) }
+				const uri = await resolveWorkspaceURI(uriStr)
+				const searchReplaceBlocks = validateStr('searchReplaceBlocks', searchReplaceBlocksUnknown)
+				return { uri, searchReplaceBlocks }
 			},
+
+			// ---
+
 			run_command: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { command: commandUnknown, cwd: cwdUnknown } = params
 				const command = validateStr('command', commandUnknown)
 				const cwdStr = validateOptionalStr('cwd', cwdUnknown)
 				const cwd = cwdStr === null ? null : (await resolveWorkspaceURI(cwdStr)).fsPath
-				return { command, cwd, terminalId: generateUuid() }
+				const terminalId = generateUuid()
+				return { command, cwd, terminalId }
 			},
 			run_persistent_command: (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { command: commandUnknown, persistent_terminal_id: persistentTerminalIdUnknown } = params;
-				return { command: validateStr('command', commandUnknown), persistentTerminalId: validateProposedTerminalId(persistentTerminalIdUnknown) };
+				const command = validateStr('command', commandUnknown);
+				const persistentTerminalId = validateProposedTerminalId(persistentTerminalIdUnknown)
+				return { command, persistentTerminalId };
 			},
 			open_persistent_terminal: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const cwdStr = validateOptionalStr('cwd', params.cwd)
-				return { cwd: cwdStr === null ? null : (await resolveWorkspaceURI(cwdStr)).fsPath };
+				const { cwd: cwdUnknown } = params;
+				const cwdStr = validateOptionalStr('cwd', cwdUnknown)
+				const cwd = cwdStr === null ? null : (await resolveWorkspaceURI(cwdStr)).fsPath
+				return { cwd };
 			},
 			kill_persistent_terminal: (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				return { persistentTerminalId: validateProposedTerminalId(params.persistent_terminal_id) };
+				const { persistent_terminal_id: terminalIdUnknown } = params;
+				const persistentTerminalId = validateProposedTerminalId(terminalIdUnknown);
+				return { persistentTerminalId };
 			},
+
 		}
+
 
 		this.callTool = {
 			read_file: async ({ uri, startLine, endLine, pageNumber }) => {
 				await voidModelService.initializeModel(uri)
 				const { model } = await voidModelService.getModelSafe(uri)
-				if (model === null) throw new Error(`No contents; File does not exist.`)
+				if (model === null) { throw new Error(`No contents; File does not exist.`) }
+
 				let contents: string
-				if (startLine === null && endLine === null) contents = model.getValue(EndOfLinePreference.LF)
+				if (startLine === null && endLine === null) {
+					contents = model.getValue(EndOfLinePreference.LF)
+				}
 				else {
 					const startLineNumber = startLine === null ? 1 : startLine
 					const endLineNumber = endLine === null ? model.getLineCount() : endLine
 					contents = model.getValueInRange({ startLineNumber, startColumn: 1, endLineNumber, endColumn: Number.MAX_SAFE_INTEGER }, EndOfLinePreference.LF)
 				}
+
 				const totalNumLines = model.getLineCount()
+
 				const fromIdx = MAX_FILE_CHARS_PAGE * (pageNumber - 1)
 				const toIdx = MAX_FILE_CHARS_PAGE * pageNumber - 1
-				const fileContents = contents.slice(fromIdx, toIdx + 1)
+				const fileContents = contents.slice(fromIdx, toIdx + 1) // paginate
 				const hasNextPage = (contents.length - 1) - toIdx >= 1
-				return { result: { fileContents, totalFileLen: contents.length, hasNextPage, totalNumLines } }
+				const totalFileLen = contents.length
+				return { result: { fileContents, totalFileLen, hasNextPage, totalNumLines } }
 			},
-			ls_dir: async ({ uri, pageNumber }) => ({ result: await computeDirectoryTree1Deep(fileService, uri, pageNumber) }),
-			get_dir_tree: async ({ uri }) => ({ result: { str: await this.directoryStrService.getDirectoryStrTool(uri) } }),
+
+			ls_dir: async ({ uri, pageNumber }) => {
+				const dirResult = await computeDirectoryTree1Deep(fileService, uri, pageNumber)
+				return { result: dirResult }
+			},
+
+			get_dir_tree: async ({ uri }) => {
+				const str = await this.directoryStrService.getDirectoryStrTool(uri)
+				return { result: { str } }
+			},
+
 			search_pathnames_only: async ({ query: queryStr, includePattern, pageNumber }) => {
-				const query = queryBuilder.file(workspaceContextService.getWorkspace().folders.map(f => f.uri), { filePattern: queryStr, includePattern: includePattern ?? undefined, sortByScore: true })
+
+				const query = queryBuilder.file(workspaceContextService.getWorkspace().folders.map(f => f.uri), {
+					filePattern: queryStr,
+					includePattern: includePattern ?? undefined,
+					sortByScore: true, // makes results 10x better
+				})
 				const data = await searchService.fileSearch(query, CancellationToken.None)
+
 				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
 				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
-				const uris = data.results.slice(fromIdx, toIdx + 1).map(({ resource }) => resource)
-				return { result: { uris, hasNextPage: (data.results.length - 1) - toIdx >= 1 } }
+				const uris = data.results
+					.slice(fromIdx, toIdx + 1) // paginate
+					.map(({ resource, results }) => resource)
+
+				const hasNextPage = (data.results.length - 1) - toIdx >= 1
+				return { result: { uris, hasNextPage } }
 			},
+
 			search_for_files: async ({ query: queryStr, isRegex, searchInFolder, pageNumber }) => {
-				const searchFolders = searchInFolder === null ? workspaceContextService.getWorkspace().folders.map(f => f.uri) : [searchInFolder]
-				const query = queryBuilder.text({ pattern: queryStr, isRegExp: isRegex }, searchFolders)
+				const searchFolders = searchInFolder === null ?
+					workspaceContextService.getWorkspace().folders.map(f => f.uri)
+					: [searchInFolder]
+
+				const query = queryBuilder.text({
+					pattern: queryStr,
+					isRegExp: isRegex,
+				}, searchFolders)
+
 				const data = await searchService.textSearch(query, CancellationToken.None)
+
 				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
 				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
-				const uris = data.results.slice(fromIdx, toIdx + 1).map(({ resource }) => resource)
-				return { result: { queryStr, uris, hasNextPage: (data.results.length - 1) - toIdx >= 1 } }
+				const uris = data.results
+					.slice(fromIdx, toIdx + 1) // paginate
+					.map(({ resource, results }) => resource)
+
+				const hasNextPage = (data.results.length - 1) - toIdx >= 1
+				return { result: { queryStr, uris, hasNextPage } }
 			},
 			search_in_file: async ({ uri, query, isRegex }) => {
 				await voidModelService.initializeModel(uri);
 				const { model } = await voidModelService.getModelSafe(uri);
-				if (model === null) throw new Error(`No contents; File does not exist.`);
-				const contentOfLine = model.getValue(EndOfLinePreference.LF).split('\n');
+				if (model === null) { throw new Error(`No contents; File does not exist.`); }
+				const contents = model.getValue(EndOfLinePreference.LF);
+				const contentOfLine = contents.split('\n');
+				const totalLines = contentOfLine.length;
 				const regex = isRegex ? new RegExp(query) : null;
 				const lines: number[] = []
-				for (let i = 0; i < contentOfLine.length; i++) {
+				for (let i = 0; i < totalLines; i++) {
 					const line = contentOfLine[i];
-					if ((isRegex && regex!.test(line)) || (!isRegex && line.includes(query))) lines.push(i + 1);
+					if ((isRegex && regex!.test(line)) || (!isRegex && line.includes(query))) {
+						const matchLine = i + 1;
+						lines.push(matchLine);
+					}
 				}
 				return { result: { lines } };
 			},
-			semantic_search: async ({ query, top_k }) => ({
-				result: {
-					hits: (await this.semanticSearchService.search({ query, topK: top_k })).map(h => ({
-						filePath: h.chunk.filePath,
-						startLine: h.chunk.startLine,
-						endLine: h.chunk.endLine,
-						score: h.score,
-						content: h.chunk.content
-					}))
-				}
-			}),
+			semantic_search: async ({ query, top_k }) => {
+				const hits = await this.semanticSearchService.search({ query, topK: top_k });
+				return {
+					result: {
+						hits: hits.map(h => ({
+							filePath: h.chunk.filePath,
+							startLine: h.chunk.startLine,
+							endLine: h.chunk.endLine,
+							score: h.score,
+							content: h.chunk.content
+						}))
+					}
+				};
+			},
+
 			read_lint_errors: async ({ uri }) => {
 				await timeout(1000)
-				return { result: { lintErrors: this._getLintErrors(uri).lintErrors } }
+				const { lintErrors } = this._getLintErrors(uri)
+				return { result: { lintErrors } }
 			},
+
 			create_file_or_folder: async ({ uri, isFolder, content }) => {
-				if (isFolder) await fileService.createFolder(uri)
-				else {
+				if (isFolder) {
+					await fileService.createFolder(uri)
+				} else {
 					const parentUri = URI.joinPath(uri, '..')
-					if (!await fileService.exists(parentUri)) await fileService.createFolder(parentUri)
+					if (!await fileService.exists(parentUri)) {
+						await fileService.createFolder(parentUri)
+					}
 					await fileService.createFile(uri, content === undefined ? undefined : VSBuffer.fromString(content), { overwrite: true })
 					await voidModelService.initializeModel(uri)
 				}
 				return { result: {} }
 			},
+
 			delete_file_or_folder: async ({ uri, isRecursive }) => {
 				await fileService.del(uri, { recursive: isRecursive })
 				return { result: {} }
 			},
+
 			rewrite_file: async ({ uri, newContent }) => {
 				if (!await fileService.exists(uri)) {
 					const parentUri = URI.joinPath(uri, '..')
-					if (!await fileService.exists(parentUri)) await fileService.createFolder(parentUri)
+					if (!await fileService.exists(parentUri)) {
+						await fileService.createFolder(parentUri)
+					}
 					await fileService.createFile(uri, VSBuffer.fromString(newContent), { overwrite: true })
 				}
 				await voidModelService.initializeModel(uri)
-				if (this.commandBarService.getStreamState(uri) === 'streaming') throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
+				if (this.commandBarService.getStreamState(uri) === 'streaming') {
+					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
+				}
 				await editCodeService.callBeforeApplyOrEdit(uri)
 				editCodeService.instantlyRewriteFile({ uri, newContent })
+				// at end, get lint errors
 				const lintErrorsPromise = Promise.resolve().then(async () => {
 					await timeout(2000)
-					return { lintErrors: this._getLintErrors(uri).lintErrors }
+					const { lintErrors } = this._getLintErrors(uri)
+					return { lintErrors }
 				})
 				return { result: lintErrorsPromise }
 			},
+
 			edit_file: async ({ uri, searchReplaceBlocks }) => {
 				if (!await fileService.exists(uri)) {
 					const parentUri = URI.joinPath(uri, '..')
-					if (!await fileService.exists(parentUri)) await fileService.createFolder(parentUri)
+					if (!await fileService.exists(parentUri)) {
+						await fileService.createFolder(parentUri)
+					}
 					await fileService.createFile(uri, VSBuffer.fromString(''), { overwrite: true })
 				}
 				await voidModelService.initializeModel(uri)
-				if (this.commandBarService.getStreamState(uri) === 'streaming') throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
+				if (this.commandBarService.getStreamState(uri) === 'streaming') {
+					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
+				}
 				await editCodeService.callBeforeApplyOrEdit(uri)
 				editCodeService.instantlyApplySearchReplaceBlocks({ uri, searchReplaceBlocks })
+
+				// at end, get lint errors
 				const lintErrorsPromise = Promise.resolve().then(async () => {
 					await timeout(2000)
-					return { lintErrors: this._getLintErrors(uri).lintErrors }
+					const { lintErrors } = this._getLintErrors(uri)
+					return { lintErrors }
 				})
+
 				return { result: lintErrorsPromise }
 			},
+
 			run_command: async ({ command, cwd, terminalId }) => {
 				const { resPromise, interrupt } = await this.terminalToolService.runCommand(command, { type: 'temporary', cwd, terminalId })
 				return { result: resPromise, interruptTool: interrupt }
@@ -412,8 +572,12 @@ export class ToolsService implements IToolsService {
 				const { resPromise, interrupt } = await this.terminalToolService.runCommand(command, { type: 'persistent', persistentTerminalId })
 				return { result: resPromise, interruptTool: interrupt }
 			},
-			open_persistent_terminal: async ({ cwd }) => ({ result: { persistentTerminalId: await this.terminalToolService.createPersistentTerminal({ cwd }) } }),
+			open_persistent_terminal: async ({ cwd }) => {
+				const persistentTerminalId = await this.terminalToolService.createPersistentTerminal({ cwd })
+				return { result: { persistentTerminalId } }
+			},
 			kill_persistent_terminal: async ({ persistentTerminalId }) => {
+				// Close the background terminal by sending exit
 				await this.terminalToolService.killPersistentTerminal(persistentTerminalId)
 				return { result: {} }
 			},
@@ -422,52 +586,110 @@ export class ToolsService implements IToolsService {
 		this.stringOfResult = {
 			read_file: (params, result) => {
 				const pageStatus = result.hasNextPage ? 'MORE_PAGES' : 'COMPLETE'
-				const nextPageInstruction = result.hasNextPage ? ` Call read_file again with page_number=${params.pageNumber + 1}; do not ask the user to paste the file.` : ' The requested file content is complete; do not ask the user to paste it.'
+				const nextPageInstruction = result.hasNextPage
+					? ` Call read_file again with page_number=${params.pageNumber + 1}; do not ask the user to paste the file.`
+					: ' The requested file content is complete; do not ask the user to paste it.'
 				return `[READ_FILE ${pageStatus} page=${params.pageNumber} returned_chars=${result.fileContents.length} total_chars=${result.totalFileLen} total_lines=${result.totalNumLines}]${nextPageInstruction}\n${result.fileContents}\n[END_READ_FILE ${pageStatus}]`
 			},
-			ls_dir: (params, result) => stringifyDirectoryTree1Deep(params, result),
-			get_dir_tree: (_params, result) => result.str,
-			search_pathnames_only: (_params, result) => result.uris.map(uri => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage),
-			search_for_files: (_params, result) => result.uris.map(uri => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage),
+			ls_dir: (params, result) => {
+				const dirTreeStr = stringifyDirectoryTree1Deep(params, result)
+				return dirTreeStr
+			},
+			get_dir_tree: (params, result) => {
+				return result.str
+			},
+			search_pathnames_only: (params, result) => {
+				return result.uris.map(uri => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage)
+			},
+			search_for_files: (params, result) => {
+				return result.uris.map(uri => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage)
+			},
 			search_in_file: (params, result) => {
 				const { model } = voidModelService.getModel(params.uri)
 				if (!model) return '<Error getting string of result>'
-				return result.lines.map(n => {
+				const lines = result.lines.map(n => {
 					const lineContent = model.getValueInRange({ startLineNumber: n, startColumn: 1, endLineNumber: n, endColumn: Number.MAX_SAFE_INTEGER }, EndOfLinePreference.LF)
 					return `Line ${n}:\n\`\`\`\n${lineContent}\n\`\`\``
 				}).join('\n\n');
+				return lines;
 			},
-			read_lint_errors: (_params, result) => result.lintErrors ? stringifyLintErrors(result.lintErrors) : 'No lint errors found.',
-			semantic_search: (_params, result) => result.hits.map(h => `${h.filePath}:${h.startLine}-${h.endLine} (score: ${h.score.toFixed(2)})\n${h.content}`).join('\n\n'),
-			create_file_or_folder: (params, _result) => `URI ${params.uri.fsPath} successfully created.${params.isFolder ? '' : params.content === undefined ? ' The file has no content yet; use rewrite_file immediately to write the requested implementation.' : ''}`,
-			delete_file_or_folder: (params, _result) => `URI ${params.uri.fsPath} successfully deleted.`,
+			read_lint_errors: (params, result) => {
+				return result.lintErrors ?
+					stringifyLintErrors(result.lintErrors)
+					: 'No lint errors found.'
+			},
+			semantic_search: (params, result) => {
+				return result.hits.map(h => `${h.filePath}:${h.startLine}-${h.endLine} (score: ${h.score.toFixed(2)})\n${h.content}`).join('\n\n');
+			},
+			// ---
+			create_file_or_folder: (params, result) => {
+				return `URI ${params.uri.fsPath} successfully created.${params.isFolder ? '' : params.content === undefined ? ' The file has no content yet; use rewrite_file immediately to write the requested implementation.' : ''}`
+			},
+			delete_file_or_folder: (params, result) => {
+				return `URI ${params.uri.fsPath} successfully deleted.`
+			},
 			edit_file: (params, result) => {
-				const lintErrsString = this.voidSettingsService.state.globalSettings.includeToolLintErrors ? (result.lintErrors ? ` Lint errors found after change:\n${stringifyLintErrors(result.lintErrors)}.\nIf this is related to a change made while calling this tool, you might want to fix the error.` : ` No lint errors found.`) : ''
+				const lintErrsString = (
+					this.voidSettingsService.state.globalSettings.includeToolLintErrors ?
+						(result.lintErrors ? ` Lint errors found after change:\n${stringifyLintErrors(result.lintErrors)}.\nIf this is related to a change made while calling this tool, you might want to fix the error.`
+							: ` No lint errors found.`)
+						: '')
+
 				return `Change successfully made to ${params.uri.fsPath}.${lintErrsString}`
 			},
 			rewrite_file: (params, result) => {
-				const lintErrsString = this.voidSettingsService.state.globalSettings.includeToolLintErrors ? (result.lintErrors ? ` Lint errors found after change:\n${stringifyLintErrors(result.lintErrors)}.\nIf this is related to a change made while calling this tool, you might want to fix the error.` : ` No lint errors found.`) : ''
+				const lintErrsString = (
+					this.voidSettingsService.state.globalSettings.includeToolLintErrors ?
+						(result.lintErrors ? ` Lint errors found after change:\n${stringifyLintErrors(result.lintErrors)}.\nIf this is related to a change made while calling this tool, you might want to fix the error.`
+							: ` No lint errors found.`)
+						: '')
+
 				return `Change successfully made to ${params.uri.fsPath}.${lintErrsString}`
 			},
-			run_command: (_params, result) => {
-				const { resolveReason, result: result_ } = result
-				if (resolveReason.type === 'done') return `${result_}\n(exit code ${resolveReason.exitCode})`
-				if (resolveReason.type === 'timeout') return `${result_}\nTerminal command ran, but was automatically killed by Void after ${MAX_TERMINAL_INACTIVE_TIME}s of inactivity and did not finish successfully. To try with more time, open a persistent terminal and run the command there.`
+			run_command: (params, result) => {
+				const { resolveReason, result: result_, } = result
+				// success
+				if (resolveReason.type === 'done') {
+					return `${result_}\n(exit code ${resolveReason.exitCode})`
+				}
+				// normal command
+				if (resolveReason.type === 'timeout') {
+					return `${result_}\nTerminal command ran, but was automatically killed by Void after ${MAX_TERMINAL_INACTIVE_TIME}s of inactivity and did not finish successfully. To try with more time, open a persistent terminal and run the command there.`
+				}
 				throw new Error(`Unexpected internal error: Terminal command did not resolve with a valid reason.`)
 			},
+
 			run_persistent_command: (params, result) => {
-				const { resolveReason, result: result_ } = result
-				if (resolveReason.type === 'done') return `${result_}\n(exit code ${resolveReason.exitCode})`
-				if (resolveReason.type === 'timeout') return `${result_}\nTerminal command is running in terminal ${params.persistentTerminalId}. The given outputs are the results after ${MAX_TERMINAL_BG_COMMAND_TIME} seconds.`
+				const { resolveReason, result: result_, } = result
+				const { persistentTerminalId } = params
+				// success
+				if (resolveReason.type === 'done') {
+					return `${result_}\n(exit code ${resolveReason.exitCode})`
+				}
+				// bg command
+				if (resolveReason.type === 'timeout') {
+					return `${result_}\nTerminal command is running in terminal ${persistentTerminalId}. The given outputs are the results after ${MAX_TERMINAL_BG_COMMAND_TIME} seconds.`
+				}
 				throw new Error(`Unexpected internal error: Terminal command did not resolve with a valid reason.`)
 			},
-			open_persistent_terminal: (_params, result) => `Successfully created persistent terminal. persistentTerminalId="${result.persistentTerminalId}"`,
-			kill_persistent_terminal: (params, _result) => `Successfully closed terminal "${params.persistentTerminalId}".`,
+
+			open_persistent_terminal: (_params, result) => {
+				const { persistentTerminalId } = result;
+				return `Successfully created persistent terminal. persistentTerminalId="${persistentTerminalId}"`;
+			},
+			kill_persistent_terminal: (params, _result) => {
+				return `Successfully closed terminal "${params.persistentTerminalId}".`;
+			},
 		}
+
+
+
 	}
 
+
 	private _getLintErrors(uri: URI): { lintErrors: LintErrorItem[] | null } {
-		const lintErrors = this.markerService.read({ resource: uri })
+		const lintErrors = this.markerService
+			.read({ resource: uri })
 			.filter(l => l.severity === MarkerSeverity.Error || l.severity === MarkerSeverity.Warning)
 			.slice(0, 100)
 			.map(l => ({
@@ -476,8 +698,12 @@ export class ToolsService implements IToolsService {
 				startLineNumber: l.startLineNumber,
 				endLineNumber: l.endLineNumber,
 			} satisfies LintErrorItem))
-		return { lintErrors: lintErrors.length ? lintErrors : null }
+
+		if (!lintErrors.length) return { lintErrors: null }
+		return { lintErrors, }
 	}
+
+
 }
 
 registerSingleton(IToolsService, ToolsService, InstantiationType.Eager);
