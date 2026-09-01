@@ -135,6 +135,40 @@ function rebaseFlattenedCommonImports(bundleRoot) {
 	return rewriteCount;
 }
 
+// A preserved import from a nested React source directory can have the same
+// flattening problem for modules that live directly under void/browser. From an
+// emitted entry point, ../../../../ resolves under void instead of void/browser.
+// Only shorten the import when the emitted URL is missing and the one-level
+// shallower URL exists, so intentional void/common imports remain untouched.
+function rebaseFlattenedBrowserImports(bundleRoot) {
+	const sourcePrefix = '../../../../';
+	const runtimePrefix = '../../../';
+	let rewriteCount = 0;
+
+	visitJavaScriptFiles(bundleRoot, (bundlePath) => {
+		const content = fs.readFileSync(bundlePath, 'utf8');
+		const rewritten = content.replace(
+			/(^[^\S\r\n]*(?:import|export)\b[^\r\n]*?["'])(\.\.\/\.\.\/\.\.\/\.\.\/[^"']+\.js)(["'])/gm,
+			(match, beforeSpecifier, specifier, closingQuote) => {
+				if (!specifier.startsWith(sourcePrefix)) return match;
+				const currentTarget = path.resolve(path.dirname(bundlePath), specifier);
+				if (fs.existsSync(currentTarget)) return match;
+
+				const runtimeSpecifier = runtimePrefix + specifier.slice(sourcePrefix.length);
+				const runtimeTarget = path.resolve(path.dirname(bundlePath), runtimeSpecifier);
+				if (!fs.existsSync(runtimeTarget)) return match;
+
+				rewriteCount++;
+				console.log(`[forge] Rebased flattened browser import ${path.relative(bundleRoot, bundlePath)}: ${specifier} -> ${runtimeSpecifier}`);
+				return `${beforeSpecifier}${runtimeSpecifier}${closingQuote}`;
+			}
+		);
+		if (rewritten !== content) fs.writeFileSync(bundlePath, rewritten, 'utf8');
+	});
+
+	return rewriteCount;
+}
+
 // Validate the URLs Electron will actually request, not just a hand-picked list of
 // canonical compiler outputs. This catches a preserved relative import whose module
 // exists elsewhere in out/ but is unreachable from the emitted bundle's directory.
@@ -289,12 +323,13 @@ if (isWatch) {
 		fs.cpSync(runtimeBaseCommon, runtimeRootBaseCommon, { recursive: true });
 	}
 
-	const rebasedImports = rebaseFlattenedCommonImports(runtimeReactOut);
+	const rebasedImports = rebaseFlattenedCommonImports(runtimeReactOut)
+		+ rebaseFlattenedBrowserImports(runtimeReactOut);
 	if (rebasedImports > 0) {
 		// Keep the generated source-side output in sync so a later core compile does
 		// not copy the pre-rebased bundle back over the verified runtime tree.
 		fs.cpSync(runtimeReactOut, path.join(__dirname, 'out'), { recursive: true });
-		console.log(`[forge] Rebased ${rebasedImports} flattened common runtime import${rebasedImports === 1 ? '' : 's'}.`);
+		console.log(`[forge] Rebased ${rebasedImports} flattened runtime import${rebasedImports === 1 ? '' : 's'}.`);
 	}
 
 	const missingRuntimeImports = findMissingRelativeRuntimeImports(runtimeReactOut);
