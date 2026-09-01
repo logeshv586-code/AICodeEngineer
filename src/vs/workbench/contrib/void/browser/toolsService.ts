@@ -16,7 +16,7 @@ import { computeDirectoryTree1Deep, IDirectoryStrService, stringifyDirectoryTree
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js'
 import { timeout } from '../../../../base/common/async.js'
 import { RawToolParamsObj } from '../common/sendLLMMessageTypes.js'
-import { MAX_CHILDREN_URIs_PAGE, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_BG_COMMAND_TIME, MAX_TERMINAL_INACTIVE_TIME, normalizeRawParams } from '../common/prompt/prompts.js'
+import { MAX_CHILDREN_URIS_PAGE, MAX_FILE_CHARS_PAGE, MAX_TERMINAL_BG_COMMAND_TIME, MAX_TERMINAL_INACTIVE_TIME, normalizeRawParams } from '../common/prompt/prompts.js'
 import { IVoidSettingsService } from '../common/voidSettingsService.js'
 import { generateUuid } from '../../../../base/common/uuid.js'
 import { ISemanticSearchService } from '../common/forge/contracts/ISemanticSearchService.js'
@@ -43,7 +43,6 @@ const validateStr = (argName: string, value: unknown) => {
 }
 
 
-// We are NOT checking to make sure in workspace
 const validateURI = (uriStr: unknown) => {
 	if (uriStr === null) throw new Error(`Invalid LLM output: uri was null.`)
 	if (typeof uriStr !== 'string') throw new Error(`Invalid LLM output format: Provided uri must be a string, but it's a(n) ${typeof uriStr}. Full value: ${JSON.stringify(uriStr)}.`)
@@ -178,6 +177,25 @@ export class ToolsService implements IToolsService {
 			await this.workspaceEditingService.addFolders([{ uri: workspaceRoot }], true);
 			return workspaceRoot;
 		};
+		const normalizedPath = (uri: URI): string => {
+			let path = uri.path.replace(/\/+$/, '') || '/';
+			// Windows drive-letter file URIs are case-insensitive. Keep remote/POSIX
+			// workspaces case-sensitive so similarly named paths are not conflated.
+			if (uri.scheme === 'file' && /^\/[A-Za-z]:\//.test(path)) path = path.toLowerCase();
+			return path;
+		};
+		const isInsideRoot = (candidate: URI, root: URI): boolean => {
+			if (candidate.scheme !== root.scheme || candidate.authority !== root.authority) return false;
+			const candidatePath = normalizedPath(candidate);
+			const rootPath = normalizedPath(root);
+			return candidatePath === rootPath || candidatePath.startsWith(rootPath === '/' ? '/' : `${rootPath}/`);
+		};
+		const ensureInsideWorkspace = async (candidate: URI): Promise<URI> => {
+			let roots = workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
+			if (roots.length === 0) roots = [await ensureWorkspaceRoot()];
+			if (roots.some(root => isInsideRoot(candidate, root))) return candidate;
+			throw new Error(`Tool path is outside the opened workspace: ${candidate.fsPath}. Open that folder in Forge before asking the agent to access it.`);
+		};
 		const resolveWorkspaceURI = async (uriStr: unknown): Promise<URI> => {
 			const rawPath = validateStr('uri', uriStr).trim();
 			const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri;
@@ -187,16 +205,17 @@ export class ToolsService implements IToolsService {
 			if (rawPath === '/workspace' || rawPath.startsWith('/workspace/')) {
 				const root = workspaceRoot ?? await ensureWorkspaceRoot();
 				const relativePath = rawPath.slice('/workspace'.length).replace(/^[/\\]+/, '');
-				return relativePath ? URI.joinPath(root, ...relativePath.split(/[\\/]+/)) : root;
+				const target = relativePath ? URI.joinPath(root, ...relativePath.split(/[\\/]+/)) : root;
+				return ensureInsideWorkspace(target);
 			}
 
 			// A bare filename is also intended to be created in the active project.
 			if (!rawPath.includes('://') && !/^(?:[A-Za-z]:[\\/]|[\\/])/.test(rawPath)) {
 				const root = workspaceRoot ?? await ensureWorkspaceRoot();
-				return URI.joinPath(root, ...rawPath.split(/[\\/]+/));
+				return ensureInsideWorkspace(URI.joinPath(root, ...rawPath.split(/[\\/]+/)));
 			}
 
-			return validateURI(rawPath);
+			return ensureInsideWorkspace(validateURI(rawPath));
 		};
 
 		this.validateParams = {
@@ -330,11 +349,12 @@ export class ToolsService implements IToolsService {
 
 			// ---
 
-			run_command: (rawParams: RawToolParamsObj) => {
+			run_command: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { command: commandUnknown, cwd: cwdUnknown } = params
 				const command = validateStr('command', commandUnknown)
-				const cwd = validateOptionalStr('cwd', cwdUnknown)
+				const cwdStr = validateOptionalStr('cwd', cwdUnknown)
+				const cwd = cwdStr === null ? null : (await resolveWorkspaceURI(cwdStr)).fsPath
 				const terminalId = generateUuid()
 				return { command, cwd, terminalId }
 			},
@@ -345,10 +365,11 @@ export class ToolsService implements IToolsService {
 				const persistentTerminalId = validateProposedTerminalId(persistentTerminalIdUnknown)
 				return { command, persistentTerminalId };
 			},
-			open_persistent_terminal: (rawParams: RawToolParamsObj) => {
+			open_persistent_terminal: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
 				const { cwd: cwdUnknown } = params;
-				const cwd = validateOptionalStr('cwd', cwdUnknown)
+				const cwdStr = validateOptionalStr('cwd', cwdUnknown)
+				const cwd = cwdStr === null ? null : (await resolveWorkspaceURI(cwdStr)).fsPath
 				return { cwd };
 			},
 			kill_persistent_terminal: (rawParams: RawToolParamsObj) => {
@@ -406,8 +427,8 @@ export class ToolsService implements IToolsService {
 				})
 				const data = await searchService.fileSearch(query, CancellationToken.None)
 
-				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
-				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
+				const fromIdx = MAX_CHILDREN_URIS_PAGE * (pageNumber - 1)
+				const toIdx = MAX_CHILDREN_URIS_PAGE * pageNumber - 1
 				const uris = data.results
 					.slice(fromIdx, toIdx + 1) // paginate
 					.map(({ resource, results }) => resource)
@@ -428,8 +449,8 @@ export class ToolsService implements IToolsService {
 
 				const data = await searchService.textSearch(query, CancellationToken.None)
 
-				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
-				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
+				const fromIdx = MAX_CHILDREN_URIS_PAGE * (pageNumber - 1)
+				const toIdx = MAX_CHILDREN_URIS_PAGE * pageNumber - 1
 				const uris = data.results
 					.slice(fromIdx, toIdx + 1) // paginate
 					.map(({ resource, results }) => resource)
