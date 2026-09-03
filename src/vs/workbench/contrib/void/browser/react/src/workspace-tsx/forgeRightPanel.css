@@ -15,6 +15,8 @@
 }
 
 .void-forge-ai-panel-right .void-forge-chat-header {
+	position: relative;
+	z-index: 20;
 	padding: 8px 11px 7px;
 	background: color-mix(in srgb, var(--forge-bg-0) 94%, transparent);
 	backdrop-filter: blur(10px);
@@ -38,6 +40,42 @@
 .void-forge-ai-panel-right .void-forge-chat-healthline {
 	margin-top: 4px;
 	font-size: 9px;
+}
+
+.void-forge-ai-panel-right .void-forge-chat-icon-action-active {
+	color: var(--forge-text);
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+	border-color: color-mix(in srgb, var(--forge-iris) 36%, var(--forge-line));
+}
+
+.void-forge-chat-history-popover {
+	position: absolute;
+	top: 39px;
+	right: 9px;
+	width: min(310px, calc(100% - 18px));
+	max-height: min(420px, calc(100vh - 120px));
+	display: flex;
+	flex-direction: column;
+	padding: 8px;
+	border: 1px solid var(--vscode-widget-border, var(--forge-line));
+	border-radius: 8px;
+	background: var(--vscode-quickInput-background, var(--forge-bg-1));
+	box-shadow: 0 10px 32px rgba(0, 0, 0, .34);
+	color: var(--forge-text);
+}
+
+.void-forge-chat-history-title {
+	padding: 2px 4px 7px;
+	font-size: 9px;
+	font-weight: 650;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	color: var(--forge-muted);
+}
+
+.void-forge-chat-history-scroll {
+	min-height: 0;
+	overflow-y: auto;
 }
 
 .void-forge-panel-intro {
@@ -282,4 +320,7 @@
 	.void-forge-right-plus-button { width: 30px; height: 30px; }
 	.void-forge-right-composer-meta { width: calc(100% - 35px); }
 	.void-forge-right-agent-ready { display: none; }
+	.void-forge-chat-workspace-name { display: none; }
+	.void-forge-chat-header-actions { gap: 1px; }
+	.void-forge-chat-icon-action { width: 25px; height: 25px; }
 }
