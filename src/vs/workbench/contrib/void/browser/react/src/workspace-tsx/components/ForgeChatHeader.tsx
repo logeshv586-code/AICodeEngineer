@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { History, Plus, RefreshCw, Settings, X } from 'lucide-react';
 import { ISkillsService } from '../../../skillsService.js';
 import { ISemanticSearchService } from '../../../../../common/forge/contracts/ISemanticSearchService.js';
 import type { SlashCommandContext } from '../utils/slashCommandRouter';
+import { PastThreadsList } from '../../sidebar-tsx/SidebarThreadSelector.tsx';
 
 type KnowledgeState = 'idle' | 'syncing' | 'ready' | 'preparing';
 
@@ -24,6 +25,9 @@ export interface ForgeChatHeaderProps {
 	workspaceReady: boolean;
 	isStreaming: boolean;
 	slashContext?: SlashCommandContext;
+	onNewThread?: () => void;
+	onOpenSettings?: () => void;
+	onClose?: () => void;
 }
 
 export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
@@ -32,17 +36,38 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 	workspaceReady,
 	isStreaming,
 	slashContext,
+	onNewThread,
+	onOpenSettings,
+	onClose,
 }) => {
 	const [knowledgeState, setKnowledgeState] = useState<KnowledgeState>('idle');
 	const [snapshot, setSnapshot] = useState<KnowledgeSnapshot>({ registrySkills: 0, workspaceSkills: 0 });
+	const [showHistory, setShowHistory] = useState(false);
 	const disposedRef = useRef(false);
 	const wasStreamingRef = useRef(false);
 	const refreshInFlightRef = useRef(false);
+	const headerRef = useRef<HTMLElement>(null);
 
 	useEffect(() => {
 		disposedRef.current = false;
 		return () => { disposedRef.current = true; };
 	}, []);
+
+	useEffect(() => {
+		if (!showHistory) return;
+		const onPointerDown = (event: PointerEvent) => {
+			if (!headerRef.current?.contains(event.target as Node)) setShowHistory(false);
+		};
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') setShowHistory(false);
+		};
+		document.addEventListener('pointerdown', onPointerDown);
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('pointerdown', onPointerDown);
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, [showHistory]);
 
 	const refreshKnowledge = useCallback(async (forceReindex: boolean) => {
 		if (!slashContext || refreshInFlightRef.current) return;
@@ -123,16 +148,28 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 					? `${snapshot.totalFiles} files indexed`
 					: 'Project context ready';
 
-	return <header className='forge-chat-header shrink-0'>
+	return <header ref={headerRef} className='forge-chat-header shrink-0'>
 		<div className='forge-chat-header-main'>
 			<div className='forge-chat-workspace min-w-0'>
 				<span className='forge-chat-section-label'>FORGE AI</span>
 				<span className='forge-chat-workspace-name truncate' title={workspaceName}>{workspaceName}</span>
 			</div>
 			<div className='forge-chat-header-actions'>
-				<button type='button' className='forge-chat-icon-action' onClick={() => { void refreshKnowledge(true); }} disabled={!workspaceReady || knowledgeState === 'syncing'} title='Refresh current project context' aria-label='Refresh current project context'>
+				<button type='button' className='forge-chat-icon-action' onClick={() => { void refreshKnowledge(true); }} disabled={!workspaceReady || knowledgeState === 'syncing'} title='Refresh project context' aria-label='Refresh project context'>
 					<RefreshCw size={13} className={knowledgeState === 'syncing' ? 'animate-spin' : ''} />
 				</button>
+				<button type='button' className={`forge-chat-icon-action ${showHistory ? 'forge-chat-icon-action-active' : ''}`} onClick={() => setShowHistory(value => !value)} title='Chat history' aria-label='Chat history' aria-expanded={showHistory}>
+					<History size={13} />
+				</button>
+				{onNewThread && <button type='button' className='forge-chat-icon-action' onClick={() => { setShowHistory(false); onNewThread(); }} title='New chat' aria-label='New chat'>
+					<Plus size={14} />
+				</button>}
+				{onOpenSettings && <button type='button' className='forge-chat-icon-action' onClick={onOpenSettings} title='Forge settings' aria-label='Forge settings'>
+					<Settings size={13} />
+				</button>}
+				{onClose && <button type='button' className='forge-chat-icon-action' onClick={onClose} title='Close Forge AI sidebar' aria-label='Close Forge AI sidebar'>
+					<X size={14} />
+				</button>}
 			</div>
 		</div>
 		<div className='forge-chat-healthline' aria-live='polite'>
@@ -140,5 +177,9 @@ export const ForgeChatHeader: React.FC<ForgeChatHeaderProps> = ({
 			<span className='truncate'>{statusText}</span>
 			{snapshot.workspaceSkills > 0 && <><span className='forge-chat-health-separator'>•</span><span className='truncate' title={`${snapshot.workspaceSkills} project-local workspace skills`}>{snapshot.workspaceSkills} workspace skills</span></>}
 		</div>
+		{showHistory && <div className='forge-chat-history-popover' role='dialog' aria-label='Forge chat history'>
+			<div className='forge-chat-history-title'>Recent chats</div>
+			<div className='forge-chat-history-scroll'><PastThreadsList className='mb-0' /></div>
+		</div>}
 	</header>;
 };
