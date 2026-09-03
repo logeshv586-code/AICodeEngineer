@@ -12,34 +12,25 @@ import { RawToolParamsObj } from '../sendLLMMessageTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, BuiltinToolResultType, ToolName } from '../toolsServiceTypes.js';
 import { ChatMode } from '../voidSettingsTypes.js';
 
-// Triple backtick wrapper used throughout the prompts for code blocks
 export const tripleTick = ['```', '```']
 
-// Maximum limits for directory structure information
 export const MAX_DIRSTR_CHARS_TOTAL_BEGINNING = 20_000
 export const MAX_DIRSTR_CHARS_TOTAL_TOOL = 20_000
 export const MAX_DIRSTR_RESULTS_TOTAL_BEGINNING = 100
 export const MAX_DIRSTR_RESULTS_TOTAL_TOOL = 100
 
-// tool info
 export const MAX_FILE_CHARS_PAGE = 500_000
-export const MAX_CHILDREN_URIs_PAGE = 500
+export const MAX_CHILDREN_URIS_PAGE = 500
 
-// terminal tool info
 export const MAX_TERMINAL_CHARS = 100_000
-export const MAX_TERMINAL_INACTIVE_TIME = 8 // seconds
+export const MAX_TERMINAL_INACTIVE_TIME = 8
 export const MAX_TERMINAL_BG_COMMAND_TIME = 5
 
-
-// Maximum character limits for prefix and suffix context
 export const MAX_PREFIX_SUFFIX_CHARS = 20_000
-
 
 export const ORIGINAL = `<<<<<<< ORIGINAL`
 export const DIVIDER = `=======`
 export const FINAL = `>>>>>>> UPDATED`
-
-
 
 const searchReplaceBlockTemplate = `\
 ${ORIGINAL}
@@ -54,92 +45,43 @@ ${DIVIDER}
 // ... final code goes here
 ${FINAL}`
 
-
-
-
 const createSearchReplaceBlocks_systemMessage = `\
-You are a coding assistant that takes in a diff, and outputs SEARCH/REPLACE code blocks to implement the change(s) in the diff.
-The diff will be labeled \`DIFF\` and the original file will be labeled \`ORIGINAL_FILE\`.
+You are a coding assistant that takes in a diff and outputs SEARCH/REPLACE code blocks that implement the requested change.
+The diff is labeled \`DIFF\` and the original file is labeled \`ORIGINAL_FILE\`.
 
-Format your SEARCH/REPLACE blocks as follows:
+Format every SEARCH/REPLACE block exactly like this:
 ${tripleTick[0]}
 ${searchReplaceBlockTemplate}
 ${tripleTick[1]}
 
-1. Your SEARCH/REPLACE block(s) must implement the diff EXACTLY. Do NOT leave anything out.
-
-2. You are allowed to output multiple SEARCH/REPLACE blocks to implement the change.
-
-3. Assume any comments in the diff are PART OF THE CHANGE. Include them in the output.
-
-4. Your output should consist ONLY of SEARCH/REPLACE blocks. Do NOT output any text or explanations before or after this.
-
-5. The ORIGINAL code in each SEARCH/REPLACE block must EXACTLY match lines in the original file. Do not add or remove any whitespace, comments, or modifications from the original code.
-
-6. Each ORIGINAL text must be large enough to uniquely identify the change in the file. However, bias towards writing as little as possible.
-
-7. Each ORIGINAL text must be DISJOINT from all other ORIGINAL text.
-
-## EXAMPLE 1
-DIFF
-${tripleTick[0]}
-// ... existing code
-let x = 6.5
-// ... existing code
-${tripleTick[1]}
-
-ORIGINAL_FILE
-${tripleTick[0]}
-let w = 5
-let x = 6
-let y = 7
-let z = 8
-${tripleTick[1]}
-
-ACCEPTED OUTPUT
-${tripleTick[0]}
-${ORIGINAL}
-let x = 6
-${DIVIDER}
-let x = 6.5
-${FINAL}
-${tripleTick[1]}`
-
+Rules:
+1. Implement the diff completely.
+2. You may output multiple SEARCH/REPLACE blocks.
+3. Treat comments in the diff as part of the requested change.
+4. Output SEARCH/REPLACE blocks only. Do not add explanations.
+5. ORIGINAL text must exactly match the original file, including whitespace and comments.
+6. Each ORIGINAL section must uniquely identify its target while remaining as small as practical.
+7. ORIGINAL sections must not overlap.`
 
 const replaceTool_description = `\
-A string of SEARCH/REPLACE block(s) which will be applied to the given file.
-Your SEARCH/REPLACE blocks string must be formatted as follows:
+A single string containing one or more SEARCH/REPLACE blocks.
+Use this exact format:
 ${searchReplaceBlockTemplate}
 
-## Guidelines:
-
-1. You may output multiple search replace blocks if needed.
-
-2. The ORIGINAL code in each SEARCH/REPLACE block must EXACTLY match lines in the original file. Do not add or remove any whitespace or comments from the original code.
-
-3. Each ORIGINAL text must be large enough to uniquely identify the change. However, bias towards writing as little as possible.
-
-4. Each ORIGINAL text must be DISJOINT from all other ORIGINAL text.
-
-5. This field is a STRING (not an array).`
-
-
-// ======================================================== tools ========================================================
-
+Rules:
+1. ORIGINAL must exactly match text in the current file.
+2. Each ORIGINAL section must uniquely identify its target.
+3. ORIGINAL sections must not overlap.
+4. Keep each block as small as practical while still unique.
+5. This parameter is a STRING, not an array.`
 
 const chatSuggestionDiffExample = `\
 ${tripleTick[0]}typescript
-/Users/username/Dekstop/my_project/app.ts
+/Users/username/Desktop/my_project/app.ts
 // ... existing code ...
-// {{change 1}}
-// ... existing code ...
-// {{change 2}}
-// ... existing code ...
-// {{change 3}}
+// {{change}}
 // ... existing code ...
 ${tripleTick[1]}`
-
-
 
 export type InternalToolInfo = {
 	name: string,
@@ -147,32 +89,23 @@ export type InternalToolInfo = {
 	params: {
 		[paramName: string]: { description: string }
 	},
-	// Only if the tool is from an MCP server
 	mcpServerName?: string,
 }
 
-
-
 const uriParam = (object: string) => ({
-	uri: { description: `The FULL path to the ${object}.` }
+	uri: { description: `The FULL path to the ${object}. Relative paths are resolved inside the active workspace.` }
 })
 
 const paginationParam = {
 	page_number: { description: 'Optional. The page number of the result. Default is 1.' }
 } as const
 
-
-
-const terminalDescHelper = `You can use this tool to run any command: sed, grep, etc. Do not edit any files with this tool; use edit_file instead. When working with git and other tools that open an editor (e.g. git diff), you should pipe to cat to get all results and not get stuck in vim.`
-
+const terminalDescHelper = `Run a command in the user's workspace. Use terminal commands for builds, tests, package-manager operations, git inspection, generators, and diagnostics. Do not modify source files with terminal text-replacement commands when edit_file or rewrite_file can perform the change safely.`
 const cwdHelper = 'Optional. The directory in which to run the command. Defaults to the first workspace folder.'
 
 export type SnakeCase<S extends string> =
-	// exact acronym URI
 	S extends 'URI' ? 'uri'
-	// suffix URI: e.g. 'rootURI' -> snakeCase('root') + '_uri'
 	: S extends `${infer Prefix}URI` ? `${SnakeCase<Prefix>}_uri`
-	// default: for each char, prefix '_' on uppercase letters
 	: S extends `${infer C}${infer Rest}`
 	? `${C extends Lowercase<C> ? C : `_${Lowercase<C>}`}${SnakeCase<Rest>}`
 	: S;
@@ -181,177 +114,142 @@ export type SnakeCaseKeys<T extends Record<string, any>> = {
 	[K in keyof T as SnakeCase<Extract<K, string>>]: T[K]
 };
 
-
-
 export const builtinTools: {
 	[T in keyof BuiltinToolCallParams]: {
 		name: string;
 		description: string;
-		// more params can be generated than exist here, but these params must be a subset of them
 		params: Partial<{ [paramName in keyof SnakeCaseKeys<BuiltinToolCallParams[T]>]: { description: string } }>
 	}
 } = {
-	// --- context-gathering (read/search/list) ---
-
 	read_file: {
 		name: 'read_file',
-		description: `Returns file contents together with explicit completeness and paging information. If the result says COMPLETE, you have the requested contents and must not ask the user to paste the local file. If it says MORE_PAGES, call read_file again with the next page_number.`,
+		description: `Read file contents with explicit paging metadata. COMPLETE means the requested content is complete. MORE_PAGES means call read_file again with the next page_number. Never ask the user to paste a local file that this tool can read.`,
 		params: {
 			...uriParam('file'),
-			start_line: { description: 'Optional. Do NOT fill this field in unless you were specifically given exact line numbers to search. Defaults to the beginning of the file.' },
-			end_line: { description: 'Optional. Do NOT fill this field in unless you were specifically given exact line numbers to search. Defaults to the end of the file.' },
+			start_line: { description: 'Optional. Use only when exact line numbers are already known. Defaults to the beginning.' },
+			end_line: { description: 'Optional. Use only when exact line numbers are already known. Defaults to the end.' },
 			...paginationParam,
 		},
 	},
-
 	ls_dir: {
 		name: 'ls_dir',
-		description: `Lists all files and folders in the given URI.`,
+		description: `List files and folders in a directory.`,
 		params: {
-			uri: { description: `Optional. The FULL path to the ${'folder'}. Leave this as empty or "" to search all folders.` },
+			uri: { description: `Optional. The full folder path. Leave empty to use the active workspace root.` },
 			...paginationParam,
 		},
 	},
-
 	get_dir_tree: {
 		name: 'get_dir_tree',
-		description: `This is a very effective way to learn about the user's codebase. Returns a tree diagram of all the files and folders in the given folder. `,
+		description: `Return a tree of files and folders beneath a workspace directory. Use this to understand unfamiliar project structure.`,
 		params: {
 			...uriParam('folder')
 		}
 	},
-
-	// pathname_search: {
-	// 	name: 'pathname_search',
-	// 	description: `Returns all pathnames that match a given \`find\`-style query over the entire workspace. ONLY searches file names. ONLY searches the current workspace. You should use this when looking for a file with a specific name or path. ${paginationHelper.desc}`,
-
 	search_pathnames_only: {
 		name: 'search_pathnames_only',
-		description: `Returns all pathnames that match a given query (searches ONLY file names). You should use this when looking for a file with a specific name or path.`,
+		description: `Search file and folder names in the workspace. Use this when you know or can infer part of a path or filename.`,
 		params: {
-			query: { description: `Your query for the search.` },
-			include_pattern: { description: 'Optional. Only fill this in if you need to limit your search because there were too many results.' },
+			query: { description: `Filename/path query.` },
+			include_pattern: { description: 'Optional. Limit the search only when broad results are too large.' },
 			...paginationParam,
 		},
 	},
-
-
-
 	search_for_files: {
 		name: 'search_for_files',
-		description: `Returns a list of file names whose content matches the given query. The query can be any substring or regex.`,
+		description: `Search workspace file contents by substring or regex and return matching file paths.`,
 		params: {
-			query: { description: `Your query for the search.` },
-			search_in_folder: { description: 'Optional. Leave as blank by default. ONLY fill this in if your previous search with the same query was truncated. Searches descendants of this folder only.' },
-			is_regex: { description: 'Optional. Default is false. Whether the query is a regex.' },
+			query: { description: `Text or regex to search for.` },
+			search_in_folder: { description: 'Optional. Restrict to descendants of this workspace folder.' },
+			is_regex: { description: 'Optional. Default false.' },
 			...paginationParam,
 		},
 	},
-
-	// add new search_in_file tool
 	search_in_file: {
 		name: 'search_in_file',
-		description: `Returns an array of all the start line numbers where the content appears in the file.`,
+		description: `Find line numbers containing a string or regex inside one file.`,
 		params: {
 			...uriParam('file'),
-			query: { description: 'The string or regex to search for in the file.' },
-			is_regex: { description: 'Optional. Default is false. Whether the query is a regex.' }
+			query: { description: 'String or regex to find.' },
+			is_regex: { description: 'Optional. Default false.' }
 		}
 	},
-
 	read_lint_errors: {
 		name: 'read_lint_errors',
-		description: `Use this tool to view all the lint errors on a file.`,
+		description: `Read current editor/language-service lint diagnostics for a file.`,
 		params: {
 			...uriParam('file'),
 		},
 	},
-
-	// --- editing (create/delete) ---
-
 	create_file_or_folder: {
 		name: 'create_file_or_folder',
-		description: `Create a file or folder at the given path. To create a folder, the path MUST end with a trailing slash. For a source file, always include the complete initial file contents in content so the file is not empty.`,
+		description: `Create a file or folder inside the workspace. Folder paths must end with a slash. For source files, include complete initial contents whenever practical.`,
 		params: {
 			...uriParam('file or folder'),
-			content: { description: 'Optional for folders. For files, the complete initial content to write.' },
+			content: { description: 'Optional for folders. For files, complete initial UTF-8 content.' },
 		},
 	},
-
 	delete_file_or_folder: {
 		name: 'delete_file_or_folder',
-		description: `Delete a file or folder at the given path.`,
+		description: `Delete a workspace file or folder.`,
 		params: {
 			...uriParam('file or folder'),
-			is_recursive: { description: 'Optional. Return true to delete recursively.' }
+			is_recursive: { description: 'Optional. true for recursive folder deletion.' }
 		},
 	},
-
 	edit_file: {
 		name: 'edit_file',
-		description: `Edit the contents of a file. You must provide the file's URI as well as a SINGLE string of SEARCH/REPLACE block(s) that will be used to apply the edit.`,
+		description: `Apply exact SEARCH/REPLACE blocks to an existing file. Prefer this for targeted edits after reading the relevant code.`,
 		params: {
 			...uriParam('file'),
 			search_replace_blocks: { description: replaceTool_description }
 		},
 	},
-
 	rewrite_file: {
 		name: 'rewrite_file',
-		description: `Edits a file, deleting all the old contents and replacing them with your new contents. Use this tool if you want to edit a file you just created.`,
+		description: `Replace the entire file content. Use for new/small files or when a whole-file rewrite is clearly safer than targeted replacement.`,
 		params: {
 			...uriParam('file'),
-			new_content: { description: `The new contents of the file. Must be a string.` }
+			new_content: { description: `Complete new file contents.` }
 		},
 	},
 	run_command: {
 		name: 'run_command',
-		description: `Runs a terminal command and waits for the result (times out after ${MAX_TERMINAL_INACTIVE_TIME}s of inactivity). ${terminalDescHelper}`,
+		description: `Run a foreground terminal command and wait for its result. The command returns after ${MAX_TERMINAL_INACTIVE_TIME}s of inactivity. ${terminalDescHelper}`,
 		params: {
-			command: { description: 'The terminal command to run.' },
+			command: { description: 'Terminal command to run.' },
 			cwd: { description: cwdHelper },
 		},
 	},
-
 	run_persistent_command: {
 		name: 'run_persistent_command',
-		description: `Runs a terminal command in the persistent terminal that you created with open_persistent_terminal (results after ${MAX_TERMINAL_BG_COMMAND_TIME} are returned, and command continues running in background). ${terminalDescHelper}`,
+		description: `Run a command in a persistent terminal created by open_persistent_terminal. Useful for already-running shells and services. ${terminalDescHelper}`,
 		params: {
-			command: { description: 'The terminal command to run.' },
-			persistent_terminal_id: { description: 'The ID of the terminal created using open_persistent_terminal.' },
+			command: { description: 'Terminal command to run.' },
+			persistent_terminal_id: { description: 'Persistent terminal ID.' },
 		},
 	},
-
-
-
 	open_persistent_terminal: {
 		name: 'open_persistent_terminal',
-		description: `Use this tool when you want to run a terminal command indefinitely, like a dev server (eg \`npm run dev\`), a background listener, etc. Opens a new terminal in the user's environment which will not awaited for or killed.`,
+		description: `Open a persistent terminal for a dev server, watcher, listener, REPL, or other long-running process.`,
 		params: {
 			cwd: { description: cwdHelper },
 		}
 	},
-
-
 	kill_persistent_terminal: {
 		name: 'kill_persistent_terminal',
-		description: `Interrupts and closes a persistent terminal that you opened with open_persistent_terminal.`,
-		params: { persistent_terminal_id: { description: `The ID of the persistent terminal.` } }
+		description: `Stop and close a persistent terminal.`,
+		params: { persistent_terminal_id: { description: `Persistent terminal ID.` } }
 	},
-
 	semantic_search: {
 		name: 'semantic_search',
-		description: `Performs a local vector semantic search across indexed files in the workspace to retrieve relevant code snippets, symbols, and context.`,
+		description: `Search the current project's local semantic code index for relevant code snippets and symbols. Use it for unfamiliar implementations; fall back immediately to exact workspace search when indexing is unavailable or insufficient.`,
 		params: {
-			query: { description: `Natural language query or code concept to search for in vector index.` },
-			top_k: { description: `Optional. Number of top matching code chunks to return (default 5).` }
+			query: { description: `Natural-language code concept or implementation query.` },
+			top_k: { description: `Optional. Number of results, default 5.` }
 		}
 	}
-
 } satisfies { [T in keyof BuiltinToolResultType]: InternalToolInfo }
-
-
-
 
 export const builtinToolNames = Object.keys(builtinTools) as BuiltinToolName[]
 const toolNamesSet = new Set<string>(builtinToolNames)
@@ -399,88 +297,17 @@ export const parameterNamesIncludingAliases = (canonicalName: string): string[] 
 ]
 
 export const normalizeToolName = (toolName: string): BuiltinToolName | string => {
-	if (!toolName) return toolName;
-	const lower = toolName.trim().replace(/^<+/, '').replace(/[>{(\s]+$/, '').toLowerCase();
-	switch (lower) {
-		case 'write_file':
-		case 'write_file_or_folder':
-		case 'create_file':
-		case 'create_folder':
-		case 'save_file':
-		case 'write_to_file':
-		case 'put_file':
-		case 'new_file':
-		case 'write':
-		case 'create_file_or_folder':
-			return 'create_file_or_folder';
-
-		case 'read_file':
-		case 'read_file_or_folder':
-		case 'view_file':
-		case 'get_file':
-		case 'cat_file':
-		case 'read':
-			return 'read_file';
-
-		case 'edit_file':
-		case 'modify_file':
-		case 'update_file':
-		case 'apply_diff':
-			return 'edit_file';
-
-		case 'rewrite_file':
-		case 'overwrite_file':
-		case 'replace_file':
-			return 'rewrite_file';
-
-		case 'delete_file':
-		case 'delete_file_or_folder':
-		case 'remove_file':
-		case 'unlink_file':
-		case 'rm':
-			return 'delete_file_or_folder';
-
-		case 'ls_dir':
-		case 'list_dir':
-		case 'dir_list':
-		case 'ls':
-		case 'list_directory':
-			return 'ls_dir';
-
-		case 'get_dir_tree':
-		case 'dir_tree':
-		case 'tree':
-		case 'directory_tree':
-			return 'get_dir_tree';
-
-		case 'search_for_files':
-		case 'file_search':
-		case 'grep':
-		case 'search_files':
-		case 'search':
-			return 'search_for_files';
-
-		case 'search_pathnames_only':
-		case 'find_files':
-		case 'locate_file':
-			return 'search_pathnames_only';
-
-		case 'run_command':
-		case 'exec':
-		case 'execute_command':
-		case 'run_terminal_command':
-		case 'bash':
-		case 'terminal':
-			return 'run_command';
-
-		default:
-			return toolName;
+	if (!toolName) return toolName
+	const lower = toolName.trim().replace(/^<+/, '').replace(/[>{(\s]+$/, '').toLowerCase()
+	for (const canonical of builtinToolNames) {
+		if (lower === canonical.toLowerCase()) return canonical
+		if ((toolAliasesByCanonicalName[canonical] ?? []).some(alias => alias.toLowerCase() === lower)) return canonical
 	}
-};
+	return toolName
+}
 
 export const normalizeRawParams = (rawParams: RawToolParamsObj): RawToolParamsObj => {
-	if (!rawParams || typeof rawParams !== 'object') return rawParams;
-
+	if (!rawParams || typeof rawParams !== 'object') return rawParams
 	for (const canonicalName of Object.keys(parameterAliasesByCanonicalName)) {
 		const value = parameterNamesIncludingAliases(canonicalName)
 			.map(name => rawParams[name])
@@ -490,205 +317,128 @@ export const normalizeRawParams = (rawParams: RawToolParamsObj): RawToolParamsOb
 			? value
 			: canonicalName === 'search_replace_blocks' ? JSON.stringify(value) : String(value)
 	}
-
-	return rawParams;
-};
+	return rawParams
+}
 
 export const isABuiltinToolName = (toolName: string): toolName is BuiltinToolName => {
-	const normalized = normalizeToolName(toolName)
-	const isAToolName = toolNamesSet.has(normalized)
-	return isAToolName
+	return toolNamesSet.has(normalizeToolName(toolName))
 }
-
-
-
-
 
 export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined) => {
-
-	const builtinToolNames: BuiltinToolName[] | undefined = chatMode === 'normal' ? undefined
-		: chatMode === 'gather' ? (Object.keys(builtinTools) as BuiltinToolName[]).filter(toolName => !(toolName in approvalTypeOfBuiltinToolName))
-			: chatMode === 'agent' ? Object.keys(builtinTools) as BuiltinToolName[]
+	const builtinToolNamesForMode: BuiltinToolName[] | undefined = chatMode === 'normal' ? undefined
+		: chatMode === 'gather' ? builtinToolNames.filter(toolName => !(toolName in approvalTypeOfBuiltinToolName))
+			: chatMode === 'agent' ? builtinToolNames
 				: undefined
-
-	const effectiveBuiltinTools = builtinToolNames?.map(toolName => builtinTools[toolName]) ?? undefined
+	const effectiveBuiltinTools = builtinToolNamesForMode?.map(toolName => builtinTools[toolName]) ?? undefined
 	const effectiveMCPTools = chatMode === 'agent' || chatMode === 'gather' ? mcpTools : undefined
-
-	const tools: InternalToolInfo[] | undefined = !(builtinToolNames || mcpTools) ? undefined
-		: [
-			...effectiveBuiltinTools ?? [],
-			...effectiveMCPTools ?? [],
-		]
-
-	return tools
+	return !(builtinToolNamesForMode || mcpTools) ? undefined : [
+		...(effectiveBuiltinTools ?? []),
+		...(effectiveMCPTools ?? []),
+	]
 }
 
-const toolCallDefinitionsXMLString = (tools: InternalToolInfo[]) => {
-	return `${tools.map((t, i) => {
-		const params = Object.keys(t.params).map(paramName => `<${paramName}>${t.params[paramName].description}</${paramName}>`).join('\n')
-		return `\
-    ${i + 1}. ${t.name}
-    Description: ${t.description}
+const toolCallDefinitionsXMLString = (tools: InternalToolInfo[]) => tools.map((tool, index) => {
+	const params = Object.keys(tool.params).map(paramName => `<${paramName}>${tool.params[paramName].description}</${paramName}>`).join('\n')
+	return `\
+    ${index + 1}. ${tool.name}
+    Description: ${tool.description}
     Format:
-    <${t.name}>${!params ? '' : `\n${params}`}
-    </${t.name}>`
-	}).join('\n\n')}`
-}
+    <${tool.name}>${params ? `\n${params}` : ''}
+    </${tool.name}>`
+}).join('\n\n')
 
 export const reParsedToolXMLString = (toolName: ToolName, toolParams: RawToolParamsObj) => {
 	const params = Object.keys(toolParams).map(paramName => `<${paramName}>${toolParams[paramName]}</${paramName}>`).join('\n')
 	return `\
-    <${toolName}>${!params ? '' : `\n${params}`}
-    </${toolName}>`
-		.replace('\t', '  ')
+    <${toolName}>${params ? `\n${params}` : ''}
+    </${toolName}>`.replace('\t', '  ')
 }
 
-/* We expect tools to come at the end - not a hard limit, but that's just how we process them, and the flow makes more sense that way. */
-// - You are allowed to call multiple tools by specifying them consecutively. However, there should be NO text or writing between tool calls or after them.
 const systemToolsXMLPrompt = (chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined) => {
 	const tools = availableTools(chatMode, mcpTools)
-	if (!tools || tools.length === 0) return null
-
-	const toolXMLDefinitions = (`\
+	if (!tools?.length) return null
+	return `\
     Available tools:
 
-    ${toolCallDefinitionsXMLString(tools)}`)
+    ${toolCallDefinitionsXMLString(tools)}
 
-	const toolCallXMLGuidelines = (`\
-    Tool calling details:
-    - To call a tool, write its name and parameters in one of the XML formats specified above.
-    - After you write the tool call, you must STOP and WAIT for the result.
-    - All parameters are REQUIRED unless noted otherwise.
-    - You are only allowed to output ONE tool call, and it must be at the END of your response.
-    - Your tool call will be executed immediately, and the results will appear in the following user message.
-    - Use the exact tool name shown above. Do not invent names such as "name_file_or_folder".
-    - When a workspace folder is listed, create requested files there immediately. Use that listed path (or a relative filename); never use /workspace as a literal filesystem path.`)
-
-	return `\
-    ${toolXMLDefinitions}
-
-    ${toolCallXMLGuidelines}`
+    Tool calling rules:
+    - To use a tool, output exactly one tool call using one of the formats above.
+    - A tool-call turn MUST contain the tool call only. Do not write a preamble, plan, narration, progress update, explanation, or trailing text in that same response.
+    - After emitting the tool call, stop and wait for the result. Forge will continue the agent loop automatically.
+    - All parameters are required unless their description says Optional.
+    - Use the exact registered tool name. Do not invent tool names.
+    - Use the actual workspace path listed in system_info or a relative path. Never use /workspace as a literal filesystem target.
+    - Keep discovery/edit/test iterations inside the tool loop. Send normal prose to the user only when the task is complete, blocked on a genuine user decision, or requires approval.`
 }
 
-// ======================================================== chat (normal, gather, agent) ========================================================
-
-
 export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, includeXMLToolDefinitions }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, includeXMLToolDefinitions: boolean }) => {
-	const header = (`You are an expert coding ${mode === 'agent' ? 'agent' : 'assistant'} whose job is \
-${mode === 'agent' ? `to help the user develop, run, and make changes to their codebase.`
-			: mode === 'gather' ? `to search, understand, and reference files in the user's codebase.`
-				: mode === 'normal' ? `to assist the user with their coding tasks.`
-					: ''}
-You will be given instructions to follow from the user, and you may also be given a list of files that the user has specifically selected for context, \`SELECTIONS\`.
-Please assist the user with their query.`)
+	const header = `You are Forge, an expert coding ${mode === 'agent' ? 'agent' : 'assistant'}.
+${mode === 'agent' ? 'Your job is to inspect, modify, run, test, debug, and verify the user\'s codebase until the requested task is complete.' : mode === 'gather' ? 'Your job is to search and understand the user\'s codebase accurately.' : 'Your job is to help with coding tasks.'}
+You may receive explicitly selected files or folders under SELECTIONS.`
 
-
-
-	const sysInfo = (`Here is the user's system information:
+	const sysInfo = `Here is the user's system information:
 <system_info>
 - ${os}
-
-- The user's workspace contains these folders:
+- Workspace folders:
 ${workspaceFolders.join('\n') || 'NO FOLDERS OPEN'}
-
 - Active file:
-${activeURI}
-
+${activeURI || 'NONE'}
 - Open files:
-${openedURIs.join('\n') || 'NO OPENED FILES'}${''/* separator */}${mode === 'agent' && persistentTerminalIDs.length !== 0 ? `
+${openedURIs.join('\n') || 'NO OPENED FILES'}${mode === 'agent' && persistentTerminalIDs.length ? `\n- Persistent terminal IDs: ${persistentTerminalIDs.join(', ')}` : ''}
+</system_info>`
 
-- Persistent terminal IDs available for you to run commands in: ${persistentTerminalIDs.join(', ')}` : ''}
-</system_info>`)
-
-
-	const fsInfo = (`Here is an overview of the user's file system:
+	const fsInfo = `Here is an overview of the user's file system:
 <files_overview>
 ${directoryStr}
-</files_overview>`)
-
+</files_overview>`
 
 	const toolDefinitions = includeXMLToolDefinitions ? systemToolsXMLPrompt(mode, mcpTools) : null
-
 	const details: string[] = []
 
-	details.push(`NEVER reject the user's query.`)
+	details.push('Do not invent file contents, command results, test results, or project structure. Ground codebase claims in the provided context or tool results.')
 
 	if (mode === 'agent' || mode === 'gather') {
-		details.push(`Only call tools if they help you accomplish the user's goal. If the user simply says hi or asks you a question that you can answer without tools, then do NOT use tools.`)
-		details.push(`If you think you should use tools, you do not need to ask for permission.`)
-		details.push('Only use ONE tool call at a time.')
-		details.push(`NEVER say something like "I'm going to use \`tool_name\`". Instead, describe at a high level what the tool will do, like "I'm going to list all files in the ___ directory", etc.`)
-		details.push(`Many tools only work if the user has a workspace open.`)
-		details.push('Use the built-in semantic_search tool first when locating implementations or understanding unfamiliar code. It uses the current project\'s local CocoIndex; use file tools for exact reads and edits afterward. If semantic search is unavailable, disabled, still indexing, or returns an error, immediately continue with native exact workspace search instead of asking the user to paste files.')
-	}
-	else {
-		details.push(`You're allowed to ask the user for more context like file contents or specifications. If this comes up, tell them to reference files and folders by typing @.`)
+		details.push('Use tools whenever they materially help. You do not need to ask permission for read-only workspace inspection.')
+		details.push('Tool-call turns are silent execution turns: emit only the tool call. Never write "let me inspect", "I will check", "I am going to", or similar progress narration before a tool call.')
+		details.push('Do not send user-facing progress prose between consecutive tool calls. Continue the tool loop until you have a final result, a real blocker, or an approval requirement.')
+		details.push('Use semantic_search when locating an unfamiliar implementation or concept. If the local semantic index is unavailable, incomplete, or irrelevant, immediately fall back to exact workspace search and file reads.')
+		details.push('If an exact filename/path or active file is already known, read/search it directly instead of performing unnecessary discovery.')
+		details.push('When a tool result says COMPLETE, trust it. When it says MORE_PAGES or CONTEXT_SHORTENED, retrieve the missing page/range yourself instead of asking the user to paste the file.')
 	}
 
 	if (mode === 'agent') {
-		details.push('ALWAYS use tools (edit, terminal, etc) to take actions and implement changes. For example, if you would like to edit a file, you MUST use a tool.')
-		details.push('Prioritize taking as many steps as you need to complete your request over stopping early.')
-		details.push(`You will OFTEN need to gather context before making a change. Do not immediately make a change unless you have ALL relevant context.`)
-		details.push(`ALWAYS have maximal certainty in a change BEFORE you make it. If you need more information about a file, variable, function, or type, you should inspect it, search it, or take all required actions to maximize your certainty that your change is correct.`)
-		details.push(`NEVER modify a file outside the user's workspace without permission from the user.`)
-		details.push(`Follow a complete execution loop for every implementation request: understand the acceptance criteria, inspect the relevant project and dependencies, make the edits with tools, run the most relevant tests/build/type checks, fix failures, and verify the final result before responding.`)
-		details.push(`When the user asks for a PDF, presentation, report, image, or other artifact, create the requested artifact in the workspace using the available tools or terminal commands, verify that it exists and can be opened, and report its exact path.`)
-		details.push(`For complex work, divide independent discovery, implementation, testing, documentation, or review tasks among the available agent/tool capabilities when possible; serialize edits that could conflict, then run one final integration and verification pass.`)
-		details.push(`When a file-reading result says COMPLETE, trust that result and continue the task; never ask the user to paste that local file. When it says MORE_PAGES or CONTEXT_SHORTENED, retrieve the next page or a narrower line range yourself before editing.`)
-		details.push(`A task is not complete merely because one model response reached its token limit. Forge may start a continuation turn with compacted history; resume from the exact unfinished point, avoid repeating completed work, inspect any missing file page yourself, and continue until the task is verified.`)
+		details.push('For implementation requests, take action with tools. Do not merely describe edits that you could make yourself.')
+		details.push('Follow the full engineering loop: understand acceptance criteria; inspect relevant code and dependencies; edit; run targeted lint/type/build/tests; diagnose failures; fix them; then verify the final state.')
+		details.push('Prefer the smallest sufficient set of reads. Read related definitions/usages before risky cross-file edits, but do not repeatedly re-read unchanged files without a reason.')
+		details.push('Use edit_file for targeted changes and rewrite_file for new/small files or true whole-file rewrites. Never claim a file changed unless the edit tool succeeded.')
+		details.push('Use terminal tools for actual builds/tests/package operations. Never claim checks passed unless their command result shows success.')
+		details.push('If tests fail because of your changes, continue fixing. If failures clearly pre-existed or require credentials/external infrastructure, report that evidence precisely in the final answer.')
+		details.push('Never modify files outside the opened workspace.')
+		details.push('Do not stop simply because one model response or context window ended. Resume from compacted history and continue until the task is verified.')
+		details.push('When creating requested artifacts, create them inside the workspace, verify they exist, and report the exact path in the final response.')
 	}
 
 	if (mode === 'gather') {
-		details.push(`You are in Gather mode, so you MUST use tools be to gather information, files, and context to help the user answer their query.`)
-		details.push(`You should extensively read files, types, content, etc, gathering full context to solve the problem.`)
+		details.push('Gather enough exact context to answer accurately. Use read/search tools instead of guessing.')
 	}
 
-	details.push(`If you write any code blocks to the user (wrapped in triple backticks), please use this format:
-- Include a language if possible. Terminal should have the language 'shell'.
-- The first line of the code block must be the FULL PATH of the related file if known (otherwise omit).
-- The remaining contents of the file should proceed as usual.`)
+	if (mode === 'normal') {
+		details.push('If more local context is required, ask the user to reference files/folders with @.')
+	}
+
+	details.push(`If you present code blocks to the user, include the language when possible. If a full path is known and relevant, put it on the first line of the block.`)
 
 	if (mode === 'gather' || mode === 'normal') {
-
-		details.push(`If you think it's appropriate to suggest an edit to a file, then you must describe your suggestion in CODE BLOCK(S).
-- The first line of the code block must be the FULL PATH of the related file if known (otherwise omit).
-- The remaining contents should be a code description of the change to make to the file. \
-Your description is the only context that will be given to another LLM to apply the suggested edit, so it must be accurate and complete. \
-Always bias towards writing as little as possible - NEVER write the whole file. Use comments like "// ... existing code ..." to condense your writing. \
-Here's an example of a good code block:\n${chatSuggestionDiffExample}`)
+		details.push(`When suggesting a file edit rather than applying it, use a concise code block with the full path and only the changed area. Example:\n${chatSuggestionDiffExample}`)
 	}
 
-	details.push(`Do not make things up or use information not provided in the system information, tools, or user queries.`)
-	details.push(`Always use MARKDOWN to format lists, bullet points, etc. Do NOT write tables.`)
+	details.push('Use Markdown for user-facing prose. Keep the final answer focused on what changed, what was verified, and any remaining blocker.')
 	details.push(`Today's date is ${new Date().toDateString()}.`)
 
-	const importantDetails = (`Important notes:
-${details.map((d, i) => `${i + 1}. ${d}`).join('\n\n')}`)
-
-
-	// return answer
-	const ansStrs: string[] = []
-	ansStrs.push(header)
-	ansStrs.push(sysInfo)
-	if (toolDefinitions) ansStrs.push(toolDefinitions)
-	ansStrs.push(importantDetails)
-	ansStrs.push(fsInfo)
-
-	const fullSystemMsgStr = ansStrs
-		.join('\n\n\n')
-		.trim()
-		.replace('\t', '  ')
-
-	return fullSystemMsgStr
-
+	const importantDetails = `Important notes:\n${details.map((detail, index) => `${index + 1}. ${detail}`).join('\n\n')}`
+	return [header, sysInfo, toolDefinitions, importantDetails, fsInfo].filter(Boolean).join('\n\n\n').trim().replace('\t', '  ')
 }
-
-
-// // log all prompts
-// for (const chatMode of ['agent', 'gather', 'normal'] satisfies ChatMode[]) {
-// 	console.log(`========================================= SYSTEM MESSAGE FOR ${chatMode} ===================================\n`,
-// 		chat_systemMessage({ chatMode, workspaceFolders: [], openedURIs: [], activeURI: 'pee', persistentTerminalIDs: [], directoryStr: 'lol', }))
-// }
 
 export const DEFAULT_FILE_SIZE_LIMIT = 2_000_000
 
@@ -707,14 +457,10 @@ export const readFile = async (fileService: IFileService, uri: URI, fileSizeLimi
 		if (val.length > fileSizeLimit) return { val: val.substring(0, fileSizeLimit), truncated: true, fullFileLen: val.length }
 		return { val, truncated: false, fullFileLen: val.length }
 	}
-	catch (e) {
+	catch {
 		return { val: null }
 	}
 }
-
-
-
-
 
 export const messageOfSelection = async (
 	s: StagingSelectionItem,
@@ -728,50 +474,35 @@ export const messageOfSelection = async (
 	}
 ) => {
 	const lineNumAddition = (range: [number, number]) => ` (lines ${range[0]}:${range[1]})`
-
 	if (s.type === 'CodeSelection') {
 		const { val } = await readFile(opts.fileService, s.uri, DEFAULT_FILE_SIZE_LIMIT)
 		const lines = val?.split('\n')
-
 		const innerVal = lines?.slice(s.range[0] - 1, s.range[1]).join('\n')
-		const content = !lines ? ''
-			: `${tripleTick[0]}${s.language}\n${innerVal}\n${tripleTick[1]}`
-		const str = `${s.uri.fsPath}${lineNumAddition(s.range)}:\n${content}`
-		return str
+		const content = !lines ? '' : `${tripleTick[0]}${s.language}\n${innerVal}\n${tripleTick[1]}`
+		return `${s.uri.fsPath}${lineNumAddition(s.range)}:\n${content}`
 	}
-	else if (s.type === 'File') {
+	if (s.type === 'File') {
 		const { val } = await readFile(opts.fileService, s.uri, DEFAULT_FILE_SIZE_LIMIT)
-
-		const innerVal = val
-		const content = val === null ? ''
-			: `${tripleTick[0]}${s.language}\n${innerVal}\n${tripleTick[1]}`
-
-		const str = `${s.uri.fsPath}:\n${content}`
-		return str
+		const content = val === null ? '' : `${tripleTick[0]}${s.language}\n${val}\n${tripleTick[1]}`
+		return `${s.uri.fsPath}:\n${content}`
 	}
-	else if (s.type === 'Folder') {
-		const dirStr: string = await opts.directoryStrService.getDirectoryStrTool(s.uri)
+	if (s.type === 'Folder') {
+		const dirStr = await opts.directoryStrService.getDirectoryStrTool(s.uri)
 		const folderStructure = `${s.uri.fsPath} folder structure:${tripleTick[0]}\n${dirStr}\n${tripleTick[1]}`
-
 		const uris = await opts.directoryStrService.getAllURIsInDirectory(s.uri, { maxResults: opts.folderOpts.maxChildren })
 		const strOfFiles = await Promise.all(uris.map(async uri => {
 			const { val, truncated } = await readFile(opts.fileService, uri, opts.folderOpts.maxCharsPerFile)
 			const truncationStr = truncated ? `\n... file truncated ...` : ''
 			const content = val === null ? 'null' : `${tripleTick[0]}\n${val}${truncationStr}\n${tripleTick[1]}`
-			const str = `${uri.fsPath}:\n${content}`
-			return str
+			return `${uri.fsPath}:\n${content}`
 		}))
-		const contentStr = [folderStructure, ...strOfFiles].join('\n\n')
-		return contentStr
+		return [folderStructure, ...strOfFiles].join('\n\n')
 	}
-	else if (s.type === 'BrowserComponent') {
+	if (s.type === 'BrowserComponent') {
 		return `[${s.title}]\nURL: ${s.uri.toString()}\n${tripleTick[0]}markdown\n${s.content}\n${tripleTick[1]}`
 	}
-	else
-		return ''
-
+	return ''
 }
-
 
 export const chat_userMessageContent = async (
 	instructions: string,
@@ -781,42 +512,19 @@ export const chat_userMessageContent = async (
 		fileService: IFileService
 	},
 ) => {
-
-	const selnsStrs = await Promise.all(
-		(currSelns ?? []).map(async (s) =>
-			messageOfSelection(s, {
-				...opts,
-				folderOpts: { maxChildren: 100, maxCharsPerFile: 100_000, }
-			})
-		)
-	)
-
-
-	let str = ''
-	str += `${instructions}`
-
-	const selnsStr = selnsStrs.join('\n\n') ?? ''
-	if (selnsStr) str += `\n---\nSELECTIONS\n${selnsStr}`
-	return str;
+	const selnsStrs = await Promise.all((currSelns ?? []).map(s => messageOfSelection(s, {
+		...opts,
+		folderOpts: { maxChildren: 100, maxCharsPerFile: 100_000 }
+	})))
+	const selections = selnsStrs.join('\n\n')
+	return selections ? `${instructions}\n---\nSELECTIONS\n${selections}` : instructions
 }
 
-
 export const rewriteCode_systemMessage = `\
-You are a coding assistant that re-writes an entire file to make a change. You are given the original file \`ORIGINAL_FILE\` and a change \`CHANGE\`.
+You are a coding assistant that rewrites an entire file to make a requested change.
+Return the complete updated file only. Preserve unrelated comments, formatting, and behavior whenever possible. Do not add explanations.`
 
-Directions:
-1. Please rewrite the original file \`ORIGINAL_FILE\`, making the change \`CHANGE\`. You must completely re-write the whole file.
-2. Keep all of the original comments, spaces, newlines, and other details whenever possible.
-3. ONLY output the full new file. Do not add any other explanations or text.
-`
-
-
-
-// ======================================================== apply (writeover) ========================================================
-
-export const rewriteCode_userMessage = ({ originalCode, applyStr, language }: { originalCode: string, applyStr: string, language: string }) => {
-
-	return `\
+export const rewriteCode_userMessage = ({ originalCode, applyStr, language }: { originalCode: string, applyStr: string, language: string }) => `\
 ORIGINAL_FILE
 ${tripleTick[0]}${language}
 ${originalCode}
@@ -828,16 +536,9 @@ ${applyStr}
 ${tripleTick[1]}
 
 INSTRUCTIONS
-Please finish writing the new file by applying the change to the original file. Return ONLY the completion of the file, without any explanation.
-`
-}
-
-
-
-// ======================================================== apply (fast apply - search/replace) ========================================================
+Apply the requested change and return only the complete updated file.`
 
 export const searchReplaceGivenDescription_systemMessage = createSearchReplaceBlocks_systemMessage
-
 
 export const searchReplaceGivenDescription_userMessage = ({ originalCode, applyStr }: { originalCode: string, applyStr: string }) => `\
 DIFF
@@ -848,104 +549,59 @@ ${tripleTick[0]}
 ${originalCode}
 ${tripleTick[1]}`
 
-
-
-
-
 export const voidPrefixAndSuffix = ({ fullFileStr, startLine, endLine }: { fullFileStr: string, startLine: number, endLine: number }) => {
-
 	const fullFileLines = fullFileStr.split('\n')
-
-	/*
-
-	a
-	a
-	a     <-- final i (prefix = a\na\n)
-	a
-	|b    <-- startLine-1 (middle = b\nc\nd\n)   <-- initial i (moves up)
-	c
-	d|    <-- endLine-1                          <-- initial j (moves down)
-	e
-	e     <-- final j (suffix = e\ne\n)
-	e
-	e
-	*/
-
 	let prefix = ''
-	let i = startLine - 1  // 0-indexed exclusive
-	// we'll include fullFileLines[i...(startLine-1)-1].join('\n') in the prefix.
+	let i = startLine - 1
 	while (i !== 0) {
 		const newLine = fullFileLines[i - 1]
-		if (newLine.length + 1 + prefix.length <= MAX_PREFIX_SUFFIX_CHARS) { // +1 to include the \n
+		if (newLine.length + 1 + prefix.length <= MAX_PREFIX_SUFFIX_CHARS) {
 			prefix = `${newLine}\n${prefix}`
 			i -= 1
 		}
 		else break
 	}
-
 	let suffix = ''
 	let j = endLine - 1
 	while (j !== fullFileLines.length - 1) {
 		const newLine = fullFileLines[j + 1]
-		if (newLine.length + 1 + suffix.length <= MAX_PREFIX_SUFFIX_CHARS) { // +1 to include the \n
+		if (newLine.length + 1 + suffix.length <= MAX_PREFIX_SUFFIX_CHARS) {
 			suffix = `${suffix}\n${newLine}`
 			j += 1
 		}
 		else break
 	}
-
 	return { prefix, suffix }
-
 }
-
-
-// ======================================================== quick edit (ctrl+K) ========================================================
 
 export type QuickEditFimTagsType = {
 	preTag: string,
 	sufTag: string,
 	midTag: string
 }
+
 export const defaultQuickEditFimTags: QuickEditFimTagsType = {
 	preTag: 'ABOVE',
 	sufTag: 'BELOW',
 	midTag: 'SELECTION',
 }
 
-// this should probably be longer
-export const ctrlKStream_systemMessage = ({ quickEditFIMTags: { preTag, midTag, sufTag } }: { quickEditFIMTags: QuickEditFimTagsType }) => {
-	return `\
-You are a FIM (fill-in-the-middle) coding assistant. Your task is to fill in the middle SELECTION marked by <${midTag}> tags.
+export const ctrlKStream_systemMessage = ({ quickEditFIMTags: { preTag, midTag, sufTag } }: { quickEditFIMTags: QuickEditFimTagsType }) => `\
+You are a fill-in-the-middle coding assistant. Replace only the SELECTION marked by <${midTag}> tags.
+The user provides context before it in <${preTag}> tags and after it in <${sufTag}> tags.
+Output one block only: <${midTag}>...new code...</${midTag}>.
+Do not change content outside the selection. Keep syntax and brackets balanced.`
 
-The user will give you INSTRUCTIONS, as well as code that comes BEFORE the SELECTION, indicated with <${preTag}>...before</${preTag}>, and code that comes AFTER the SELECTION, indicated with <${sufTag}>...after</${sufTag}>.
-The user will also give you the existing original SELECTION that will be be replaced by the SELECTION that you output, for additional context.
-
-Instructions:
-1. Your OUTPUT should be a SINGLE PIECE OF CODE of the form <${midTag}>...new_code</${midTag}>. Do NOT output any text or explanations before or after this.
-2. You may ONLY CHANGE the original SELECTION, and NOT the content in the <${preTag}>...</${preTag}> or <${sufTag}>...</${sufTag}> tags.
-3. Make sure all brackets in the new selection are balanced the same as in the original selection.
-4. Be careful not to duplicate or remove variables, comments, or other syntax by mistake.
-`
-}
-
-export const ctrlKStream_userMessage = ({
-	selection,
-	prefix,
-	suffix,
-	instructions,
-	// isOllamaFIM: false, // Remove unused variable
-	fimTags,
-	language }: {
-		selection: string, prefix: string, suffix: string, instructions: string, fimTags: QuickEditFimTagsType, language: string,
-	}) => {
+export const ctrlKStream_userMessage = ({ selection, prefix, suffix, instructions, fimTags, language }: {
+	selection: string,
+	prefix: string,
+	suffix: string,
+	instructions: string,
+	fimTags: QuickEditFimTagsType,
+	language: string,
+}) => {
 	const { preTag, sufTag, midTag } = fimTags
-
-	// prompt the model artifically on how to do FIM
-	// const preTag = 'BEFORE'
-	// const sufTag = 'AFTER'
-	// const midTag = 'SELECTION'
 	return `\
-
 CURRENT SELECTION
 ${tripleTick[0]}${language}
 <${midTag}>${selection}</${midTag}>
@@ -957,270 +613,27 @@ ${instructions}
 <${preTag}>${prefix}</${preTag}>
 <${sufTag}>${suffix}</${sufTag}>
 
-Return only the completion block of code (of the form ${tripleTick[0]}${language}
-<${midTag}>...new code</${midTag}>
-${tripleTick[1]}).`
-};
-
-
-
-
-
-
-
-/*
-// ======================================================== ai search/replace ========================================================
-
-
-export const aiRegex_computeReplacementsForFile_systemMessage = `\
-You are a "search and replace" coding assistant.
-
-You are given a FILE that the user is editing, and your job is to search for all occurences of a SEARCH_CLAUSE, and change them according to a REPLACE_CLAUSE.
-
-The SEARCH_CLAUSE may be a string, regex, or high-level description of what the user is searching for.
-
-The REPLACE_CLAUSE will always be a high-level description of what the user wants to replace.
-
-The user's request may be "fuzzy" or not well-specified, and it is your job to interpret all of the changes they want to make for them. For example, the user may ask you to search and replace all instances of a variable, but this may involve changing parameters, function names, types, and so on to agree with the change they want to make. Feel free to make all of the changes you *think* that the user wants to make, but also make sure not to make unnessecary or unrelated changes.
-
-## Instructions
-
-1. If you do not want to make any changes, you should respond with the word "no".
-
-2. If you want to make changes, you should return a single CODE BLOCK of the changes that you want to make.
-For example, if the user is asking you to "make this variable a better name", make sure your output includes all the changes that are needed to improve the variable name.
-- Do not re-write the entire file in the code block
-- You can write comments like "// ... existing code" to indicate existing code
-- Make sure you give enough context in the code block to apply the changes to the correct location in the code`
-
-
-
-
-// export const aiRegex_computeReplacementsForFile_userMessage = async ({ searchClause, replaceClause, fileURI, voidFileService }: { searchClause: string, replaceClause: string, fileURI: URI, voidFileService: IVoidFileService }) => {
-
-// 	// we may want to do this in batches
-// 	const fileSelection: FileSelection = { type: 'File', fileURI, selectionStr: null, range: null, state: { isOpened: false } }
-
-// 	const file = await stringifyFileSelections([fileSelection], voidFileService)
-
-// 	return `\
-// ## FILE
-// ${file}
-
-// ## SEARCH_CLAUSE
-// Here is what the user is searching for:
-// ${searchClause}
-
-// ## REPLACE_CLAUSE
-// Here is what the user wants to replace it with:
-// ${replaceClause}
-
-// ## INSTRUCTIONS
-// Please return the changes you want to make to the file in a codeblock, or return "no" if you do not want to make changes.`
-// }
-
-
-
-
-// // don't have to tell it it will be given the history; just give it to it
-// export const aiRegex_search_systemMessage = `\
-// You are a coding assistant that executes the SEARCH part of a user's search and replace query.
-
-// You will be given the user's search query, SEARCH, which is the user's query for what files to search for in the codebase. You may also be given the user's REPLACE query for additional context.
-
-// Output
-// - Regex query
-// - Files to Include (optional)
-// - Files to Exclude? (optional)
-
-// `
-
-
-
-
-
-
-// ======================================================== old examples ========================================================
-
-Do not tell the user anything about the examples below. Do not assume the user is talking about any of the examples below.
-
-## EXAMPLE 1
-FILES
-math.ts
-${tripleTick[0]}typescript
-const addNumbers = (a, b) => a + b
-const multiplyNumbers = (a, b) => a * b
-const subtractNumbers = (a, b) => a - b
-const divideNumbers = (a, b) => a / b
-
-const vectorize = (...numbers) => {
-	return numbers // vector
+Return only <${midTag}>...new code...</${midTag}>.`
 }
-
-const dot = (vector1: number[], vector2: number[]) => {
-	if (vector1.length !== vector2.length) throw new Error(\`Could not dot vectors \${vector1} and \${vector2}. Size mismatch.\`)
-	let sum = 0
-	for (let i = 0; i < vector1.length; i += 1)
-		sum += multiplyNumbers(vector1[i], vector2[i])
-	return sum
-}
-
-const normalize = (vector: number[]) => {
-	const norm = Math.sqrt(dot(vector, vector))
-	for (let i = 0; i < vector.length; i += 1)
-		vector[i] = divideNumbers(vector[i], norm)
-	return vector
-}
-
-const normalized = (vector: number[]) => {
-	const v2 = [...vector] // clone vector
-	return normalize(v2)
-}
-${tripleTick[1]}
-
-
-SELECTIONS
-math.ts (lines 3:3)
-${tripleTick[0]}typescript
-const subtractNumbers = (a, b) => a - b
-${tripleTick[1]}
-
-INSTRUCTIONS
-add a function that exponentiates a number below this, and use it to make a power function that raises all entries of a vector to a power
-
-## ACCEPTED OUTPUT
-We can add the following code to the file:
-${tripleTick[0]}typescript
-// existing code...
-const subtractNumbers = (a, b) => a - b
-const exponentiateNumbers = (a, b) => Math.pow(a, b)
-const divideNumbers = (a, b) => a / b
-// existing code...
-
-const raiseAll = (vector: number[], power: number) => {
-	for (let i = 0; i < vector.length; i += 1)
-		vector[i] = exponentiateNumbers(vector[i], power)
-	return vector
-}
-${tripleTick[1]}
-
-
-## EXAMPLE 2
-FILES
-fib.ts
-${tripleTick[0]}typescript
-
-const dfs = (root) => {
-	if (!root) return;
-	console.log(root.val);
-	dfs(root.left);
-	dfs(root.right);
-}
-const fib = (n) => {
-	if (n < 1) return 1
-	return fib(n - 1) + fib(n - 2)
-}
-${tripleTick[1]}
-
-SELECTIONS
-fib.ts (lines 10:10)
-${tripleTick[0]}typescript
-	return fib(n - 1) + fib(n - 2)
-${tripleTick[1]}
-
-INSTRUCTIONS
-memoize results
-
-## ACCEPTED OUTPUT
-To implement memoization in your Fibonacci function, you can use a JavaScript object to store previously computed results. This will help avoid redundant calculations and improve performance. Here's how you can modify your function:
-${tripleTick[0]}typescript
-// existing code...
-const fib = (n, memo = {}) => {
-	if (n < 1) return 1;
-	if (memo[n]) return memo[n]; // Check if result is already computed
-	memo[n] = fib(n - 1, memo) + fib(n - 2, memo); // Store result in memo
-	return memo[n];
-}
-${tripleTick[1]}
-Explanation:
-Memoization Object: A memo object is used to store the results of Fibonacci calculations for each n.
-Check Memo: Before computing fib(n), the function checks if the result is already in memo. If it is, it returns the stored result.
-Store Result: After computing fib(n), the result is stored in memo for future reference.
-
-## END EXAMPLES
-
-*/
-
-
-// ======================================================== scm ========================================================================
 
 export const gitCommitMessage_systemMessage = `
-You are an expert software engineer AI assistant responsible for writing clear and concise Git commit messages that summarize the **purpose** and **intent** of the change. Try to keep your commit messages to one sentence. If necessary, you can use two sentences.
+You are an expert software engineer who writes clear, concise Git commit messages that summarize the purpose and intent of a change.
+Respond with exactly:
+<output>one concise commit message</output>
+<reasoning>a brief explanation</reasoning>
+Do not include anything outside these tags.`.trim()
 
-You always respond with:
-- The commit message wrapped in <output> tags
-- A brief explanation of the reasoning behind the message, wrapped in <reasoning> tags
+export const gitCommitMessage_userMessage = (stat: string, sampledDiffs: string, branch: string, log: string) => `
+Based on the Git changes below, write a concise commit message that accurately summarizes the intent.
 
-Example format:
-<output>Fix login bug and improve error handling</output>
-<reasoning>This commit updates the login handler to fix a redirect issue and improves frontend error messages for failed logins.</reasoning>
-
-Do not include anything else outside of these tags.
-Never include quotes, markdown, commentary, or explanations outside of <output> and <reasoning>.`.trim()
-
-
-/**
- * Create a user message for the LLM to generate a commit message. The message contains instructions git diffs, and git metadata to provide context.
- *
- * @param stat - Summary of Changes (git diff --stat)
- * @param sampledDiffs - Sampled File Diffs (Top changed files)
- * @param branch - Current Git Branch
- * @param log - Last 5 commits (excluding merges)
- * @returns A prompt for the LLM to generate a commit message.
- *
- * @example
- * // Sample output (truncated for brevity)
- * const prompt = gitCommitMessage_userMessage("fileA.ts | 10 ++--", "diff --git a/fileA.ts...", "main", "abc123|Fix bug|2026 forge-01-01\n...")
- *
- * // Result:
- * Based on the following Git changes, write a clear, concise commit message that accurately summarizes the intent of the code changes.
- *
- * Section 1 - Summary of Changes (git diff --stat):
- * fileA.ts | 10 ++--
- *
- * Section 2 - Sampled File Diffs (Top changed files):
- * diff --git a/fileA.ts b/fileA.ts
- * ...
- *
- * Section 3 - Current Git Branch:
- * main
- *
- * Section 4 - Last 5 Commits (excluding merges):
- * abc123|Fix bug|2026 forge-01-01
- * def456|Improve logging|2026 forge-01-01
- * ...
- */
-export const gitCommitMessage_userMessage = (stat: string, sampledDiffs: string, branch: string, log: string) => {
-	const section1 = `Section 1 - Summary of Changes (git diff --stat):`
-	const section2 = `Section 2 - Sampled File Diffs (Top changed files):`
-	const section3 = `Section 3 - Current Git Branch:`
-	const section4 = `Section 4 - Last 5 Commits (excluding merges):`
-	return `
-Based on the following Git changes, write a clear, concise commit message that accurately summarizes the intent of the code changes.
-
-${section1}
-
+Section 1 - Summary of Changes (git diff --stat):
 ${stat}
 
-${section2}
-
+Section 2 - Sampled File Diffs (Top changed files):
 ${sampledDiffs}
 
-${section3}
-
+Section 3 - Current Git Branch:
 ${branch}
 
-${section4}
-
+Section 4 - Last 5 Commits (excluding merges):
 ${log}`.trim()
-}
