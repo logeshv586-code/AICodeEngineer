@@ -1,0 +1,54 @@
+name: Forge One-Shot Semantic UI Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/forge-one-shot-semantic-ui-validate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Use repository Node version
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          package-manager-cache: false
+      - name: Apply semantic-search UI fix
+        run: python3 scripts/apply-forge-semantic-ui-fix.py
+      - name: Install Linux native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config
+      - name: Install dependencies
+        run: npm ci --foreground-scripts
+      - name: Run Forge contracts
+        run: |
+          node scripts/forge-agent-tool-contract-test.mjs
+          node scripts/forge-ui-contract-test.mjs
+          node scripts/forge-react-service-export-contract.mjs
+      - name: Compile core TypeScript
+        run: npm run compile
+      - name: Build Forge React UI
+        run: npm run buildreact
+      - name: Verify runtime artifacts
+        run: node scripts/forge-runtime-guard.mjs
+      - name: Commit validated fix
+        run: |
+          git config user.name 'forge-fix-bot'
+          git config user.email 'forge-fix-bot@users.noreply.github.com'
+          git add src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx \
+                  src/vs/workbench/contrib/void/common/toolActivityMessages.ts \
+                  scripts/forge-agent-tool-contract-test.mjs
+          git diff --cached --check
+          git commit -m 'fix: complete Forge semantic-search sidebar coverage'
+          git push origin HEAD:main
