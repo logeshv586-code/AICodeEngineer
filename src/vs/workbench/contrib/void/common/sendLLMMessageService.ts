@@ -396,6 +396,11 @@ const recoverTextualAgentToolCall = (event: EventLLMMessageOnFinalMessageParams,
 	return { ...event, fullText: cleanedText || statusText, toolCall };
 };
 
+const suppressAgentToolTurnProse = <T extends { fullText: string; fullReasoning: string; toolCall?: RawToolCallObj }>(event: T, meta: AgentRequestMeta | undefined): T => {
+	if (!meta || meta.chatMode !== 'agent' || !event.toolCall) return event;
+	return { ...event, fullText: '', fullReasoning: '' };
+};
+
 // open this file side by side with llmMessageChannel
 export class LLMMessageService extends Disposable implements ILLMMessageService {
 
@@ -439,11 +444,14 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 
 		// .listen sets up an IPC channel and takes a few ms, so we set up listeners immediately and add hooks to them instead
 		this._register((this.channel.listen('onText_sendLLMMessage') satisfies Event<EventLLMMessageOnTextParams>)(e => {
-			this.llmMessageHooks.onText[e.requestId]?.(e)
+			const displayEvent = suppressAgentToolTurnProse(e, this.requestMeta[e.requestId]);
+			this.llmMessageHooks.onText[e.requestId]?.(displayEvent)
 		}))
 		this._register((this.channel.listen('onFinalMessage_sendLLMMessage') satisfies Event<EventLLMMessageOnFinalMessageParams>)(e => {
-			const recoveredEvent = recoverTextualAgentToolCall(e, this.requestMeta[e.requestId]);
-			this.llmMessageHooks.onFinalMessage[e.requestId]?.(recoveredEvent);
+			const meta = this.requestMeta[e.requestId];
+			const recoveredEvent = recoverTextualAgentToolCall(e, meta);
+			const displayEvent = suppressAgentToolTurnProse(recoveredEvent, meta);
+			this.llmMessageHooks.onFinalMessage[e.requestId]?.(displayEvent);
 			this._clearChannelHooks(e.requestId)
 		}))
 		this._register((this.channel.listen('onError_sendLLMMessage') satisfies Event<EventLLMMessageOnErrorParams>)(e => {
