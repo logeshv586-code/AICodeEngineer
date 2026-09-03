@@ -10,6 +10,7 @@ const toolsService = read('src/vs/workbench/contrib/void/browser/toolsService.ts
 const toolTypes = read('src/vs/workbench/contrib/void/common/toolsServiceTypes.ts');
 const messageTypes = read('src/vs/workbench/contrib/void/common/sendLLMMessageTypes.ts');
 const chatService = read('src/vs/workbench/contrib/void/browser/chatThreadService.ts');
+const sidebar = read('src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx');
 const conversion = read('src/vs/workbench/contrib/void/browser/convertToLLMMessageService.ts');
 const transport = read('src/vs/workbench/contrib/void/electron-main/llmMessage/sendLLMMessage.impl.ts');
 const capabilities = read('src/vs/workbench/contrib/void/common/modelCapabilities.ts');
@@ -102,6 +103,29 @@ check(
     "if (removedRegisteredToolCall && isExecutionPreambleOnly(cleaned)) return ''",
   ]),
   'If a registered tool call leaks into model text, stripping it must not leave a short "Let me inspect..." bubble behind.',
+);
+
+check(
+  'runtime tool turns stay out of visible chat',
+  hasAll(chatService, [
+    'const isToolTurn = !!toolCall',
+    "displayContentSoFar: isToolTurn ? '' : readableLLMContent(fullText)",
+    "reasoningSoFar: isToolTurn ? '' : readableLLMContent(fullReasoning)",
+    "displayContent: toolCall ? '' : info.fullText",
+    "reasoning: toolCall ? '' : info.fullReasoning",
+  ]),
+  'The agent must keep tool-call history for providers while hiding routine tool-turn narration from the sidebar.',
+);
+
+check(
+  'legacy tool preambles stay hidden',
+  hasAll(sidebar, [
+    'isRoutineAgentPreamble',
+    "nextMessage?.role === 'tool'",
+    "nextMessage?.role === 'interrupted_streaming_tool'",
+    'if (isExecutionPreamble) return null',
+  ]),
+  'Saved threads created before the runtime fix must not continue rendering tool-adjacent "Let me..." bubbles.',
 );
 
 check(
