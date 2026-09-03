@@ -430,9 +430,7 @@ export class ToolsService implements IToolsService {
 [READ_FILE ${status} page=${pageNumber} returned_chars=${page.fileContents.length} total_chars=${page.totalFileLen} total_lines=${page.totalNumLines}]
 ${page.fileContents}
 [END_FILE ${status}]`
-				}).join('
-
-')
+				}).join('\n\n')
 				return { result: {
 					fileContents,
 					totalFileLen: pages.reduce((sum, page) => sum + page.totalFileLen, 0),
