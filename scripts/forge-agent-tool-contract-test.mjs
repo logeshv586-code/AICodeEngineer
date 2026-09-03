@@ -75,6 +75,34 @@ check(
 );
 
 check(
+  'tool turns are silent execution turns',
+  hasAll(prompts, [
+    'A tool-call turn MUST contain the tool call only.',
+    'Do not send user-facing progress prose between consecutive tool calls.',
+    'Tool-call turns are silent execution turns',
+    'Never write "let me inspect"',
+  ])
+    && !prompts.includes('Instead, describe at a high level what the tool will do'),
+  'Forge must execute tool steps without producing repetitive "Let me inspect..." assistant bubbles.',
+);
+
+check(
+  'tool loop continues until verified',
+  hasAll(prompts, [
+    'Follow the full engineering loop:',
+    'run targeted lint/type/build/tests',
+    'continue fixing',
+    'Never claim checks passed unless their command result shows success.',
+  ])
+    && hasAll(chatService, [
+      'shouldSendAnotherMessage = true',
+      'const chatMode = \'agent\' as const',
+      'Agent Context Handoff',
+    ]),
+  'Forge must continue through inspect/edit/test/fix cycles instead of stopping after one model response.',
+);
+
+check(
   'model tool aliases normalize',
   hasAll(prompts, [
     "create_file_or_folder: ['write_file'",
