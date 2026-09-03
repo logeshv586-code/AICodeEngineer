@@ -12,7 +12,7 @@
   "scripts": {
     "buildreact": "cd ./src/vs/workbench/contrib/void/browser/react/ && node build.js && cd ../../../../../../../",
     "build:forge": "npm run compile && npm run buildreact",
-    "forge:verify": "node scripts/forge-runtime-guard.mjs",
+    "forge:verify": "node scripts/forge-runtime-guard.mjs && node scripts/forge-sidebar-agent-guard.mjs",
     "watchreact": "cd ./src/vs/workbench/contrib/void/browser/react/ && node build.js --watch && cd ../../../../../../../",
     "watchreactd": "deemon npm run watchreact",
     "test": "echo Please run any of the test scripts from the scripts folder.",

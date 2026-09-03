@@ -69,6 +69,12 @@ const readableChatContent = (value: unknown, registeredToolNames: string[] = [])
 	return sanitizeToolCallLeakage(text, registeredToolNames)
 }
 
+const isRoutineAgentPreamble = (value: unknown, registeredToolNames: string[] = []) => {
+	const text = readableChatContent(value, registeredToolNames).trim().replace(/\s+/g, ' ')
+	if (!text || text.length > 360) return false
+	return /^(?:let me\b|i(?:'ll| will| need to| should)\b|i(?:'m| am) going to\b|first,? i\b|next,? i\b)/i.test(text)
+}
+
 const QueuedMessagesPanel = ({ messages, onUpdate, onRemove }: { messages: readonly QueuedUserMessage[], onUpdate: (id: string, content: string) => void, onRemove: (id: string) => void }) => {
 	const [editingId, setEditingId] = useState<string | undefined>();
 	const [editingText, setEditingText] = useState('');
@@ -3379,6 +3385,11 @@ export const SidebarChat = () => {
 		// const lastMessageIdx = previousMessages.findLastIndex(v => v.role !== 'checkpoint')
 		// tool request shows up as Editing... if in progress
 		return previousMessages.map((message, i) => {
+			const nextMessage = previousMessages[i + 1]
+			const isExecutionPreamble = message.role === 'assistant'
+				&& (nextMessage?.role === 'tool' || nextMessage?.role === 'interrupted_streaming_tool')
+				&& isRoutineAgentPreamble(message.displayContent, registeredToolNames)
+			if (isExecutionPreamble) return null
 			return <ChatBubble
 				key={i}
 				currCheckpointIdx={currCheckpointIdx}
@@ -3390,7 +3401,7 @@ export const SidebarChat = () => {
 				_scrollToBottom={() => scrollToBottom(scrollContainerRef)}
 			/>
 		})
-	}, [previousMessages, threadId, currCheckpointIdx, isRunning])
+	}, [previousMessages, threadId, currCheckpointIdx, isRunning, registeredToolNames])
 
 	const streamingChatIdx = previousMessagesHTML.length
 	const currStreamingMessageHTML = reasoningSoFar || displayContentSoFar || isRunning ?

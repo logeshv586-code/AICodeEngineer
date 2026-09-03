@@ -326,7 +326,7 @@ export const builtinTools: {
 
 	open_persistent_terminal: {
 		name: 'open_persistent_terminal',
-		description: `Use this tool when you want to run a terminal command indefinitely, like a dev server (eg \`npm run dev\`), a background listener, etc. Opens a new terminal in the user's environment which will not awaited for or killed.`,
+		description: `Use this tool when you want to run a terminal command indefinitely, like a dev server (eg \`npm run dev\`), a background listener, or an independent worker. You may open multiple persistent terminals; each call returns its own terminal ID so independent processes can run concurrently.`,
 		params: {
 			cwd: { description: cwdHelper },
 		}
@@ -557,10 +557,11 @@ const systemToolsXMLPrompt = (chatMode: ChatMode, mcpTools: InternalToolInfo[] |
 	const toolCallXMLGuidelines = (`\
     Tool calling details:
     - To call a tool, write its name and parameters in one of the XML formats specified above.
-    - After you write the tool call, you must STOP and WAIT for the result.
+    - The current transport executes one tool call per model turn. When a tool is needed, emit the tool call directly at the end of the turn and stop.
+    - Do NOT add routine progress narration before a tool call. The IDE renders workspace reads, edits, searches, and terminal execution separately.
+    - Use prose before a tool only when the user must understand a blocking decision, a safety-sensitive action, or a required question.
     - All parameters are REQUIRED unless noted otherwise.
-    - You are only allowed to output ONE tool call, and it must be at the END of your response.
-    - Your tool call will be executed immediately, and the results will appear in the following user message.
+    - Your tool call will be executed immediately, and the result will be fed back into the same continuous agent run.
     - Use the exact tool name shown above. Do not invent names such as "name_file_or_folder".
     - When a workspace folder is listed, create requested files there immediately. Use that listed path (or a relative filename); never use /workspace as a literal filesystem path.`)
 
@@ -616,8 +617,11 @@ ${directoryStr}
 	if (mode === 'agent' || mode === 'gather') {
 		details.push(`Only call tools if they help you accomplish the user's goal. If the user simply says hi or asks you a question that you can answer without tools, then do NOT use tools.`)
 		details.push(`If you think you should use tools, you do not need to ask for permission.`)
-		details.push('Only use ONE tool call at a time.')
-		details.push(`NEVER say something like "I'm going to use \`tool_name\`". Instead, describe at a high level what the tool will do, like "I'm going to list all files in the ___ directory", etc.`)
+		details.push('The tool transport executes one tool call per model turn. Treat successive tool turns as one continuous agent run, not separate conversational replies.')
+		details.push(`Do NOT narrate routine workspace inspection or tool usage with phrases such as "Let me...", "I will...", "I need to...", or "Next I...". When a tool is needed, call it directly; the IDE already shows tool activity.`)
+		details.push(`Keep user-visible assistant prose for substantive findings, implementation decisions, blockers that require the user, and the final verified result.`)
+		details.push(`The files_overview is already project context. Do not repeatedly list the workspace root or re-run an identical read/search call when its result is already in the active run. Use semantic_search to find candidate implementations, then exact file reads for only the relevant code.`)
+		details.push(`When several independent read-only checks are needed, batch them in one safe read-only terminal command when practical, or open multiple persistent terminals for independent long-running processes. Never parallelize conflicting writes to the same files.`)
 		details.push(`Many tools only work if the user has a workspace open.`)
 		details.push('Use the built-in semantic_search tool first when locating implementations or understanding unfamiliar code. It uses the current project\'s local CocoIndex; use file tools for exact reads and edits afterward. If semantic search is unavailable, disabled, still indexing, or returns an error, immediately continue with native exact workspace search instead of asking the user to paste files.')
 	}
@@ -632,6 +636,7 @@ ${directoryStr}
 		details.push(`ALWAYS have maximal certainty in a change BEFORE you make it. If you need more information about a file, variable, function, or type, you should inspect it, search it, or take all required actions to maximize your certainty that your change is correct.`)
 		details.push(`NEVER modify a file outside the user's workspace without permission from the user.`)
 		details.push(`Follow a complete execution loop for every implementation request: understand the acceptance criteria, inspect the relevant project and dependencies, make the edits with tools, run the most relevant tests/build/type checks, fix failures, and verify the final result before responding.`)
+		details.push(`Do not stop after exploration when the user asked you to implement or fix something. Continue from discovery into edits and verification unless a genuine blocker requires user input.`)
 		details.push(`When the user asks for a PDF, presentation, report, image, or other artifact, create the requested artifact in the workspace using the available tools or terminal commands, verify that it exists and can be opened, and report its exact path.`)
 		details.push(`For complex work, divide independent discovery, implementation, testing, documentation, or review tasks among the available agent/tool capabilities when possible; serialize edits that could conflict, then run one final integration and verification pass.`)
 		details.push(`When a file-reading result says COMPLETE, trust that result and continue the task; never ask the user to paste that local file. When it says MORE_PAGES or CONTEXT_SHORTENED, retrieve the next page or a narrower line range yourself before editing.`)
