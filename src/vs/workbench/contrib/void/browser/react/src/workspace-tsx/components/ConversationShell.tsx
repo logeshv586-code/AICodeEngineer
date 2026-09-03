@@ -163,30 +163,35 @@ export const ConversationShell: React.FC = () => {
 	}), [chatThreadsService, commandService, rawAccessor, sendMessage]);
 
 	const selectedModel = settingsState.modelSelectionOfFeature.Chat;
-	const isEmpty = messages.length === 0;
+	const newThread = useCallback(() => { chatThreadsService.createNewThread(); }, [chatThreadsService]);
+	const openSettings = useCallback(() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }, [commandService]);
+	const closeSidebar = useCallback(() => { void commandService.executeCommand('workbench.action.toggleAuxiliaryBar'); }, [commandService]);
 
 	return (
 		<div className='forge-premium-shell forge-ai-panel-right relative h-full w-full min-h-0 min-w-0 overflow-hidden'>
 			<div className='forge-brand-aurora' aria-hidden='true' />
 			<div className='forge-chat-layout relative z-[1] h-full w-full min-h-0 min-w-0 overflow-hidden'>
-				{!isEmpty && <ForgeChatHeader
+				<ForgeChatHeader
 					workspaceName={workspaceName}
 					workspacePath={workspacePath}
 					workspaceReady={workspaceReady}
 					isStreaming={isStreaming}
 					slashContext={slashContext}
-				/>}
+					onNewThread={newThread}
+					onOpenSettings={openSettings}
+					onClose={closeSidebar}
+				/>
 				<ChatView
 					messages={messages}
 					isStreaming={isStreaming}
 					onSendMessage={sendMessage}
-					onNewThread={() => { chatThreadsService.createNewThread(); }}
+					onNewThread={newThread}
 					slashContext={slashContext}
 					workspaceReady={workspaceReady}
 					selectedFiles={stagedFiles}
 					providerName={selectedModel?.providerName ?? ''}
 					modelName={selectedModel?.modelName ?? ''}
-					onOpenSettings={() => { void commandService.executeCommand('workbench.action.openVoidSettings'); }}
+					onOpenSettings={openSettings}
 					onRevertMessage={messageIndex => chatThreadsService.revertToMessage({ threadId: currentThreadId, messageIdx: messageIndex })}
 				/>
 			</div>
