@@ -1,0 +1,144 @@
+name: Forge sidebar runtime repair
+
+on:
+  push:
+    branches:
+      - fix/forge-agent-sidebar-runtime
+    paths:
+      - .github/workflows/forge-agent-sidebar-runtime-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/forge-agent-sidebar-runtime
+          fetch-depth: 0
+
+      - name: Patch Forge agent runtime
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          prompts = 'src/vs/workbench/contrib/void/common/prompt/prompts.ts'
+          replace_once(
+              prompts,
+              '''    - After you write the tool call, you must STOP and WAIT for the result.\n    - All parameters are REQUIRED unless noted otherwise.\n    - You are only allowed to output ONE tool call, and it must be at the END of your response.\n    - Your tool call will be executed immediately, and the results will appear in the following user message.''',
+              '''    - The current transport executes one tool call per model turn. When a tool is needed, emit the tool call directly at the end of the turn and stop.\n    - Do NOT add routine progress narration before a tool call. The IDE renders workspace reads, edits, searches, and terminal execution separately.\n    - Use prose before a tool only when the user must understand a blocking decision, a safety-sensitive action, or a required question.\n    - All parameters are REQUIRED unless noted otherwise.\n    - Your tool call will be executed immediately, and the result will be fed back into the same continuous agent run.'''
+          )
+          replace_once(
+              prompts,
+              '''\t\tdetails.push('Only use ONE tool call at a time.')\n\t\tdetails.push(`NEVER say something like "I'm going to use \\`tool_name\\`". Instead, describe at a high level what the tool will do, like "I'm going to list all files in the ___ directory", etc.`)''',
+              '''\t\tdetails.push('The tool transport executes one tool call per model turn. Treat successive tool turns as one continuous agent run, not separate conversational replies.')\n\t\tdetails.push(`Do NOT narrate routine workspace inspection or tool usage with phrases such as "Let me...", "I will...", "I need to...", or "Next I...". When a tool is needed, call it directly; the IDE already shows tool activity.`)\n\t\tdetails.push(`Keep user-visible assistant prose for substantive findings, implementation decisions, blockers that require the user, and the final verified result.`)\n\t\tdetails.push(`The files_overview is already project context. Do not repeatedly list the workspace root or re-run an identical read/search call when its result is already in the active run. Use semantic_search to find candidate implementations, then exact file reads for only the relevant code.`)\n\t\tdetails.push(`When several independent read-only checks are needed, batch them in one safe read-only terminal command when practical, or open multiple persistent terminals for independent long-running processes. Never parallelize conflicting writes to the same files.`)'''
+          )
+          replace_once(
+              prompts,
+              '''\t\tdescription: `Use this tool when you want to run a terminal command indefinitely, like a dev server (eg \\`npm run dev\\`), a background listener, etc. Opens a new terminal in the user's environment which will not awaited for or killed.`,''',
+              '''\t\tdescription: `Use this tool when you want to run a terminal command indefinitely, like a dev server (eg \\`npm run dev\\`), a background listener, or an independent worker. You may open multiple persistent terminals; each call returns its own terminal ID so independent processes can run concurrently.`,'''
+          )
+          replace_once(
+              prompts,
+              '''\t\tdetails.push(`Follow a complete execution loop for every implementation request: understand the acceptance criteria, inspect the relevant project and dependencies, make the edits with tools, run the most relevant tests/build/type checks, fix failures, and verify the final result before responding.`)''',
+              '''\t\tdetails.push(`Follow a complete execution loop for every implementation request: understand the acceptance criteria, inspect the relevant project and dependencies, make the edits with tools, run the most relevant tests/build/type checks, fix failures, and verify the final result before responding.`)\n\t\tdetails.push(`Do not stop after exploration when the user asked you to implement or fix something. Continue from discovery into edits and verification unless a genuine blocker requires user input.`)'''
+          )
+
+          chat = 'src/vs/workbench/contrib/void/browser/chatThreadService.ts'
+          replace_once(
+              chat,
+              '''\t\t\t\t\tonText: ({ fullText, fullReasoning, toolCall }) => {\n\t\t\t\t\t\tthis._setStreamState(threadId, { isRunning: 'LLM', llmInfo: { displayContentSoFar: readableLLMContent(fullText), reasoningSoFar: readableLLMContent(fullReasoning), toolCallSoFar: toolCall ?? null }, interrupt: Promise.resolve(() => { if (llmCancelToken) this._llmMessageService.abort(llmCancelToken) }), agentRunStartedAt })\n\t\t\t\t\t},''',
+              '''\t\t\t\t\tonText: ({ fullText, fullReasoning, toolCall }) => {\n\t\t\t\t\t\t// Tool turns are execution state, not chat replies. As soon as the\n\t\t\t\t\t\t// provider exposes a tool call, move progress into the tool UI and\n\t\t\t\t\t\t// suppress routine "Let me inspect..." narration from the sidebar.\n\t\t\t\t\t\tconst isToolTurn = !!toolCall\n\t\t\t\t\t\tthis._setStreamState(threadId, {\n\t\t\t\t\t\t\tisRunning: 'LLM',\n\t\t\t\t\t\t\tllmInfo: {\n\t\t\t\t\t\t\t\tdisplayContentSoFar: isToolTurn ? '' : readableLLMContent(fullText),\n\t\t\t\t\t\t\t\treasoningSoFar: isToolTurn ? '' : readableLLMContent(fullReasoning),\n\t\t\t\t\t\t\t\ttoolCallSoFar: toolCall ?? null\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tinterrupt: Promise.resolve(() => { if (llmCancelToken) this._llmMessageService.abort(llmCancelToken) }),\n\t\t\t\t\t\t\tagentRunStartedAt\n\t\t\t\t\t\t})\n\t\t\t\t\t},'''
+          )
+          replace_once(
+              chat,
+              '''\t\t\t\t\tconst { error } = llmRes\n\t\t\t\t\tconst { displayContentSoFar, reasoningSoFar, toolCallSoFar } = this.streamState[threadId].llmInfo\n\t\t\t\t\tthis._addMessageToThread(threadId, { role: 'assistant', displayContent: displayContentSoFar, reasoning: reasoningSoFar, anthropicReasoning: null })\n\t\t\t\t\tif (toolCallSoFar) this._addMessageToThread(threadId, { role: 'interrupted_streaming_tool', name: toolCallSoFar.name, mcpServerName: this._computeMCPServerOfToolName(toolCallSoFar.name) })''',
+              '''\t\t\t\t\tconst { error } = llmRes\n\t\t\t\t\tconst { displayContentSoFar, reasoningSoFar, toolCallSoFar } = this.streamState[threadId].llmInfo\n\t\t\t\t\tthis._addMessageToThread(threadId, {\n\t\t\t\t\t\trole: 'assistant',\n\t\t\t\t\t\tdisplayContent: toolCallSoFar ? '' : displayContentSoFar,\n\t\t\t\t\t\treasoning: toolCallSoFar ? '' : reasoningSoFar,\n\t\t\t\t\t\tanthropicReasoning: null\n\t\t\t\t\t})\n\t\t\t\t\tif (toolCallSoFar) this._addMessageToThread(threadId, { role: 'interrupted_streaming_tool', name: toolCallSoFar.name, mcpServerName: this._computeMCPServerOfToolName(toolCallSoFar.name) })'''
+          )
+          replace_once(
+              chat,
+              '''\t\t\t\tconst { toolCall, info } = llmRes\n\n\t\t\t\tthis._addMessageToThread(threadId, { role: 'assistant', displayContent: info.fullText, reasoning: info.fullReasoning, anthropicReasoning: info.anthropicReasoning })''',
+              '''\t\t\t\tconst { toolCall, info } = llmRes\n\n\t\t\t\t// Keep the assistant turn in history so provider tool-call/result\n\t\t\t\t// adjacency remains valid, but tool turns themselves are invisible in\n\t\t\t\t// the chat. The tool card/run-state bar is the progress surface.\n\t\t\t\tthis._addMessageToThread(threadId, {\n\t\t\t\t\trole: 'assistant',\n\t\t\t\t\tdisplayContent: toolCall ? '' : info.fullText,\n\t\t\t\t\treasoning: toolCall ? '' : info.fullReasoning,\n\t\t\t\t\tanthropicReasoning: info.anthropicReasoning\n\t\t\t\t})'''
+          )
+
+          sidebar = 'src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx'
+          replace_once(
+              sidebar,
+              '''const readableChatContent = (value: unknown, registeredToolNames: string[] = []) => {\n\tconst text = readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')\n\treturn sanitizeToolCallLeakage(text, registeredToolNames)\n}\n''',
+              '''const readableChatContent = (value: unknown, registeredToolNames: string[] = []) => {\n\tconst text = readableLLMContent(value).replaceAll('[object Object]', '[Structured provider response — please retry to display it correctly]')\n\treturn sanitizeToolCallLeakage(text, registeredToolNames)\n}\n\nconst isRoutineAgentPreamble = (value: unknown, registeredToolNames: string[] = []) => {\n\tconst text = readableChatContent(value, registeredToolNames).trim().replace(/\\s+/g, ' ')\n\tif (!text || text.length > 360) return false\n\treturn /^(?:let me\\b|i(?:'ll| will| need to| should)\\b|i(?:'m| am) going to\\b|first,? i\\b|next,? i\\b)/i.test(text)\n}\n'''
+          )
+          replace_once(
+              sidebar,
+              '''\t\treturn previousMessages.map((message, i) => {\n\t\t\treturn <ChatBubble''',
+              '''\t\treturn previousMessages.map((message, i) => {\n\t\t\tconst nextMessage = previousMessages[i + 1]\n\t\t\tconst isExecutionPreamble = message.role === 'assistant'\n\t\t\t\t&& (nextMessage?.role === 'tool' || nextMessage?.role === 'interrupted_streaming_tool')\n\t\t\t\t&& isRoutineAgentPreamble(message.displayContent, registeredToolNames)\n\t\t\tif (isExecutionPreamble) return null\n\t\t\treturn <ChatBubble'''
+          )
+          replace_once(
+              sidebar,
+              '''\t}, [previousMessages, threadId, currCheckpointIdx, isRunning])''',
+              '''\t}, [previousMessages, threadId, currCheckpointIdx, isRunning, registeredToolNames])'''
+          )
+
+          guard = Path('scripts/forge-sidebar-agent-guard.mjs')
+          guard.write_text(r'''import fs from 'node:fs';
+
+const read = (path) => fs.readFileSync(path, 'utf8');
+const prompt = read('src/vs/workbench/contrib/void/common/prompt/prompts.ts');
+const chat = read('src/vs/workbench/contrib/void/browser/chatThreadService.ts');
+const sidebar = read('src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx');
+
+const failures = [];
+const requireText = (source, text, label) => { if (!source.includes(text)) failures.push(`missing: ${label}`); };
+const forbidText = (source, text, label) => { if (source.includes(text)) failures.push(`forbidden: ${label}`); };
+
+forbidText(prompt, 'Only use ONE tool call at a time.', 'legacy single-tool narration instruction');
+forbidText(prompt, 'Instead, describe at a high level what the tool will do', 'forced pre-tool narration');
+requireText(prompt, 'Do NOT narrate routine workspace inspection or tool usage', 'quiet tool-turn prompt rule');
+requireText(prompt, 'Do not stop after exploration when the user asked you to implement or fix something.', 'implementation continuation rule');
+requireText(chat, "displayContent: toolCall ? '' : info.fullText", 'hidden tool-turn assistant content');
+requireText(chat, "reasoning: toolCall ? '' : info.fullReasoning", 'hidden tool-turn reasoning');
+requireText(sidebar, 'isRoutineAgentPreamble', 'legacy preamble cleanup');
+requireText(sidebar, "nextMessage?.role === 'tool'", 'tool-adjacent preamble suppression');
+
+if (failures.length) {
+  console.error('Forge sidebar agent guard failed:');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+console.log('Forge sidebar agent guard passed.');
+''', encoding='utf-8')
+
+          package = 'package.json'
+          replace_once(
+              package,
+              '"forge:verify": "node scripts/forge-runtime-guard.mjs",',
+              '"forge:verify": "node scripts/forge-runtime-guard.mjs && node scripts/forge-sidebar-agent-guard.mjs",'
+          )
+          PY
+
+      - name: Verify repair guards
+        shell: bash
+        run: |
+          git diff --check
+          node scripts/forge-sidebar-agent-guard.mjs
+          node scripts/forge-runtime-guard.mjs
+
+      - name: Commit repaired runtime
+        shell: bash
+        run: |
+          rm .github/workflows/forge-agent-sidebar-runtime-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: make Forge sidebar execute tools without narration loops"
+          git push origin HEAD:fix/forge-agent-sidebar-runtime
