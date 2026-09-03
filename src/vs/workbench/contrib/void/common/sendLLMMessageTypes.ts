@@ -51,50 +51,56 @@ export const readableLLMContent = (value: unknown): string => {
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const isExecutionPreambleOnly = (text: string): boolean => {
+	if (!text || text.length > 280 || text.includes('\n')) return false
+	return /^(?:okay[,.]?\s*)?(?:(?:let me)|(?:i(?:'|’)ll)|(?:i will)|(?:i(?:'|’)m going to)|(?:i am going to)|(?:i need to)|(?:first,?\s+i(?:'|’)ll)|(?:first,?\s+i will))\s+(?:inspect|check|look|explore|read|search|scan|review|open|find|trace|examine|analy[sz]e|run|test|verify)\b[^.!?]*[.!?]?$/.test(text.trim().toLowerCase())
+}
+
 /**
  * Strip recognized tool-call patterns from display text.
  *
  * Only removes structures whose tool name matches one of the
- * `registeredToolNames`.  Legitimate assistant JSON (e.g. {"name":"John"})
+ * `registeredToolNames`. Legitimate assistant JSON (e.g. {"name":"John"})
  * is never removed because "John" won't be in the tool list.
  *
- * This is a **secondary** safety net; the primary defence is the streaming
- * tool-call interceptor in extractGrammar.ts.
+ * When a registered tool call was actually removed, also suppress a leftover
+ * one-sentence execution preamble such as "Let me inspect the files.". This
+ * prevents XML/custom-model tool turns from becoming repetitive chat bubbles
+ * while preserving substantive assistant prose.
+ *
+ * This is a secondary safety net; the primary defence is the streaming
+ * tool-call interceptor in extractGrammar.ts and the agent system prompt.
  */
 export const sanitizeToolCallLeakage = (text: string, registeredToolNames: string[]): string => {
 	if (!text || registeredToolNames.length === 0) return text
 
 	let result = text
+	let removedRegisteredToolCall = false
+	const strip = (pattern: RegExp) => {
+		const previous = result
+		result = result.replace(pattern, '')
+		if (result !== previous) removedRegisteredToolCall = true
+	}
+
 	for (const name of registeredToolNames) {
 		const eName = escapeRegex(name)
 
 		// Strip: tool_name({...}) or tool_name({"name":"tool_name",...})
-		// Uses a greedy-enough match that handles nested braces one level deep
-		result = result.replace(
-			new RegExp(`${eName}\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*\\)`, 'g'),
-			''
-		)
+		strip(new RegExp(`${eName}\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*\\)`, 'g'))
 
 		// Strip: tool_name{...} (no parens)
-		result = result.replace(
-			new RegExp(`${eName}\\s*\\{[\\s\\S]*?\\}`, 'g'),
-			''
-		)
+		strip(new RegExp(`${eName}\\s*\\{[\\s\\S]*?\\}`, 'g'))
 
 		// Strip: {"name":"tool_name","args":{...}} (JSON tool-call object)
-		result = result.replace(
-			new RegExp(`\\{\\s*"name"\\s*:\\s*"${eName}"[\\s\\S]*?\\}(?:\\s*\\})?`, 'g'),
-			''
-		)
+		strip(new RegExp(`\\{\\s*"name"\\s*:\\s*"${eName}"[\\s\\S]*?\\}(?:\\s*\\})?`, 'g'))
 
 		// Strip: <tool_name>...</tool_name> (residual XML)
-		result = result.replace(
-			new RegExp(`<?${eName}>[\\s\\S]*?</${eName}>`, 'g'),
-			''
-		)
+		strip(new RegExp(`<${eName}>[\\s\\S]*?</${eName}>`, 'g'))
 	}
 
-	return result.replace(/\n{3,}/g, '\n\n').trim()
+	const cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+	if (removedRegisteredToolCall && isExecutionPreambleOnly(cleaned)) return ''
+	return cleaned
 }
 
 
