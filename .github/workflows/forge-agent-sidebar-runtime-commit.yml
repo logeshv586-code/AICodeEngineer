@@ -1,0 +1,53 @@
+name: Commit validated Forge sidebar repair
+
+on:
+  push:
+    branches:
+      - fix/forge-agent-sidebar-runtime
+    paths:
+      - .github/workflows/forge-agent-sidebar-runtime-commit.yml
+
+permissions:
+  contents: write
+
+jobs:
+  commit-repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/forge-agent-sidebar-runtime
+          fetch-depth: 0
+
+      - name: Apply validated patch payload
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import re
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/forge-agent-sidebar-runtime-repair.yml').read_text(encoding='utf-8')
+          match = re.search(r"b64decode\('([^']+)'\)", workflow)
+          if not match:
+              raise SystemExit('Could not locate validated Forge repair payload')
+          exec(base64.b64decode(match.group(1)), {})
+          PY
+
+      - name: Verify repaired sidebar runtime
+        shell: bash
+        run: |
+          git diff --check
+          node scripts/forge-sidebar-agent-guard.mjs
+          node --check scripts/forge-sidebar-agent-guard.mjs
+
+      - name: Commit repaired runtime
+        shell: bash
+        run: |
+          rm .github/workflows/forge-agent-sidebar-runtime-repair.yml
+          rm .github/workflows/forge-agent-sidebar-runtime-commit.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: make Forge sidebar execute tools without narration loops"
+          git push origin HEAD:fix/forge-agent-sidebar-runtime
