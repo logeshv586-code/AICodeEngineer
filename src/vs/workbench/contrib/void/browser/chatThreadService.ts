@@ -936,7 +936,20 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					logging: { loggingName: `Chat - ${chatMode}`, loggingExtras: { threadId, nMessagesSent, chatMode } },
 					separateSystemMessage: separateSystemMessage,
 					onText: ({ fullText, fullReasoning, toolCall }) => {
-						this._setStreamState(threadId, { isRunning: 'LLM', llmInfo: { displayContentSoFar: readableLLMContent(fullText), reasoningSoFar: readableLLMContent(fullReasoning), toolCallSoFar: toolCall ?? null }, interrupt: Promise.resolve(() => { if (llmCancelToken) this._llmMessageService.abort(llmCancelToken) }), agentRunStartedAt })
+						// Tool turns are execution state, not chat replies. As soon as the
+						// provider exposes a tool call, move progress into the tool UI and
+						// suppress routine "Let me inspect..." narration from the sidebar.
+						const isToolTurn = !!toolCall
+						this._setStreamState(threadId, {
+							isRunning: 'LLM',
+							llmInfo: {
+								displayContentSoFar: isToolTurn ? '' : readableLLMContent(fullText),
+								reasoningSoFar: isToolTurn ? '' : readableLLMContent(fullReasoning),
+								toolCallSoFar: toolCall ?? null
+							},
+							interrupt: Promise.resolve(() => { if (llmCancelToken) this._llmMessageService.abort(llmCancelToken) }),
+							agentRunStartedAt
+						})
 					},
 					onFinalMessage: async ({ fullText, fullReasoning, toolCall, anthropicReasoning, finishReason }) => {
 						resMessageIsDonePromise({ type: 'llmDone', toolCall, info: { fullText: readableLLMContent(fullText), fullReasoning: readableLLMContent(fullReasoning), anthropicReasoning, finishReason } }) // resolve with tool calls
@@ -1005,7 +1018,12 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					else {
 						const { error } = llmRes
 						const { displayContentSoFar, reasoningSoFar, toolCallSoFar } = this.streamState[threadId].llmInfo
-						this._addMessageToThread(threadId, { role: 'assistant', displayContent: displayContentSoFar, reasoning: reasoningSoFar, anthropicReasoning: null })
+						this._addMessageToThread(threadId, {
+							role: 'assistant',
+							displayContent: toolCallSoFar ? '' : displayContentSoFar,
+							reasoning: toolCallSoFar ? '' : reasoningSoFar,
+							anthropicReasoning: null
+						})
 						if (toolCallSoFar) this._addMessageToThread(threadId, { role: 'interrupted_streaming_tool', name: toolCallSoFar.name, mcpServerName: this._computeMCPServerOfToolName(toolCallSoFar.name) })
 
 						this._setStreamState(threadId, { isRunning: undefined, error })
@@ -1018,7 +1036,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				// llm res success
 				const { toolCall, info } = llmRes
 
-				this._addMessageToThread(threadId, { role: 'assistant', displayContent: info.fullText, reasoning: info.fullReasoning, anthropicReasoning: info.anthropicReasoning })
+				// Keep the assistant turn in history so provider tool-call/result
+				// adjacency remains valid, but tool turns themselves are invisible in
+				// the chat. The tool card/run-state bar is the progress surface.
+				this._addMessageToThread(threadId, {
+					role: 'assistant',
+					displayContent: toolCall ? '' : info.fullText,
+					reasoning: toolCall ? '' : info.fullReasoning,
+					anthropicReasoning: info.anthropicReasoning
+				})
 
 				this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed', agentRunStartedAt }) // just decorative for clarity
 
