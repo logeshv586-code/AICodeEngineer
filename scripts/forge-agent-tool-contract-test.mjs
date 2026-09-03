@@ -75,6 +75,13 @@ check(
 );
 
 check(
+  'prompt exports match tool-service imports',
+  prompts.includes('export const MAX_CHILDREN_URIs_PAGE = 500')
+    && toolsService.includes('MAX_CHILDREN_URIs_PAGE'),
+  'Shared pagination constants must keep the exact exported identifier consumed by toolsService.ts.',
+);
+
+check(
   'tool turns are silent execution turns',
   hasAll(prompts, [
     'A tool-call turn MUST contain the tool call only.',
