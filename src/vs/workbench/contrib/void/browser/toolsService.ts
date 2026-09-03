@@ -71,6 +71,25 @@ const validateURI = (uriStr: unknown) => {
 	}
 }
 
+const validateStringList = (argName: string, value: unknown, maxItems = 6): string[] => {
+	let values: unknown[]
+	if (Array.isArray(value)) values = value
+	else {
+		const raw = validateStr(argName, value).trim()
+		if (!raw.startsWith('[')) values = [raw]
+		else {
+			try { values = JSON.parse(raw) }
+			catch { throw new Error(`Invalid LLM output: ${argName} looked like a JSON array but could not be parsed.`) }
+		}
+	}
+	if (!Array.isArray(values) || values.length === 0) throw new Error(`Invalid LLM output: ${argName} must contain at least one value.`)
+	if (values.length > maxItems) throw new Error(`Invalid LLM output: ${argName} supports at most ${maxItems} parallel values.`)
+	return values.map((item, index) => {
+		if (typeof item !== 'string' || !item.trim()) throw new Error(`Invalid LLM output: ${argName}[${index}] must be a non-empty string.`)
+		return item.trim()
+	})
+}
+
 const validateOptionalStr = (argName: string, str: unknown) => {
 	if (isFalsy(str)) return null
 	return validateStr(argName, str)
@@ -221,17 +240,18 @@ export class ToolsService implements IToolsService {
 		this.validateParams = {
 			read_file: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const { uri: uriStr, start_line: startLineUnknown, end_line: endLineUnknown, page_number: pageNumberUnknown } = params
-				const uri = await resolveWorkspaceURI(uriStr)
+				const { uri: uriUnknown, start_line: startLineUnknown, end_line: endLineUnknown, page_number: pageNumberUnknown } = params
+				const uriStrings = validateStringList('uri', uriUnknown)
+				const uris = await Promise.all(uriStrings.map(resolveWorkspaceURI))
+				const uri = uris[0]
 				const pageNumber = validatePageNum(pageNumberUnknown)
 
 				let startLine = validateNumber(startLineUnknown, { default: null })
 				let endLine = validateNumber(endLineUnknown, { default: null })
-
 				if (startLine !== null && startLine < 1) startLine = null
 				if (endLine !== null && endLine < 1) endLine = null
 
-				return { uri, startLine, endLine, pageNumber }
+				return { uri, uris: uris.length > 1 ? uris : undefined, startLine, endLine, pageNumber }
 			},
 			ls_dir: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
@@ -252,37 +272,22 @@ export class ToolsService implements IToolsService {
 			},
 			search_pathnames_only: (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const {
-					query: queryUnknown,
-					include_pattern: includeUnknown,
-					page_number: pageNumberUnknown
-				} = params
-
-				const queryStr = validateStr('query', queryUnknown)
+				const { query: queryUnknown, include_pattern: includeUnknown, page_number: pageNumberUnknown } = params
+				const queryStrings = validateStringList('query', queryUnknown)
+				const queryStr = queryStrings[0]
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				const includePattern = validateOptionalStr('include_pattern', includeUnknown)
-
-				return { query: queryStr, includePattern, pageNumber }
-
+				return { query: queryStr, queries: queryStrings.length > 1 ? queryStrings : undefined, includePattern, pageNumber }
 			},
 			search_for_files: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const {
-					query: queryUnknown,
-					search_in_folder: searchInFolderUnknown,
-					is_regex: isRegexUnknown,
-					page_number: pageNumberUnknown
-				} = params
-				const queryStr = validateStr('query', queryUnknown)
+				const { query: queryUnknown, search_in_folder: searchInFolderUnknown, is_regex: isRegexUnknown, page_number: pageNumberUnknown } = params
+				const queryStrings = validateStringList('query', queryUnknown)
+				const queryStr = queryStrings[0]
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				const searchInFolder = isFalsy(searchInFolderUnknown) ? null : await resolveWorkspaceURI(searchInFolderUnknown)
 				const isRegex = validateBoolean(isRegexUnknown, { default: false })
-				return {
-					query: queryStr,
-					isRegex,
-					searchInFolder,
-					pageNumber
-				}
+				return { query: queryStr, queries: queryStrings.length > 1 ? queryStrings : undefined, isRegex, searchInFolder, pageNumber }
 			},
 			search_in_file: async (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
@@ -294,10 +299,11 @@ export class ToolsService implements IToolsService {
 			},
 			semantic_search: (rawParams: RawToolParamsObj) => {
 				const params = normalizeRawParams(rawParams)
-				const { query: queryUnknown, top_k: topKUnknown } = params;
-				const query = validateStr('query', queryUnknown);
-				const topK = validateNumber(topKUnknown, { default: 5 }) || 5;
-				return { query, top_k: topK };
+				const { query: queryUnknown, top_k: topKUnknown } = params
+				const queryStrings = validateStringList('query', queryUnknown)
+				const query = queryStrings[0]
+				const topK = validateNumber(topKUnknown, { default: 5 }) || 5
+				return { query, queries: queryStrings.length > 1 ? queryStrings : undefined, top_k: topK }
 			},
 
 			read_lint_errors: async (rawParams: RawToolParamsObj) => {
@@ -383,29 +389,56 @@ export class ToolsService implements IToolsService {
 
 
 		this.callTool = {
-			read_file: async ({ uri, startLine, endLine, pageNumber }) => {
-				await voidModelService.initializeModel(uri)
-				const { model } = await voidModelService.getModelSafe(uri)
-				if (model === null) { throw new Error(`No contents; File does not exist.`) }
+			read_file: async ({ uri, uris, startLine, endLine, pageNumber }) => {
+				const targets = uris?.length ? uris : [uri]
+				const isBatch = targets.length > 1
+				const pageSize = isBatch ? Math.min(MAX_FILE_CHARS_PAGE, 100_000) : MAX_FILE_CHARS_PAGE
 
-				let contents: string
-				if (startLine === null && endLine === null) {
-					contents = model.getValue(EndOfLinePreference.LF)
+				const readOne = async (target: URI) => {
+					await voidModelService.initializeModel(target)
+					const { model } = await voidModelService.getModelSafe(target)
+					if (model === null) throw new Error(`No contents; File does not exist: ${target.fsPath}.`)
+
+					let contents: string
+					if (startLine === null && endLine === null) contents = model.getValue(EndOfLinePreference.LF)
+					else {
+						const startLineNumber = startLine === null ? 1 : startLine
+						const endLineNumber = endLine === null ? model.getLineCount() : endLine
+						contents = model.getValueInRange({ startLineNumber, startColumn: 1, endLineNumber, endColumn: Number.MAX_SAFE_INTEGER }, EndOfLinePreference.LF)
+					}
+
+					const fromIdx = pageSize * (pageNumber - 1)
+					const toIdx = pageSize * pageNumber - 1
+					return {
+						uri: target,
+						fileContents: contents.slice(fromIdx, toIdx + 1),
+						totalFileLen: contents.length,
+						totalNumLines: model.getLineCount(),
+						hasNextPage: (contents.length - 1) - toIdx >= 1,
+					}
 				}
-				else {
-					const startLineNumber = startLine === null ? 1 : startLine
-					const endLineNumber = endLine === null ? model.getLineCount() : endLine
-					contents = model.getValueInRange({ startLineNumber, startColumn: 1, endLineNumber, endColumn: Number.MAX_SAFE_INTEGER }, EndOfLinePreference.LF)
+
+				const pages = await Promise.all(targets.map(readOne))
+				if (!isBatch) {
+					const page = pages[0]
+					return { result: { fileContents: page.fileContents, totalFileLen: page.totalFileLen, hasNextPage: page.hasNextPage, totalNumLines: page.totalNumLines } }
 				}
 
-				const totalNumLines = model.getLineCount()
+				const fileContents = pages.map(page => {
+					const status = page.hasNextPage ? 'MORE_PAGES' : 'COMPLETE'
+					return `===== FILE ${page.uri.fsPath} =====
+[READ_FILE ${status} page=${pageNumber} returned_chars=${page.fileContents.length} total_chars=${page.totalFileLen} total_lines=${page.totalNumLines}]
+${page.fileContents}
+[END_FILE ${status}]`
+				}).join('
 
-				const fromIdx = MAX_FILE_CHARS_PAGE * (pageNumber - 1)
-				const toIdx = MAX_FILE_CHARS_PAGE * pageNumber - 1
-				const fileContents = contents.slice(fromIdx, toIdx + 1) // paginate
-				const hasNextPage = (contents.length - 1) - toIdx >= 1
-				const totalFileLen = contents.length
-				return { result: { fileContents, totalFileLen, hasNextPage, totalNumLines } }
+')
+				return { result: {
+					fileContents,
+					totalFileLen: pages.reduce((sum, page) => sum + page.totalFileLen, 0),
+					totalNumLines: pages.reduce((sum, page) => sum + page.totalNumLines, 0),
+					hasNextPage: pages.some(page => page.hasNextPage),
+				} }
 			},
 
 			ls_dir: async ({ uri, pageNumber }) => {
@@ -418,45 +451,47 @@ export class ToolsService implements IToolsService {
 				return { result: { str } }
 			},
 
-			search_pathnames_only: async ({ query: queryStr, includePattern, pageNumber }) => {
-
-				const query = queryBuilder.file(workspaceContextService.getWorkspace().folders.map(f => f.uri), {
-					filePattern: queryStr,
-					includePattern: includePattern ?? undefined,
-					sortByScore: true, // makes results 10x better
-				})
-				const data = await searchService.fileSearch(query, CancellationToken.None)
-
-				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
-				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
-				const uris = data.results
-					.slice(fromIdx, toIdx + 1) // paginate
-					.map(({ resource, results }) => resource)
-
-				const hasNextPage = (data.results.length - 1) - toIdx >= 1
-				return { result: { uris, hasNextPage } }
+			search_pathnames_only: async ({ query: queryStr, queries, includePattern, pageNumber }) => {
+				const queryStrings = queries?.length ? queries : [queryStr]
+				const searchOne = async (pattern: string) => {
+					const query = queryBuilder.file(workspaceContextService.getWorkspace().folders.map(f => f.uri), {
+						filePattern: pattern,
+						includePattern: includePattern ?? undefined,
+						sortByScore: true,
+					})
+					const data = await searchService.fileSearch(query, CancellationToken.None)
+					const fromIdx = MAX_CHILDREN_URIS_PAGE * (pageNumber - 1)
+					const toIdx = MAX_CHILDREN_URIS_PAGE * pageNumber - 1
+					return { uris: data.results.slice(fromIdx, toIdx + 1).map(({ resource }) => resource), hasNextPage: (data.results.length - 1) - toIdx >= 1 }
+				}
+				const pages = await Promise.all(queryStrings.map(searchOne))
+				const seen = new Set<string>()
+				const resultUris: URI[] = []
+				for (const page of pages) for (const resultUri of page.uris) {
+					const key = resultUri.toString()
+					if (!seen.has(key)) { seen.add(key); resultUris.push(resultUri) }
+				}
+				return { result: { uris: resultUris, hasNextPage: pages.some(page => page.hasNextPage) } }
 			},
 
-			search_for_files: async ({ query: queryStr, isRegex, searchInFolder, pageNumber }) => {
-				const searchFolders = searchInFolder === null ?
-					workspaceContextService.getWorkspace().folders.map(f => f.uri)
-					: [searchInFolder]
-
-				const query = queryBuilder.text({
-					pattern: queryStr,
-					isRegExp: isRegex,
-				}, searchFolders)
-
-				const data = await searchService.textSearch(query, CancellationToken.None)
-
-				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
-				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
-				const uris = data.results
-					.slice(fromIdx, toIdx + 1) // paginate
-					.map(({ resource, results }) => resource)
-
-				const hasNextPage = (data.results.length - 1) - toIdx >= 1
-				return { result: { queryStr, uris, hasNextPage } }
+			search_for_files: async ({ query: queryStr, queries, isRegex, searchInFolder, pageNumber }) => {
+				const searchFolders = searchInFolder === null ? workspaceContextService.getWorkspace().folders.map(f => f.uri) : [searchInFolder]
+				const queryStrings = queries?.length ? queries : [queryStr]
+				const searchOne = async (pattern: string) => {
+					const query = queryBuilder.text({ pattern, isRegExp: isRegex }, searchFolders)
+					const data = await searchService.textSearch(query, CancellationToken.None)
+					const fromIdx = MAX_CHILDREN_URIS_PAGE * (pageNumber - 1)
+					const toIdx = MAX_CHILDREN_URIS_PAGE * pageNumber - 1
+					return { uris: data.results.slice(fromIdx, toIdx + 1).map(({ resource }) => resource), hasNextPage: (data.results.length - 1) - toIdx >= 1 }
+				}
+				const pages = await Promise.all(queryStrings.map(searchOne))
+				const seen = new Set<string>()
+				const resultUris: URI[] = []
+				for (const page of pages) for (const resultUri of page.uris) {
+					const key = resultUri.toString()
+					if (!seen.has(key)) { seen.add(key); resultUris.push(resultUri) }
+				}
+				return { result: { uris: resultUris, hasNextPage: pages.some(page => page.hasNextPage) } }
 			},
 			search_in_file: async ({ uri, query, isRegex }) => {
 				await voidModelService.initializeModel(uri);
@@ -476,19 +511,24 @@ export class ToolsService implements IToolsService {
 				}
 				return { result: { lines } };
 			},
-			semantic_search: async ({ query, top_k }) => {
-				const hits = await this.semanticSearchService.search({ query, topK: top_k });
-				return {
-					result: {
-						hits: hits.map(h => ({
-							filePath: h.chunk.filePath,
-							startLine: h.chunk.startLine,
-							endLine: h.chunk.endLine,
-							score: h.score,
-							content: h.chunk.content
-						}))
-					}
-				};
+			semantic_search: async ({ query, queries, top_k }) => {
+				const queryStrings = queries?.length ? queries : [query]
+				const topK = top_k ?? 5
+				const groups = await Promise.all(queryStrings.map(searchQuery => this.semanticSearchService.search({ query: searchQuery, topK })))
+				const seen = new Set<string>()
+				const hits = groups.flat().map(h => ({
+					filePath: h.chunk.filePath,
+					startLine: h.chunk.startLine,
+					endLine: h.chunk.endLine,
+					score: h.score,
+					content: h.chunk.content,
+				})).sort((a, b) => b.score - a.score).filter(hit => {
+					const key = `${hit.filePath}:${hit.startLine}:${hit.endLine}:${hit.content}`
+					if (seen.has(key)) return false
+					seen.add(key)
+					return true
+				}).slice(0, Math.min(40, topK * queryStrings.length))
+				return { result: { hits } }
 			},
 
 			read_lint_errors: async ({ uri }) => {

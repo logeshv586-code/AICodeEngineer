@@ -123,9 +123,9 @@ export const builtinTools: {
 } = {
 	read_file: {
 		name: 'read_file',
-		description: `Read file contents with explicit paging metadata. COMPLETE means the requested content is complete. MORE_PAGES means call read_file again with the next page_number. Never ask the user to paste a local file that this tool can read.`,
+		description: `Read file contents with explicit paging metadata. COMPLETE means the requested content is complete. MORE_PAGES means call read_file again with the next page_number. Never ask the user to paste a local file that this tool can read. Independent files may be read concurrently by passing a JSON array in uri.`,
 		params: {
-			...uriParam('file'),
+			uri: { description: 'One full/relative file path, or a JSON array of up to 6 file paths to read concurrently.' },
 			start_line: { description: 'Optional. Use only when exact line numbers are already known. Defaults to the beginning.' },
 			end_line: { description: 'Optional. Use only when exact line numbers are already known. Defaults to the end.' },
 			...paginationParam,
@@ -150,7 +150,7 @@ export const builtinTools: {
 		name: 'search_pathnames_only',
 		description: `Search file and folder names in the workspace. Use this when you know or can infer part of a path or filename.`,
 		params: {
-			query: { description: `Filename/path query.` },
+			query: { description: `One filename/path query, or a JSON array of up to 6 independent queries to run concurrently.` },
 			include_pattern: { description: 'Optional. Limit the search only when broad results are too large.' },
 			...paginationParam,
 		},
@@ -159,7 +159,7 @@ export const builtinTools: {
 		name: 'search_for_files',
 		description: `Search workspace file contents by substring or regex and return matching file paths.`,
 		params: {
-			query: { description: `Text or regex to search for.` },
+			query: { description: `One text/regex query, or a JSON array of up to 6 independent queries to run concurrently.` },
 			search_in_folder: { description: 'Optional. Restrict to descendants of this workspace folder.' },
 			is_regex: { description: 'Optional. Default false.' },
 			...paginationParam,
@@ -245,7 +245,7 @@ export const builtinTools: {
 		name: 'semantic_search',
 		description: `Search the current project's local semantic code index for relevant code snippets and symbols. Use it for unfamiliar implementations; fall back immediately to exact workspace search when indexing is unavailable or insufficient.`,
 		params: {
-			query: { description: `Natural-language code concept or implementation query.` },
+			query: { description: `One natural-language code concept, or a JSON array of up to 6 independent concepts to search concurrently.` },
 			top_k: { description: `Optional. Number of results, default 5.` }
 		}
 	}
@@ -313,9 +313,11 @@ export const normalizeRawParams = (rawParams: RawToolParamsObj): RawToolParamsOb
 			.map(name => rawParams[name])
 			.find(candidate => candidate !== undefined && candidate !== null)
 		if (value === undefined) continue
+		const preserveStructuredValue = canonicalName === 'search_replace_blocks'
+			|| ((canonicalName === 'uri' || canonicalName === 'query') && Array.isArray(value))
 		rawParams[canonicalName] = typeof value === 'string'
 			? value
-			: canonicalName === 'search_replace_blocks' ? JSON.stringify(value) : String(value)
+			: preserveStructuredValue ? JSON.stringify(value) : String(value)
 	}
 	return rawParams
 }
@@ -404,6 +406,7 @@ ${directoryStr}
 		details.push('Do not send user-facing progress prose between consecutive tool calls. Continue the tool loop until you have a final result, a real blocker, or an approval requirement.')
 		details.push('Use semantic_search when locating an unfamiliar implementation or concept. If the local semantic index is unavailable, incomplete, or irrelevant, immediately fall back to exact workspace search and file reads.')
 		details.push('If an exact filename/path or active file is already known, read/search it directly instead of performing unnecessary discovery.')
+		details.push('When several independent files or search queries are needed, batch up to 6 of them in one read_file/search call using the documented JSON-array form. This parallel batching is for read-only discovery only; keep dependent operations and edits serialized.')
 		details.push('When a tool result says COMPLETE, trust it. When it says MORE_PAGES or CONTEXT_SHORTENED, retrieve the missing page/range yourself instead of asking the user to paste the file.')
 	}
 

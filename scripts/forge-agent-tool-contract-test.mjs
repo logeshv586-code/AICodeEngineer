@@ -159,6 +159,32 @@ check(
 );
 
 check(
+  'parallel read-only discovery is supported',
+  hasAll(toolTypes, ['uris?: URI[]', 'queries?: string[]'])
+    && hasAll(toolsService, [
+      'validateStringList',
+      'Promise.all(targets.map(readOne))',
+      'Promise.all(queryStrings.map(searchOne))',
+      'Promise.all(queryStrings.map(searchQuery => this.semanticSearchService.search',
+    ])
+    && hasAll(prompts, [
+      'JSON array of up to 6 file paths',
+      'batch up to 6 of them in one read_file/search call',
+      'parallel batching is for read-only discovery only',
+    ]),
+  'Independent file reads and discovery queries should execute concurrently without changing the canonical tool protocol or parallelizing edits.',
+);
+
+check(
+  'all built-in tool aliases are sanitized',
+  hasAll(chatService, [
+    'builtinToolNames.flatMap(toolNamesIncludingAliases)',
+    'const registeredToolNames = [...mcpToolNames, ...builtInToolNames]',
+  ]),
+  'Persisted assistant text must strip leaked calls for read/search tools as well as edit/terminal tools.',
+);
+
+check(
   'workspace paths are model-safe',
   hasAll(toolsService, [
     "'Forge AI Workspace'",

@@ -11,7 +11,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILLMMessageService } from '../common/sendLLMMessageService.js';
-import { chat_userMessageContent, isABuiltinToolName, normalizeRawParams, normalizeToolName } from '../common/prompt/prompts.js';
+import { builtinToolNames, chat_userMessageContent, isABuiltinToolName, normalizeRawParams, normalizeToolName, toolNamesIncludingAliases } from '../common/prompt/prompts.js';
 import { AnthropicReasoning, getErrorMessage, readableLLMContent, RawToolCallObj, RawToolParamsObj, sanitizeToolCallLeakage } from '../common/sendLLMMessageTypes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { FeatureName, ModelSelection, ModelSelectionOptions } from '../common/voidSettingsTypes.js';
@@ -1924,7 +1924,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 		let sanitizedMessage = message;
 		if (sanitizedMessage.role === 'assistant') {
 			const mcpToolNames = this._mcpService.getMCPTools()?.map(t => t.name) || []
-			const builtInToolNames = Object.keys(approvalTypeOfBuiltinToolName)
+			const builtInToolNames = builtinToolNames.flatMap(toolNamesIncludingAliases)
 			const registeredToolNames = [...mcpToolNames, ...builtInToolNames]
 			
 			sanitizedMessage = {

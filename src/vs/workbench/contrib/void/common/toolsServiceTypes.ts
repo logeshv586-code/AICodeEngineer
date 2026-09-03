@@ -43,13 +43,13 @@ export const toolApprovalTypes = new Set<ToolApprovalType>([
 
 // PARAMS OF TOOL CALL
 export type BuiltinToolCallParams = {
-	'read_file': { uri: URI, startLine: number | null, endLine: number | null, pageNumber: number },
+	'read_file': { uri: URI, uris?: URI[], startLine: number | null, endLine: number | null, pageNumber: number },
 	'ls_dir': { uri: URI, pageNumber: number },
 	'get_dir_tree': { uri: URI },
-	'search_pathnames_only': { query: string, includePattern: string | null, pageNumber: number },
-	'search_for_files': { query: string, isRegex: boolean, searchInFolder: URI | null, pageNumber: number },
+	'search_pathnames_only': { query: string, queries?: string[], includePattern: string | null, pageNumber: number },
+	'search_for_files': { query: string, queries?: string[], isRegex: boolean, searchInFolder: URI | null, pageNumber: number },
 	'search_in_file': { uri: URI, query: string, isRegex: boolean },
-	'semantic_search': { query: string, top_k?: number },
+	'semantic_search': { query: string, queries?: string[], top_k?: number },
 	'read_lint_errors': { uri: URI },
 	// ---
 	'rewrite_file': { uri: URI, newContent: string },
