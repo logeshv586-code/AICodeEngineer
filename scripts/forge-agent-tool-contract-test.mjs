@@ -8,6 +8,7 @@ const read = relative => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
 const prompts = read('src/vs/workbench/contrib/void/common/prompt/prompts.ts');
 const toolsService = read('src/vs/workbench/contrib/void/browser/toolsService.ts');
 const toolTypes = read('src/vs/workbench/contrib/void/common/toolsServiceTypes.ts');
+const messageTypes = read('src/vs/workbench/contrib/void/common/sendLLMMessageTypes.ts');
 const chatService = read('src/vs/workbench/contrib/void/browser/chatThreadService.ts');
 const conversion = read('src/vs/workbench/contrib/void/browser/convertToLLMMessageService.ts');
 const transport = read('src/vs/workbench/contrib/void/electron-main/llmMessage/sendLLMMessage.impl.ts');
@@ -91,6 +92,16 @@ check(
   ])
     && !prompts.includes('Instead, describe at a high level what the tool will do'),
   'Forge must execute tool steps without producing repetitive "Let me inspect..." assistant bubbles.',
+);
+
+check(
+  'tool narration leakage is suppressed',
+  hasAll(messageTypes, [
+    'removedRegisteredToolCall',
+    'isExecutionPreambleOnly',
+    "if (removedRegisteredToolCall && isExecutionPreambleOnly(cleaned)) return ''",
+  ]),
+  'If a registered tool call leaks into model text, stripping it must not leave a short "Let me inspect..." bubble behind.',
 );
 
 check(
