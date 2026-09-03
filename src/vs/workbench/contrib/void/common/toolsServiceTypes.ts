@@ -17,6 +17,15 @@ export type ShallowDirectoryItem = {
 	isSymbolicLink: boolean;
 }
 
+export type ParallelReadFileResult = {
+	uri: URI;
+	fileContents: string;
+	totalFileLen: number;
+	totalNumLines: number;
+	truncated: boolean;
+	error?: string;
+}
+
 
 export const approvalTypeOfBuiltinToolName: Partial<{ [T in BuiltinToolName]?: 'edits' | 'terminal' | 'MCP tools' }> = {
 	'create_file_or_folder': 'edits',
@@ -44,6 +53,7 @@ export const toolApprovalTypes = new Set<ToolApprovalType>([
 // PARAMS OF TOOL CALL
 export type BuiltinToolCallParams = {
 	'read_file': { uri: URI, startLine: number | null, endLine: number | null, pageNumber: number },
+	'parallel_read_files': { uris: URI[] },
 	'ls_dir': { uri: URI, pageNumber: number },
 	'get_dir_tree': { uri: URI },
 	'search_pathnames_only': { query: string, includePattern: string | null, pageNumber: number },
@@ -66,6 +76,7 @@ export type BuiltinToolCallParams = {
 // RESULT OF TOOL CALL
 export type BuiltinToolResultType = {
 	'read_file': { fileContents: string, totalFileLen: number, totalNumLines: number, hasNextPage: boolean },
+	'parallel_read_files': { files: ParallelReadFileResult[] },
 	'ls_dir': { children: ShallowDirectoryItem[] | null, hasNextPage: boolean, hasPrevPage: boolean, itemsRemaining: number },
 	'get_dir_tree': { str: string, },
 	'search_pathnames_only': { uris: URI[], hasNextPage: boolean },
