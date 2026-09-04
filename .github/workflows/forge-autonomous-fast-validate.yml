@@ -1,0 +1,41 @@
+name: Forge Autonomous Runtime Fast Validate
+
+on:
+  push:
+    branches: [forge/autonomous-runtime-v1]
+    paths:
+      - '.github/workflows/forge-autonomous-fast-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fast-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Use repository Node version
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          package-manager-cache: false
+      - name: Apply current Forge repair patches
+        run: |
+          python3 scripts/apply-forge-semantic-ui-fix.py
+          python3 scripts/apply-forge-orchestration-final-fix.py
+          python3 scripts/apply-forge-autonomous-runtime-v1.py
+      - name: Check helper syntax
+        run: |
+          python3 -m py_compile scripts/apply-forge-autonomous-runtime-v1.py scripts/forge-document-reader.py
+          node --check scripts/forge-document-reader.mjs
+          node --check scripts/forge-mcp-server.mjs
+      - name: Run Forge contracts without dependency install
+        run: |
+          node scripts/forge-agent-tool-contract-test.mjs
+          node scripts/forge-ui-contract-test.mjs
+          node scripts/forge-react-service-export-contract.mjs
+          node scripts/forge-autonomous-runtime-contract-test.mjs
+      - name: Check generated diff
+        run: git diff --check
