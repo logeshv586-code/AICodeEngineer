@@ -25,6 +25,8 @@ jobs:
           package-manager-cache: false
       - name: Apply semantic-search UI fix
         run: python3 scripts/apply-forge-semantic-ui-fix.py
+      - name: Apply final orchestration compatibility fix
+        run: python3 scripts/apply-forge-orchestration-final-fix.py
       - name: Install Linux native build prerequisites
         run: |
           sudo apt-get update
@@ -50,5 +52,5 @@ jobs:
                   src/vs/workbench/contrib/void/common/toolActivityMessages.ts \
                   scripts/forge-agent-tool-contract-test.mjs
           git diff --cached --check
-          git commit -m 'fix: complete Forge semantic-search sidebar coverage'
+          git commit -m 'fix: complete Forge agent sidebar orchestration'
           git push origin HEAD:main
