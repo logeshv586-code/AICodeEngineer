@@ -38,7 +38,7 @@ jobs:
       - name: Install Linux native build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config
+          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config poppler-utils
       - name: Install dependencies
         run: npm ci --foreground-scripts
       - name: Compile core TypeScript
@@ -60,7 +60,10 @@ jobs:
                   src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/autonomousTaskPolicy.ts \
                   scripts/forge-agent-tool-contract-test.mjs \
                   scripts/forge-runtime-guard.mjs \
-                  scripts/forge-autonomous-runtime-contract-test.mjs
+                  scripts/forge-autonomous-runtime-contract-test.mjs \
+                  scripts/forge-mcp-server.mjs \
+                  scripts/forge-document-reader.mjs \
+                  scripts/forge-document-reader.py
           git diff --cached --check
           git commit -m 'feat: complete Forge autonomous coding runtime'
           git push origin HEAD:main
