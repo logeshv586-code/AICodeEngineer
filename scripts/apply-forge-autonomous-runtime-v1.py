@@ -12,9 +12,13 @@ def replace_once(path: str, before: str, after: str) -> None:
     p.write_text(text.replace(before, after, 1), encoding='utf-8')
 
 
-policy_path = Path('src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/autonomousTaskPolicy.ts')
-policy_path.parent.mkdir(parents=True, exist_ok=True)
-policy_path.write_text(r'''/*--------------------------------------------------------------------------------------
+def write_text(path: str, content: str) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding='utf-8')
+
+
+write_text('src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/autonomousTaskPolicy.ts', r'''/*--------------------------------------------------------------------------------------
  *  Copyright 2026 forge Glass Devtools, Inc. All rights reserved.
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
@@ -72,7 +76,7 @@ const kindDirective = (kind: ForgeTaskKind): string => {
 		case 'fix': return 'FIX MODE: reproduce or inspect the failure, identify root cause rather than symptoms, make the smallest coherent repair, then run targeted regression verification.';
 		case 'test': return 'TEST MODE: determine the project\'s real verification commands, run them, diagnose actionable failures, fix failures caused by the implementation, and rerun until the relevant gate is green or a concrete external blocker is proven.';
 		case 'review': return 'REVIEW MODE: inspect the relevant code and current diff for correctness, security, performance, maintainability, compatibility, and regressions. Fix confirmed issues when safe and verify the resulting behavior.';
-		case 'requirements': return 'REQUIREMENTS MODE: understand attached/source requirements before editing. Preserve page/sheet/slide/file references where available, map requirements to code/modules, implement the mapped work, and verify each implemented requirement. Never invent unreadable binary content.';
+		case 'requirements': return 'REQUIREMENTS MODE: understand attached/source requirements before editing. Preserve page/sheet/slide/file references where available, map requirements to code/modules, implement the mapped work, and verify each implemented requirement. Prefer the forge_document MCP tool for PDF/DOCX/XLSX/PPTX/CSV/RTF when available. Never invent unreadable binary content.';
 		case 'ui': return 'UI MODE: understand the supplied visual/design context, inspect the existing UI implementation, make production-ready edits, and use browser/runtime verification when available. Preserve behavior while correcting visual and interaction defects.';
 		case 'inspect': return 'INSPECTION MODE: gather only the context needed, combine exact and semantic search, explain findings with concrete file/symbol evidence, and do not edit unless the user requested a change.';
 		case 'code': return 'IMPLEMENTATION MODE: inspect architecture and nearby patterns first, make coherent production-ready changes, preserve established conventions, then run the narrowest useful verification followed by broader gates when justified.';
@@ -86,64 +90,238 @@ export const prepareAutonomousTask = ({ userText, expandedText, attachments = []
 	const kind = inferTaskKind(original, attachments);
 	if (!shouldUseAutonomousRuntime(original, kind, attachments)) return effective;
 
-	return `${effective}\n\n---\nFORGE AUTONOMOUS RUNTIME V1\n${kindDirective(kind)}\n\nEXECUTION CONTRACT\n1. OWNERSHIP: You are the coordinating coding engineer for this task. Continue through understanding, implementation, debugging, verification, and final review without asking the user for the next routine step. Ask only when a genuinely missing decision cannot be inferred safely.\n2. INSTRUCTION PRECEDENCE: current user/task instruction > project-local rules (.voidrules and project skills) > saved/global user AI instructions > generic Forge defaults. Do not silently override an explicit project or task constraint.\n3. PROJECT INTELLIGENCE: identify the opened project/workspace, stack, manifests, build/test commands, architecture boundaries, and relevant modules before broad edits. Do not read the whole repository when targeted search is enough.\n4. SEARCH AND CONTEXT: use exact text/symbol/file search first when the target is known; use semantic search/code graph when meaning or cross-file relationships matter. Read the smallest useful ranges, follow references, and re-read changed regions before another write.\n5. SKILLS, AGENTS, MCP AND PLUGINS: use project-local skills automatically when routed; use explicit registry skills/MCP/plugin tools when they materially improve the task. Parallelize independent read-only investigation when useful, but serialize or coordinate writes so agents never overwrite each other. One orchestrator owns the final result.\n6. ATTACHMENTS: inspect every relevant attachment before acting. Images must be treated as visual context. For PDF/DOC/DOCX/XLS/XLSX/PPT/PPTX/CSV or other binary documents, use an available document-capable tool/MCP/plugin or parser. If no tool can actually read a binary attachment, state that exact blocker instead of fabricating its contents.\n7. EDITING: prefer minimal coherent edits that preserve architecture, public APIs, style, security boundaries, and user data. Search callers/references before signature or schema changes. Keep unrelated churn out of the diff.\n8. BUG LOGIC: for failures, establish observed symptom -> evidence -> root cause -> repair -> regression test. Do not stop at the first plausible explanation.\n9. VERIFICATION LOOP: choose verification from the real project (targeted tests, lint, type checks, compile/build, runtime/browser checks). Inspect failures, fix actionable causes, and rerun. Continue until the requested behavior is proven or a concrete external blocker remains.\n10. DONE GATE: never say complete merely because files were edited. Completion requires the requested behavior implemented, relevant diagnostics/tests/build checks passing, changed diff reviewed, user constraints re-checked, and no known regression left unreported. If a gate cannot run, report exactly which gate and why.\n11. FINAL RESPONSE: be concise and evidence-based: outcome, important files/areas changed, verification performed/results, and only genuine remaining blockers.\n\nATTACHMENTS\n${attachmentSummary(attachments)}\n\nORIGINAL USER REQUEST\n${original}`;
+	return `${effective}\n\n---\nFORGE AUTONOMOUS RUNTIME V1\n${kindDirective(kind)}\n\nEXECUTION CONTRACT\n1. OWNERSHIP: You are the coordinating coding engineer for this task. Continue through understanding, implementation, debugging, verification, and final review without asking the user for the next routine step. Ask only when a genuinely missing decision cannot be inferred safely.\n2. INSTRUCTION PRECEDENCE: current user/task instruction > project-local rules (.voidrules and project skills) > saved/global user AI instructions > generic Forge defaults. Do not silently override an explicit project or task constraint.\n3. PROJECT INTELLIGENCE: identify the opened project/workspace, stack, manifests, build/test commands, architecture boundaries, and relevant modules before broad edits. Do not read the whole repository when targeted search is enough.\n4. SEARCH AND CONTEXT: use exact text/symbol/file search first when the target is known; use semantic search/code graph when meaning or cross-file relationships matter. Read the smallest useful ranges, follow references, and re-read changed regions before another write.\n5. SKILLS, AGENTS, MCP AND PLUGINS: use project-local skills automatically when routed; use explicit registry skills/MCP/plugin tools when they materially improve the task. Parallelize independent read-only investigation when useful, but serialize or coordinate writes so agents never overwrite each other. One orchestrator owns the final result.\n6. ATTACHMENTS: inspect every relevant attachment before acting. Images must be treated as visual context. For PDF/DOCX/XLSX/PPTX/CSV/RTF use forge_document when available; otherwise use another real document-capable tool/MCP/plugin/parser. If no tool can actually read a binary attachment, state that exact blocker instead of fabricating its contents.\n7. EDITING: prefer minimal coherent edits that preserve architecture, public APIs, style, security boundaries, and user data. Search callers/references before signature or schema changes. Keep unrelated churn out of the diff.\n8. BUG LOGIC: for failures, establish observed symptom -> evidence -> root cause -> repair -> regression test. Do not stop at the first plausible explanation.\n9. VERIFICATION LOOP: choose verification from the real project (targeted tests, lint, type checks, compile/build, runtime/browser checks). Inspect failures, fix actionable causes, and rerun. Continue until the requested behavior is proven or a concrete external blocker remains.\n10. DONE GATE: never say complete merely because files were edited. Completion requires the requested behavior implemented, relevant diagnostics/tests/build checks passing, changed diff reviewed, user constraints re-checked, and no known regression left unreported. If a gate cannot run, report exactly which gate and why.\n11. FINAL RESPONSE: be concise and evidence-based: outcome, important files/areas changed, verification performed/results, and only genuine remaining blockers.\n\nATTACHMENTS\n${attachmentSummary(attachments)}\n\nORIGINAL USER REQUEST\n${original}`;
 };
-''', encoding='utf-8')
+''')
+
+write_text('scripts/forge-document-reader.py', r'''import argparse
+import csv
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import zipfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+def clean_text(value: str) -> str:
+    value = value.replace('\x00', '')
+    value = re.sub(r'[ \t]+\n', '\n', value)
+    value = re.sub(r'\n{3,}', '\n\n', value)
+    return value.strip()
+
+
+def xml_text(data: bytes) -> str:
+    root = ET.fromstring(data)
+    parts = []
+    for node in root.iter():
+        if node.text and node.tag.rsplit('}', 1)[-1] in {'t', 'v'}:
+            parts.append(node.text)
+        if node.tag.rsplit('}', 1)[-1] in {'p', 'tr'}:
+            parts.append('\n')
+    return clean_text(' '.join(parts).replace(' \n ', '\n'))
+
+
+def read_docx(path: str) -> str:
+    with zipfile.ZipFile(path) as zf:
+        return xml_text(zf.read('word/document.xml'))
+
+
+def read_pptx(path: str) -> str:
+    with zipfile.ZipFile(path) as zf:
+        slides = sorted(name for name in zf.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml', name))
+        return '\n\n'.join(f'[Slide {index}]\n{xml_text(zf.read(name))}' for index, name in enumerate(slides, 1))
+
+
+def read_xlsx(path: str) -> str:
+    with zipfile.ZipFile(path) as zf:
+        shared = []
+        if 'xl/sharedStrings.xml' in zf.namelist():
+            root = ET.fromstring(zf.read('xl/sharedStrings.xml'))
+            for item in root:
+                shared.append(''.join(node.text or '' for node in item.iter() if node.tag.rsplit('}', 1)[-1] == 't'))
+        sheets = sorted(name for name in zf.namelist() if re.fullmatch(r'xl/worksheets/sheet\d+\.xml', name))
+        output = []
+        for index, name in enumerate(sheets, 1):
+            root = ET.fromstring(zf.read(name))
+            rows = []
+            for row in root.iter():
+                if row.tag.rsplit('}', 1)[-1] != 'row':
+                    continue
+                cells = []
+                for cell in row:
+                    if cell.tag.rsplit('}', 1)[-1] != 'c':
+                        continue
+                    ref = cell.attrib.get('r', '')
+                    cell_type = cell.attrib.get('t', '')
+                    value = ''
+                    for child in cell.iter():
+                        local = child.tag.rsplit('}', 1)[-1]
+                        if local == 'v' and child.text is not None:
+                            value = child.text
+                        elif local == 't' and child.text is not None and cell_type == 'inlineStr':
+                            value += child.text
+                    if cell_type == 's' and value.isdigit() and int(value) < len(shared):
+                        value = shared[int(value)]
+                    cells.append(f'{ref}={value}' if ref else value)
+                if cells:
+                    rows.append(' | '.join(cells))
+            output.append(f'[Sheet {index}]\n' + '\n'.join(rows))
+        return clean_text('\n\n'.join(output))
+
+
+def read_pdf(path: str) -> str:
+    errors = []
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(path)
+        return clean_text('\n\n'.join(f'[Page {i}]\n{page.extract_text() or ""}' for i, page in enumerate(reader.pages, 1)))
+    except Exception as exc:
+        errors.append(f'pypdf: {exc}')
+    try:
+        import fitz
+        doc = fitz.open(path)
+        return clean_text('\n\n'.join(f'[Page {i + 1}]\n{page.get_text("text")}' for i, page in enumerate(doc)))
+    except Exception as exc:
+        errors.append(f'PyMuPDF: {exc}')
+    pdftotext = shutil.which('pdftotext')
+    if pdftotext:
+        result = subprocess.run([pdftotext, '-layout', path, '-'], capture_output=True, text=True, errors='replace')
+        if result.returncode == 0:
+            pages = result.stdout.split('\f')
+            return clean_text('\n\n'.join(f'[Page {i}]\n{page}' for i, page in enumerate(pages, 1) if page.strip()))
+        errors.append(result.stderr.strip())
+    raise RuntimeError('PDF extraction unavailable. Install pypdf/PyMuPDF or pdftotext. ' + '; '.join(errors[-2:]))
+
+
+def read_rtf(path: str) -> str:
+    data = Path(path).read_text(encoding='utf-8', errors='replace')
+    data = re.sub(r'\\[a-zA-Z]+-?\d* ?', '', data)
+    data = data.replace('{', '').replace('}', '').replace("\\'", '')
+    return clean_text(data)
+
+
+def read_text(path: str) -> str:
+    return clean_text(Path(path).read_text(encoding='utf-8', errors='replace'))
+
+
+def extract(path: str) -> dict:
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+    ext = Path(path).suffix.lower()
+    if ext == '.pdf':
+        content = read_pdf(path)
+    elif ext == '.docx':
+        content = read_docx(path)
+    elif ext == '.xlsx':
+        content = read_xlsx(path)
+    elif ext == '.pptx':
+        content = read_pptx(path)
+    elif ext == '.rtf':
+        content = read_rtf(path)
+    elif ext in {'.txt', '.md', '.csv', '.json', '.jsonl', '.xml', '.yaml', '.yml', '.toml', '.sql', '.html', '.css', '.js', '.ts', '.tsx', '.jsx', '.py'}:
+        content = read_text(path)
+    elif ext in {'.doc', '.xls', '.ppt'}:
+        raise RuntimeError(f'Legacy {ext} binary format is not parsed directly. Convert it to DOCX/XLSX/PPTX or use a connected document plugin.')
+    else:
+        raise RuntimeError(f'Unsupported document type: {ext or "no extension"}')
+    return {'path': os.path.abspath(path), 'extension': ext, 'content': content}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', required=True)
+    parser.add_argument('--max-chars', type=int, default=60000)
+    args = parser.parse_args()
+    try:
+        result = extract(args.path)
+        content = result['content']
+        limit = max(1000, min(args.max_chars, 250000))
+        result['truncated'] = len(content) > limit
+        result['content'] = content[:limit]
+        result['characters'] = len(content)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    except Exception as exc:
+        print(json.dumps({'error': str(exc), 'path': os.path.abspath(args.path)}, ensure_ascii=False))
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
+''')
+
+write_text('scripts/forge-document-reader.mjs', r'''import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const helper = path.join(root, 'scripts', 'forge-document-reader.py');
+
+const pythonCandidates = () => process.platform === 'win32'
+  ? [['py', ['-3']], ['python', []], ['python3', []]]
+  : [['python3', []], ['python', []]];
+
+const locatePython = () => {
+  for (const [command, prefix] of pythonCandidates()) {
+    const probe = spawnSync(command, [...prefix, '--version'], { encoding: 'utf8', windowsHide: true });
+    if (!probe.error && probe.status === 0) return { command, prefix };
+  }
+  return null;
+};
+
+export const documentStatus = () => ({
+  helperExists: fs.existsSync(helper),
+  python: locatePython()?.command || null,
+  supported: ['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'rtf', 'txt', 'md', 'json', 'xml', 'yaml', 'code/text files'],
+  pdfBackends: 'pypdf, PyMuPDF, or pdftotext (first available)',
+});
+
+export const readDocument = ({ path: documentPath, maxChars = 60000 } = {}) => {
+  if (!documentPath || typeof documentPath !== 'string') throw new Error('forge_document requires a local file path.');
+  if (!fs.existsSync(documentPath) || !fs.statSync(documentPath).isFile()) throw new Error(`Document not found: ${documentPath}`);
+  const python = locatePython();
+  if (!python) throw new Error('Python 3 is required for Forge document extraction and was not found.');
+  const result = spawnSync(python.command, [...python.prefix, helper, '--path', documentPath, '--max-chars', String(maxChars)], {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  const output = (result.stdout || '').trim();
+  let parsed;
+  try { parsed = output ? JSON.parse(output) : null; } catch { parsed = null; }
+  if (result.status !== 0 || parsed?.error) throw new Error(parsed?.error || result.stderr || `Document reader exited with code ${result.status}.`);
+  if (!parsed) throw new Error('Document reader returned no structured result.');
+  return parsed;
+};
+''')
 
 chat_view = 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/components/ChatView.tsx'
-replace_once(
-    chat_view,
-    "import { ITerminalToolService } from '../../../../terminalToolService.js';\n",
-    "import { ITerminalToolService } from '../../../../terminalToolService.js';\nimport { prepareAutonomousTask } from '../utils/autonomousTaskPolicy';\n",
-)
-replace_once(
-    chat_view,
-    "\t\tpdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', jsonl: 'application/jsonl',\n",
-    "\t\tpdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',\n\t\txls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n\t\tppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',\n\t\tcsv: 'text/csv', rtf: 'application/rtf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', jsonl: 'application/jsonl',\n",
-)
-replace_once(
-    chat_view,
-    "\t\tconst prepared = expandForgeCommand(raw);\n",
-    "\t\tconst expanded = expandForgeCommand(raw);\n\t\tconst prepared = prepareAutonomousTask({\n\t\t\tuserText: raw,\n\t\t\texpandedText: expanded,\n\t\t\tattachments: effectiveAttachments.map(attachment => ({ uri: attachment.uri, name: attachment.name, mimeType: attachment.mimeType })),\n\t\t});\n",
-)
-replace_once(
-    chat_view,
-    "\t}, [ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);\n",
-    "\t}, [effectiveAttachments, ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);\n",
-)
-replace_once(
-    chat_view,
-    "\t\tconst text = draftText.trim() || (effectiveAttachments.length > 0 ? 'Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.' : '');\n",
-    "\t\tconst text = draftText.trim() || (effectiveAttachments.length > 0 ? 'Understand every relevant attachment, map its requirements or visual evidence to the opened project, implement the requested outcome, and run the relevant verification until it is complete or a concrete blocker is proven.' : '');\n",
-)
-replace_once(
-    chat_view,
-    "extensions: ['pdf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql']",
-    "extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'rtf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql']",
-)
+replace_once(chat_view, "import { ITerminalToolService } from '../../../../terminalToolService.js';\n", "import { ITerminalToolService } from '../../../../terminalToolService.js';\nimport { prepareAutonomousTask } from '../utils/autonomousTaskPolicy';\n")
+replace_once(chat_view, "\t\tpdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', jsonl: 'application/jsonl',\n", "\t\tpdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',\n\t\txls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n\t\tppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',\n\t\tcsv: 'text/csv', rtf: 'application/rtf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', jsonl: 'application/jsonl',\n")
+replace_once(chat_view, "\t\tconst prepared = expandForgeCommand(raw);\n", "\t\tconst expanded = expandForgeCommand(raw);\n\t\tconst prepared = prepareAutonomousTask({\n\t\t\tuserText: raw,\n\t\t\texpandedText: expanded,\n\t\t\tattachments: effectiveAttachments.map(attachment => ({ uri: attachment.uri, name: attachment.name, mimeType: attachment.mimeType })),\n\t\t});\n")
+replace_once(chat_view, "\t}, [ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);\n", "\t}, [effectiveAttachments, ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);\n")
+replace_once(chat_view, "\t\tconst text = draftText.trim() || (effectiveAttachments.length > 0 ? 'Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.' : '');\n", "\t\tconst text = draftText.trim() || (effectiveAttachments.length > 0 ? 'Understand every relevant attachment, map its requirements or visual evidence to the opened project, implement the requested outcome, and run the relevant verification until it is complete or a concrete blocker is proven.' : '');\n")
+replace_once(chat_view, "extensions: ['pdf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql']", "extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'rtf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql']")
 
 slash_router = 'src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/slashCommandRouter.tsx'
-replace_once(
-    slash_router,
-    "\t\t{ name: '/agent,explain', label: 'Explain Code', category: 'Agent', description: 'Explain relevant architecture and flow', icon: <MessageSquare size={14} />, execute() { sendMessage('Explain the relevant code and architecture for the current task. Read only the context needed and identify important data/control flow.'); } },\n",
-    "\t\t{ name: '/agent,explain', label: 'Explain Code', category: 'Agent', description: 'Explain relevant architecture and flow', icon: <MessageSquare size={14} />, execute() { sendMessage('Explain the relevant code and architecture for the current task. Read only the context needed and identify important data/control flow.'); } },\n\t\t{ name: '/agent,finish', label: 'Finish Completely', category: 'Agent', description: 'Continue the current task through strict verification and completion', icon: <CheckCircle size={14} />, execute(commandContext) { sendMessage(`Finish this task completely. Re-read the request and current workspace state, complete missing implementation, run the relevant verification loop, fix failures, review the final diff, and do not claim done until the requested behavior is proven or a concrete blocker is identified. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,project', label: 'Understand Project', category: 'Agent', description: 'Build focused project intelligence before acting', icon: <Brain size={14} />, execute(commandContext) { sendMessage(`Understand this project for the requested goal: identify stack, manifests, architecture, important modules, build/test commands, project rules, relevant skills and dependencies. Use exact plus semantic search as needed, then continue with the requested work. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,requirements', label: 'Implement Requirements', category: 'Agent', description: 'Read attached requirements and implement them in the project', icon: <ListChecks size={14} />, execute(commandContext) { sendMessage(`Read and understand the attached requirement sources first, map each actionable requirement to the project, implement the mapped changes, verify them, and report any requirement that could not be validated. Never invent unreadable document content. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,ui', label: 'Visual UI Fix', category: 'Agent', description: 'Use screenshot/image context and browser verification for UI work', icon: <Palette size={14} />, execute(commandContext) { sendMessage(`Treat attached images/screenshots as visual evidence. Inspect the existing UI, implement the requested visual and interaction changes, preserve behavior, and verify with the browser/runtime when available. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,verify', label: 'Strict Verify', category: 'Agent', description: 'Run the project-specific done gate and fix failures', icon: <FlaskConical size={14} />, execute(commandContext) { sendMessage(`Run the strict done gate for this task: relevant tests, lint/type checks, compile/build, runtime or browser checks where applicable, and final diff review. Diagnose and fix actionable failures, rerun checks, and report only genuine blockers. ${commandContext.args}`.trim()); } },\n",
-)
-replace_once(
-    slash_router,
-    "\t\t{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },\n",
-    "\t\t{ name: '/plugins', label: 'Plugins & MCP', category: 'System', description: 'Show connected MCP/plugin capability servers', icon: <Network size={14} />, execute() { const tools = accessor.get(IMCPService).getMCPTools() || []; const servers = [...new Set(tools.map(tool => tool.mcpServerName))].sort(); notify(accessor, servers.length ? `Connected capability servers: ${servers.join(', ')} (${tools.length} tools).` : 'No MCP/plugin capability servers are currently connected.', servers.length ? 'info' : 'warn'); } },\n\t\t{ name: '/preferences', label: 'Preference Rules', category: 'System', description: 'Explain Forge instruction precedence', icon: <Settings size={14} />, execute() { notify(accessor, 'Forge preference order: current task > project .voidrules/project skills > global AI instructions > generic defaults.'); } },\n\t\t{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },\n",
-)
-replace_once(
-    slash_router,
-    "Forge commands: Agent /agent,* · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings.",
-    "Forge commands: Agent /agent,* including /agent,finish /agent,project /agent,requirements /agent,ui /agent,verify · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /plugins /preferences /models /attach /image /settings.",
-)
+replace_once(slash_router, "\t\t{ name: '/agent,explain', label: 'Explain Code', category: 'Agent', description: 'Explain relevant architecture and flow', icon: <MessageSquare size={14} />, execute() { sendMessage('Explain the relevant code and architecture for the current task. Read only the context needed and identify important data/control flow.'); } },\n", "\t\t{ name: '/agent,explain', label: 'Explain Code', category: 'Agent', description: 'Explain relevant architecture and flow', icon: <MessageSquare size={14} />, execute() { sendMessage('Explain the relevant code and architecture for the current task. Read only the context needed and identify important data/control flow.'); } },\n\t\t{ name: '/agent,finish', label: 'Finish Completely', category: 'Agent', description: 'Continue the current task through strict verification and completion', icon: <CheckCircle size={14} />, execute(commandContext) { sendMessage(`Finish this task completely. Re-read the request and current workspace state, complete missing implementation, run the relevant verification loop, fix failures, review the final diff, and do not claim done until the requested behavior is proven or a concrete blocker is identified. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,project', label: 'Understand Project', category: 'Agent', description: 'Build focused project intelligence before acting', icon: <Brain size={14} />, execute(commandContext) { sendMessage(`Understand this project for the requested goal: identify stack, manifests, architecture, important modules, build/test commands, project rules, relevant skills and dependencies. Use exact plus semantic search as needed, then continue with the requested work. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,requirements', label: 'Implement Requirements', category: 'Agent', description: 'Read attached requirements and implement them in the project', icon: <ListChecks size={14} />, execute(commandContext) { sendMessage(`Read and understand the attached requirement sources first, map each actionable requirement to the project, implement the mapped changes, verify them, and report any requirement that could not be validated. Never invent unreadable document content. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,ui', label: 'Visual UI Fix', category: 'Agent', description: 'Use screenshot/image context and browser verification for UI work', icon: <Palette size={14} />, execute(commandContext) { sendMessage(`Treat attached images/screenshots as visual evidence. Inspect the existing UI, implement the requested visual and interaction changes, preserve behavior, and verify with the browser/runtime when available. ${commandContext.args}`.trim()); } },\n\t\t{ name: '/agent,verify', label: 'Strict Verify', category: 'Agent', description: 'Run the project-specific done gate and fix failures', icon: <FlaskConical size={14} />, execute(commandContext) { sendMessage(`Run the strict done gate for this task: relevant tests, lint/type checks, compile/build, runtime or browser checks where applicable, and final diff review. Diagnose and fix actionable failures, rerun checks, and report only genuine blockers. ${commandContext.args}`.trim()); } },\n")
+replace_once(slash_router, "\t\t{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },\n", "\t\t{ name: '/plugins', label: 'Plugins & MCP', category: 'System', description: 'Show connected MCP/plugin capability servers', icon: <Network size={14} />, execute() { const tools = accessor.get(IMCPService).getMCPTools() || []; const servers = [...new Set(tools.map(tool => tool.mcpServerName))].sort(); notify(accessor, servers.length ? `Connected capability servers: ${servers.join(', ')} (${tools.length} tools).` : 'No MCP/plugin capability servers are currently connected.', servers.length ? 'info' : 'warn'); } },\n\t\t{ name: '/preferences', label: 'Preference Rules', category: 'System', description: 'Explain Forge instruction precedence', icon: <Settings size={14} />, execute() { notify(accessor, 'Forge preference order: current task > project .voidrules/project skills > global AI instructions > generic defaults.'); } },\n\t\t{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },\n")
+replace_once(slash_router, "Forge commands: Agent /agent,* · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings.", "Forge commands: Agent /agent,* including /agent,finish /agent,project /agent,requirements /agent,ui /agent,verify · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /plugins /preferences /models /attach /image /settings.")
+
+mcp_server = 'scripts/forge-mcp-server.mjs'
+replace_once(mcp_server, "import { runSelfTest } from './forge-super-agent-self-test.mjs';\n", "import { runSelfTest } from './forge-super-agent-self-test.mjs';\nimport { documentStatus, readDocument } from './forge-document-reader.mjs';\n")
+replace_once(mcp_server, "  {\n    name: 'forge_learning',\n", "  {\n    name: 'forge_document',\n    description: 'Read local requirement and context documents for the coding agent. Supports PDF (when pypdf/PyMuPDF/pdftotext is available), DOCX, XLSX, PPTX, CSV, RTF, text, markdown, JSON/XML/YAML and source text. Returns extracted text with page/slide/sheet markers where available.',\n    inputSchema: {\n      type: 'object',\n      properties: {\n        action: { type: 'string', description: 'status | read' },\n        path: { type: 'string', description: 'Absolute local file path from an attachment or workspace.' },\n        maxChars: { type: 'number', description: 'Maximum extracted characters to return (1000-250000).' },\n      },\n      required: ['action'],\n    },\n  },\n  {\n    name: 'forge_learning',\n")
+replace_once(mcp_server, "    if (name === 'forge_learning') {\n", "    if (name === 'forge_document') {\n      if (args.action === 'status') return textResult(documentStatus());\n      if (args.action === 'read') return textResult(readDocument({ path: args.path, maxChars: args.maxChars }));\n      throw new Error(`Unsupported document action: ${args.action}`);\n    }\n\n    if (name === 'forge_learning') {\n")
 
 runtime_guard = 'scripts/forge-runtime-guard.mjs'
-replace_once(
-    runtime_guard,
-    "// Rebuild React because build.js also synchronizes Forge compatibility paths.\nif (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);\n",
-    "// Rebuild React because build.js also synchronizes Forge compatibility paths. CI may\n// explicitly build React immediately before this guard and opt out of the duplicate work.\nif (process.env.FORGE_SKIP_REACT_REBUILD === '1') {\n\tconsole.log('[forge-guard] React rebuild already completed by the caller; verifying artifacts only.');\n} else if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);\n",
-)
+replace_once(runtime_guard, "\t'scripts/forge-mcp-server.mjs',\n", "\t'scripts/forge-mcp-server.mjs',\n\t'scripts/forge-document-reader.mjs',\n\t'scripts/forge-document-reader.py',\n")
+replace_once(runtime_guard, "// Rebuild React because build.js also synchronizes Forge compatibility paths.\nif (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);\n", "// Rebuild React because build.js also synchronizes Forge compatibility paths. CI may\n// explicitly build React immediately before this guard and opt out of the duplicate work.\nif (process.env.FORGE_SKIP_REACT_REBUILD === '1') {\n\tconsole.log('[forge-guard] React rebuild already completed by the caller; verifying artifacts only.');\n} else if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);\n")
 
-print('Forge Autonomous Runtime V1 patch applied successfully.')
+print('Forge Autonomous Runtime V1 with document extraction applied successfully.')
