@@ -27,22 +27,27 @@ jobs:
         run: python3 scripts/apply-forge-semantic-ui-fix.py
       - name: Apply final orchestration compatibility fix
         run: python3 scripts/apply-forge-orchestration-final-fix.py
+      - name: Apply autonomous coding runtime
+        run: python3 scripts/apply-forge-autonomous-runtime-v1.py
+      - name: Run fast Forge contracts
+        run: |
+          node scripts/forge-agent-tool-contract-test.mjs
+          node scripts/forge-ui-contract-test.mjs
+          node scripts/forge-react-service-export-contract.mjs
+          node scripts/forge-autonomous-runtime-contract-test.mjs
       - name: Install Linux native build prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config
       - name: Install dependencies
         run: npm ci --foreground-scripts
-      - name: Run Forge contracts
-        run: |
-          node scripts/forge-agent-tool-contract-test.mjs
-          node scripts/forge-ui-contract-test.mjs
-          node scripts/forge-react-service-export-contract.mjs
       - name: Compile core TypeScript
         run: npm run compile
       - name: Build Forge React UI
         run: npm run buildreact
       - name: Verify runtime artifacts
+        env:
+          FORGE_SKIP_REACT_REBUILD: '1'
         run: node scripts/forge-runtime-guard.mjs
       - name: Commit validated fix
         run: |
@@ -50,7 +55,12 @@ jobs:
           git config user.email 'forge-fix-bot@users.noreply.github.com'
           git add src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx \
                   src/vs/workbench/contrib/void/common/toolActivityMessages.ts \
-                  scripts/forge-agent-tool-contract-test.mjs
+                  src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/components/ChatView.tsx \
+                  src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/slashCommandRouter.tsx \
+                  src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/autonomousTaskPolicy.ts \
+                  scripts/forge-agent-tool-contract-test.mjs \
+                  scripts/forge-runtime-guard.mjs \
+                  scripts/forge-autonomous-runtime-contract-test.mjs
           git diff --cached --check
-          git commit -m 'fix: complete Forge agent sidebar orchestration'
+          git commit -m 'feat: complete Forge autonomous coding runtime'
           git push origin HEAD:main
