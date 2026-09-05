@@ -8,7 +8,7 @@ import { Sparkles, RotateCcw, Copy, GitFork, ThumbsUp, ThumbsDown, Plus } from '
 import { URI } from '../../../../../../../base/common/uri.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { SlashCommandContext, SlashCommand } from '../utils/slashCommandRouter';
+import { createAllCommands, SlashCommandContext, SlashCommand } from '../utils/slashCommandRouter';
 import { UnifiedSlashCommandPalette } from '../utils/UnifiedSlashCommandPalette.tsx';
 import { StreamRenderer } from './StreamRenderer';
 import { ComposerControlCenter, Attachment, NewAttachment } from './ComposerControlCenter';
@@ -19,6 +19,7 @@ import { IVoidSettingsService } from '../../../../../common/voidSettingsService.
 import { StagingSelectionItem } from '../../../../../common/chatThreadServiceTypes.js';
 import { ISkillsService } from '../../../skillsService.js';
 import { ITerminalToolService } from '../../../../terminalToolService.js';
+import { prepareAutonomousTask } from '../utils/autonomousTaskPolicy';
 
 export interface ChatViewMessage {
 	readonly id: string;
@@ -32,6 +33,8 @@ export interface ChatViewProps {
 	messages: ChatViewMessage[];
 	isStreaming?: boolean;
 	onSendMessage: (msg: string, displayLabelOverride?: string) => void | Promise<void>;
+	browserSelections?: Extract<StagingSelectionItem, { type: 'BrowserComponent' }>[];
+	onRemoveBrowserSelection?: (uri: string) => void;
 	onNewThread?: () => void;
 	slashContext?: SlashCommandContext;
 	className?: string;
@@ -112,7 +115,10 @@ const AssistantMessage: React.FC<{
 const mimeTypeForFile = (filePath: string): string => {
 	const ext = filePath.split('.').pop()?.toLowerCase() || '';
 	const map: Record<string, string> = {
-		pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', jsonl: 'application/jsonl',
+		pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+		csv: 'text/csv', rtf: 'application/rtf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', jsonl: 'application/jsonl',
 		js: 'text/javascript', mjs: 'text/javascript', cjs: 'text/javascript', ts: 'text/typescript', tsx: 'text/typescript', jsx: 'text/javascript',
 		py: 'text/x-python', css: 'text/css', scss: 'text/x-scss', html: 'text/html', svg: 'image/svg+xml', xml: 'application/xml',
 		yaml: 'application/yaml', yml: 'application/yaml', toml: 'application/toml', rs: 'text/x-rust', go: 'text/x-go', java: 'text/x-java',
@@ -133,7 +139,7 @@ const isProjectRunRequest = (text: string): boolean => {
 // they should never be copied into the visible user bubble.
 const expandForgeCommand = (text: string): string => {
 	const trimmed = text.trim();
-	const match = /^\/(agent|run|fix|test|review)(?:,[^\s]+)?(?:\s+([\s\S]*))?$/i.exec(trimmed);
+	const match = /^\/(agent|run|fix|test|review)(?:\s+([\s\S]*))?$/i.exec(trimmed);
 	if (match) {
 		const command = match[1].toLowerCase();
 		const task = (match[2] || '').trim();
@@ -157,13 +163,14 @@ const expandForgeCommand = (text: string): string => {
 export const ChatView: React.FC<ChatViewProps> = ({
 	messages, isStreaming = false, onSendMessage, onNewThread, slashContext, className = '', workspaceReady = false,
 	workspaceFileCount, selectedFiles = [], providerName, modelName, onOpenSettings, tokenCount, maxTokens,
-	attachments = [], onRemoveAttachment, onRevertMessage,
+	attachments = [], onRemoveAttachment, onRevertMessage, browserSelections = [], onRemoveBrowserSelection,
 }) => {
 	const [isSlashOpen, setIsSlashOpen] = useState(false);
 	const [slashAnchor, setSlashAnchor] = useState<DOMRect | null>(null);
 	const [draftText, setDraftText] = useState('');
 	const [localAttachments, setLocalAttachments] = useState<Attachment[]>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const clearEventsRef = useRef<(() => void) | null>(null);
@@ -244,12 +251,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	}, [slashContext]);
 
-	const sendWithAdaptiveModel = useCallback(async (text: string): Promise<boolean> => {
+	const sendWithAdaptiveModel = useCallback(async (text: string, displayText = text): Promise<boolean> => {
 		const raw = text.trim();
 		if (!raw) return false;
 		if (await handleLocalSkillCommand(raw)) return false;
 		await ensurePersistentRunTerminal(raw);
-		const prepared = expandForgeCommand(raw);
+		const expanded = expandForgeCommand(raw);
+		const prepared = prepareAutonomousTask({
+			userText: displayText,
+			expandedText: expanded,
+			attachments: effectiveAttachments.map(attachment => ({ uri: attachment.uri, name: attachment.name, mimeType: attachment.mimeType })),
+		});
 
 		if (slashContext) {
 			try {
@@ -267,17 +279,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		// The backend receives the compact execution instruction, while the visible
 		// user bubble keeps exactly what the user typed (for example "/run my app").
-		await Promise.resolve(onSendMessage(prepared, raw));
+		await Promise.resolve(onSendMessage(prepared, displayText));
 		return true;
-	}, [ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
+	}, [effectiveAttachments, ensurePersistentRunTerminal, handleLocalSkillCommand, notify, onOpenSettings, onSendMessage, slashContext]);
 
 	const handleSend = useCallback(async () => {
-		if (isStreaming || isSubmitting) return;
-		const text = draftText.trim() || (effectiveAttachments.length > 0 ? 'Inspect the attached context and complete the requested work. Read relevant files first, make the necessary changes, and verify the result.' : '');
+		if (submittingRef.current) return;
+		const text = draftText.trim() || (effectiveAttachments.length + browserSelections.length + selectedFiles.length > 0 ? 'Understand every relevant attachment and summarize what it contains. Ask what changes I want before editing the project.' : '');
+		if (isStreaming && text.toLowerCase() !== '/workflow,stop') return;
 		if (!text) return;
+		submittingRef.current = true;
 		setIsSubmitting(true);
 		try {
-			const sent = await sendWithAdaptiveModel(text);
+			let sent: boolean;
+			const match = /^(\/[^\s]+)(?:\s+([\s\S]*))?$/.exec(text);
+			let pendingSend: Promise<boolean> | undefined;
+			const context = slashContext ? { ...slashContext, args: match?.[2] || '', sendMessage: (prompt: string) => {
+				pendingSend = sendWithAdaptiveModel(prompt, text);
+			} } : undefined;
+			const command = context && match ? createAllCommands(context).find(item => item.name === match[1].toLowerCase()) : undefined;
+			if (command && context) {
+				await command.execute(context);
+				if (!pendingSend) { setDraftText(''); return; } // local commands preserve attachments
+				sent = await pendingSend;
+			} else {
+				sent = await sendWithAdaptiveModel(text);
+			}
 			if (!sent) return;
 			setDraftText('');
 			setLocalAttachments([]);
@@ -286,9 +313,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			console.error('[Forge Chat] Task submission failed:', error);
 			notify(`Forge could not start this task: ${error instanceof Error ? error.message : String(error)}`, 'error');
 		} finally {
+			submittingRef.current = false;
 			setIsSubmitting(false);
 		}
-	}, [draftText, effectiveAttachments.length, isStreaming, isSubmitting, notify, sendWithAdaptiveModel]);
+	}, [draftText, effectiveAttachments.length, browserSelections.length, selectedFiles.length, isStreaming, isSubmitting, notify, sendWithAdaptiveModel, slashContext]);
 
 	const handleAbort = useCallback(async () => {
 		if (!slashContext) return;
@@ -312,7 +340,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		try {
 			const resources = await slashContext.accessor.get(IFileDialogService).showOpenDialog({
 				title: 'Attach files to Forge', canSelectFiles: true, canSelectFolders: false, canSelectMany: true, openLabel: 'Attach',
-				filters: [{ name: 'Code and documents', extensions: ['pdf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql'] }],
+				filters: [{ name: 'Code and documents', extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'rtf', 'txt', 'md', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'json', 'jsonl', 'css', 'scss', 'html', 'svg', 'xml', 'yaml', 'yml', 'toml', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'rb', 'sh', 'ps1', 'sql'] }],
 			});
 			if (!resources?.length) return;
 			for (const resource of resources) {
@@ -401,10 +429,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				</>}
 			</div>
 		</div>
+		{browserSelections.length > 0 && <div className='flex flex-wrap gap-2 px-5 py-2' aria-label='Attached browser components'>
+			{browserSelections.map(selection => <span key={selection.uri.toString()} className='inline-flex items-center gap-2 rounded-lg border border-[var(--forge-line)] px-2 py-1 text-xs'>
+				{selection.title}<button type='button' aria-label={`Remove ${selection.title}`} onClick={() => onRemoveBrowserSelection?.(selection.uri.toString())}>×</button>
+			</span>)}
+		</div>}
 		<ComposerControlCenter
 			value={draftText} onChange={setDraftText} onSubmit={() => { void handleSend(); }} onAbort={handleAbort}
 			isStreaming={isStreaming} isDisabled={isSubmitting} workspaceReady={workspaceReady} workspaceFileCount={workspaceFileCount}
-			selectedFiles={selectedFiles} providerName={providerName} modelName={modelName} onOpenSettings={onOpenSettings}
+			selectedFiles={selectedFiles} hasBrowserContext={browserSelections.length > 0} providerName={providerName} modelName={modelName} onOpenSettings={onOpenSettings}
 			tokenCount={tokenCount} maxTokens={maxTokens} attachments={effectiveAttachments} onAddAttachment={handleAddAttachment}
 			onPickFiles={handlePickFiles} onAttachmentError={message => notify(message, 'warn')} onRemoveAttachment={handleRemoveAttachment}
 			placeholder={isSubmitting ? 'Starting the task…' : 'Describe the outcome you want Forge to deliver…'} onKeyDown={handleKeyDown} textareaRef={textareaRef}

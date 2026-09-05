@@ -1,41 +1,54 @@
-name: Forge Autonomous Runtime Fast Validate
+name: Forge Runtime Fast Validate
 
 on:
-  push:
-    branches: [forge/autonomous-runtime-v1]
+  pull_request:
     paths:
+      - 'src/vs/workbench/contrib/void/**'
+      - 'scripts/**'
       - '.github/workflows/forge-autonomous-fast-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/vs/workbench/contrib/void/**'
+      - 'scripts/**'
+      - '.github/workflows/forge-autonomous-fast-validate.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: forge-fast-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   fast-validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Use repository Node version
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           package-manager-cache: false
-      - name: Apply current Forge repair patches
-        run: |
-          python3 scripts/apply-forge-semantic-ui-fix.py
-          python3 scripts/apply-forge-orchestration-final-fix.py
-          python3 scripts/apply-forge-autonomous-runtime-v1.py
       - name: Check helper syntax
         run: |
-          python3 -m py_compile scripts/apply-forge-autonomous-runtime-v1.py scripts/forge-document-reader.py
+          python3 -m py_compile scripts/forge-document-reader.py
           node --check scripts/forge-document-reader.mjs
           node --check scripts/forge-mcp-server.mjs
-      - name: Run Forge contracts without dependency install
+          node --check scripts/lib/forge-browser-controller.mjs
+      - name: Run source contracts before Code-OSS installation
         run: |
           node scripts/forge-agent-tool-contract-test.mjs
           node scripts/forge-ui-contract-test.mjs
           node scripts/forge-react-service-export-contract.mjs
           node scripts/forge-autonomous-runtime-contract-test.mjs
-      - name: Check generated diff
+          node scripts/forge-model-provider-contract-test.mjs
+      - name: Install isolated behavioral-test compiler
+        run: npm install --prefix "$RUNNER_TEMP/forge-tests" --ignore-scripts --no-audit --no-fund typescript@5.8.3
+      - name: Exercise command routing, document extraction and browser coordination
+        env:
+          FORGE_TYPESCRIPT_PATH: ${{ runner.temp }}/forge-tests/node_modules/typescript
+        run: node scripts/forge-runtime-behavior-test.mjs
+      - name: Check diff whitespace
         run: git diff --check

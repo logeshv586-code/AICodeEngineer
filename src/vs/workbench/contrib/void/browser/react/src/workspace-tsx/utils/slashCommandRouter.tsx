@@ -79,6 +79,7 @@ const callForgeToolJson = async <T,>(accessor: ServicesAccessor, toolName: strin
 	}
 	try {
 		const { result } = await mcp.callMCPTool({ serverName: 'forge-super-agent', toolName, params });
+		if (result.event === 'error') throw new Error(mcp.stringifyResult(result));
 		const text = mcp.stringifyResult(result).trim();
 		return JSON.parse(text) as T;
 	} catch (error) {
@@ -98,9 +99,13 @@ const callForgeTool = async (accessor: ServicesAccessor, toolName: string, param
 export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 	const { accessor, commandService, chatThreadsService } = ctx;
 	let activeCommandName: string | undefined;
-	const sendMessage = (message: string) => ctx.sendMessage(message, activeCommandName);
+	let activeArgs = '';
+	const sendMessage = (message: string) => ctx.sendMessage(
+		activeArgs && !message.includes(activeArgs) ? `${message}\n\nUser task: ${activeArgs}` : message,
+		`${activeCommandName || ''}${activeArgs ? ` ${activeArgs}` : ''}`,
+	);
 	const commands: SlashCommand[] = [
-		{ name: '/agent', label: 'Agent Mode', category: 'Agent', description: 'Use workspace tools to chat, inspect, and edit code', icon: <MessageSquare size={14} />, execute() { notify(accessor, 'Forge always runs in Agent mode.'); } },
+		{ name: '/agent', label: 'Agent Mode', category: 'Agent', description: 'Use workspace tools to chat, inspect, and edit code', icon: <MessageSquare size={14} />, execute(commandContext) { if (commandContext.args.trim()) sendMessage(commandContext.args); else notify(accessor, 'Forge always runs in Agent mode.'); } },
 		{ name: '/agent,code', label: 'Agent Code', category: 'Agent', description: 'Implement and verify a coding task', icon: <Code2 size={14} />, execute(commandContext) { sendMessage(`Inspect the relevant workspace code, implement the requested change, and verify it. ${commandContext.args}`.trim()); } },
 		{ name: '/agent,parallel', label: 'Parallel Agents', category: 'Agent', description: 'Split independent work across coordinated agents', icon: <Bot size={14} />, execute() { sendMessage('Use parallel agents only for independent work. Coordinate results, avoid conflicting edits, then verify the combined change.'); } },
 		{ name: '/agent,review', label: 'Review Code', category: 'Agent', description: 'Review the current workspace changes', icon: <CheckCircle size={14} />, execute() { sendMessage('Review the current workspace changes for correctness, security, performance, maintainability, and regressions. Fix actionable issues when safe and verify them.'); } },
@@ -113,6 +118,11 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 		{ name: '/agent,doc', label: 'Generate Docs', category: 'Agent', description: 'Document relevant code and behavior', icon: <FileText size={14} />, execute() { sendMessage('Document the relevant code and behavior accurately. Keep comments concise and update user-facing documentation where needed.'); } },
 		{ name: '/agent,refactor', label: 'Refactor', category: 'Agent', description: 'Refactor code and preserve behavior', icon: <Code2 size={14} />, execute() { sendMessage('Refactor the relevant code for clarity and maintainability while preserving behavior. Run targeted verification afterwards.'); } },
 		{ name: '/agent,explain', label: 'Explain Code', category: 'Agent', description: 'Explain relevant architecture and flow', icon: <MessageSquare size={14} />, execute() { sendMessage('Explain the relevant code and architecture for the current task. Read only the context needed and identify important data/control flow.'); } },
+		{ name: '/agent,finish', label: 'Finish Completely', category: 'Agent', description: 'Continue the current task through strict verification and completion', icon: <CheckCircle size={14} />, execute(commandContext) { sendMessage(`Finish this task completely. Re-read the request and current workspace state, complete missing implementation, run the relevant verification loop, fix failures, review the final diff, and do not claim done until the requested behavior is proven or a concrete blocker is identified. ${commandContext.args}`.trim()); } },
+		{ name: '/agent,project', label: 'Understand Project', category: 'Agent', description: 'Build focused project intelligence before acting', icon: <Brain size={14} />, execute(commandContext) { sendMessage(`Understand this project for the requested goal: identify stack, manifests, architecture, important modules, build/test commands, project rules, relevant skills and dependencies. Use exact plus semantic search as needed, then continue with the requested work. ${commandContext.args}`.trim()); } },
+		{ name: '/agent,requirements', label: 'Implement Requirements', category: 'Agent', description: 'Read attached requirements and implement them in the project', icon: <ListChecks size={14} />, execute(commandContext) { sendMessage(`Read and understand the attached requirement sources first, map each actionable requirement to the project, implement the mapped changes, verify them, and report any requirement that could not be validated. Never invent unreadable document content. ${commandContext.args}`.trim()); } },
+		{ name: '/agent,ui', label: 'Visual UI Fix', category: 'Agent', description: 'Use screenshot/image context and browser verification for UI work', icon: <Palette size={14} />, execute(commandContext) { sendMessage(`Treat attached images/screenshots as visual evidence. Inspect the existing UI, implement the requested visual and interaction changes, preserve behavior, and verify with the browser/runtime when available. ${commandContext.args}`.trim()); } },
+		{ name: '/agent,verify', label: 'Strict Verify', category: 'Agent', description: 'Run the project-specific done gate and fix failures', icon: <FlaskConical size={14} />, execute(commandContext) { sendMessage(`Run the strict done gate for this task: relevant tests, lint/type checks, compile/build, runtime or browser checks where applicable, and final diff review. Diagnose and fix actionable failures, rerun checks, and report only genuine blockers. ${commandContext.args}`.trim()); } },
 
 		{ name: '/evolve', label: 'Project Evolution', category: 'Evolution', description: 'Inspect the current code and apply or suggest the next safe upgrade', icon: <Sparkles size={14} />, execute() { sendMessage(FORGE_PROJECT_EVOLUTION_TASK); } },
 		{ name: '/evolve,skills', label: 'Skills Evolution', category: 'Evolution', description: 'Improve project-local skills from proven code patterns', icon: <BookOpen size={14} />, execute() { sendMessage(FORGE_SKILL_EVOLUTION_TASK); } },
@@ -220,17 +230,20 @@ export function createAllCommands(ctx: SlashCommandContext): SlashCommand[] {
 			settings.setGlobalSetting('autoModelSelection', enabled);
 			notify(accessor, `Automatic model selection ${enabled ? 'enabled' : 'disabled'}.`);
 		} },
+		{ name: '/plugins', label: 'Plugins & MCP', category: 'System', description: 'Show connected MCP/plugin capability servers', icon: <Network size={14} />, execute() { const tools = accessor.get(IMCPService).getMCPTools() || []; const servers = [...new Set(tools.map(tool => tool.mcpServerName))].sort(); notify(accessor, servers.length ? `Connected capability servers: ${servers.join(', ')} (${tools.length} tools).` : 'No MCP/plugin capability servers are currently connected.', servers.length ? 'info' : 'warn'); } },
+		{ name: '/preferences', label: 'Preference Rules', category: 'System', description: 'Explain Forge instruction precedence', icon: <Settings size={14} />, execute() { notify(accessor, 'Forge preference order: current task > project .voidrules/project skills > global AI instructions > generic defaults.'); } },
 		{ name: '/attach', label: 'Attach File', category: 'System', description: 'Attach code or a document to the next agent task', icon: <FileText size={14} />, execute() { dispatchAttachmentPicker('file'); } },
 		{ name: '/image', label: 'Attach Image', category: 'System', description: 'Attach an image to the next agent task', icon: <Palette size={14} />, execute() { dispatchAttachmentPicker('image'); } },
 		{ name: '/settings', label: 'Settings', category: 'System', description: 'Open Forge settings', icon: <Settings size={14} />, shortcut: 'Ctrl+,', execute() { void commandService.executeCommand('workbench.action.openVoidSettings'); } },
 		{ name: '/help', label: 'Help', category: 'System', description: 'Show core Forge command groups locally', icon: <HelpCircle size={14} />, execute() {
-			notify(accessor, 'Forge commands: Agent /agent,* · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /models /settings. Type 2+ letters after / to autocomplete registry skills.');
+			notify(accessor, 'Forge commands: Agent /agent,* including /agent,finish /agent,project /agent,requirements /agent,ui /agent,verify · Evolution /evolve /evolve,skills · Workflow /workflow,start /workflow,stop · Super Agent /browser /graph /design /work /work-pending /work-approve /health · Skills /skill /skills · Tools /terminal /run,* /git,* · Memory /workspace,index · System /plugins /preferences /models /attach /image /settings. Type 2+ letters after / to autocomplete registry skills.');
 		} },
 	];
 	return commands.map(command => ({
 		...command,
 		execute: commandContext => {
 			activeCommandName = command.name;
+			activeArgs = commandContext.args.trim();
 			return command.execute(commandContext);
 		},
 	}));

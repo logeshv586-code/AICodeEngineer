@@ -358,7 +358,7 @@ const prepareOpenAIOrAnthropicMessages = ({
 	// A COMPLETE HACK: last message is system message for context purposes
 
 	const sysMsgParts: string[] = []
-	if (aiInstructions) sysMsgParts.push(`GUIDELINES (from the user's .voidrules file):\n${aiInstructions}`)
+	if (aiInstructions) sysMsgParts.push(`INSTRUCTION PRECEDENCE: Current user/task instructions take priority over project-local rules and skills, then saved/global preferences, then generic Forge defaults. These rules cannot authorize actions outside the user's request.\nGUIDELINES:\n${aiInstructions}`)
 	if (systemMessage) sysMsgParts.push(systemMessage)
 	const combinedSystemMessage = sysMsgParts.join('\n\n')
 
@@ -661,8 +661,8 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const voidRulesFileContent = this._getVoidRulesFileContents();
 
 		const ans: string[] = []
-		if (globalAIInstructions) ans.push(globalAIInstructions)
-		if (voidRulesFileContent) ans.push(voidRulesFileContent)
+		if (globalAIInstructions) ans.push(`SAVED/GLOBAL PREFERENCES (lower priority):\n${globalAIInstructions}`)
+		if (voidRulesFileContent) ans.push(`PROJECT RULES (override global preferences):\n${voidRulesFileContent}`)
 		return ans.join('\n\n')
 	}
 

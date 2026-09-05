@@ -14,10 +14,21 @@ export class ForgeBrowserController {
     this.headless = options.headless ?? process.env.FORGE_BROWSER_HEADED !== '1';
     this.context = null;
     this.page = null;
+    this.busy = false;
+  }
+
+  async runExclusive(operation) {
+    if (this.busy) throw new Error('Browser is busy with another tool request. Wait for its result and inspect a fresh snapshot before acting.');
+    this.busy = true;
+    try { return await operation(); } finally { this.busy = false; }
   }
 
   async ensurePage() {
     if (this.page && !this.page.isClosed()) return this.page;
+    if (this.context) {
+      this.page = this.context.pages().find(page => !page.isClosed()) || await this.context.newPage();
+      return this.page;
+    }
     let chromium;
     try {
       ({ chromium } = await import('@playwright/test'));
@@ -68,6 +79,7 @@ export class ForgeBrowserController {
         return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
       };
       const interactiveSelector = 'a[href],button,[role="button"],input,textarea,select,[contenteditable="true"]';
+      document.querySelectorAll('[data-forge-agent-id]').forEach(el => el.removeAttribute('data-forge-agent-id'));
       const interactive = Array.from(document.querySelectorAll(interactiveSelector)).filter(visible).slice(0, 100);
       interactive.forEach((el, index) => el.setAttribute('data-forge-agent-id', String(index + 1)));
       const interactives = interactive.map(el => {
@@ -107,7 +119,7 @@ export class ForgeBrowserController {
 
   locator(selector) {
     if (!selector) throw new Error('A selector is required. Use a selector returned by snapshot when possible.');
-    return this.page.locator(selector).first();
+    return this.page.locator(selector); // Playwright strict mode rejects ambiguous targets.
   }
 
   async click(selector) {
@@ -223,7 +235,7 @@ export class ForgeBrowserController {
     fs.mkdirSync(this.artifactDir, { recursive: true });
     const safe = compactText(name).replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'forge-browser';
     const file = path.join(this.artifactDir, `${safe}-${Date.now()}.png`);
-    await page.screenshot({ path: file, fullPage: true });
+    await page.screenshot({ path: file, fullPage: true, mask: [page.locator('input[type="password"],input[autocomplete="one-time-code"]')] });
     return { ok: true, path: file, url: page.url() };
   }
 
@@ -241,8 +253,14 @@ export class ForgeBrowserController {
   }
 
   async runSteps(steps = []) {
+    const supported = new Set(['open', 'goto', 'snapshot', 'click', 'fill', 'type', 'press', 'select', 'check', 'hover', 'wait', 'wait_for_text', 'back', 'forward', 'reload', 'new_tab', 'switch_tab', 'close_tab', 'screenshot']);
+    if (!Array.isArray(steps) || steps.length > 40) throw new Error('run_steps requires an array of at most 40 steps; no steps were executed.');
+    for (const step of steps) {
+      if (!step || !supported.has(step.action)) throw new Error(`Unsupported browser step: ${step?.action}; no steps were executed.`);
+    }
     const outputs = [];
-    for (const step of steps.slice(0, 40)) {
+    for (const [index, step] of steps.entries()) {
+      try {
       const action = step?.action;
       if (action === 'open' || action === 'goto') outputs.push(await this.open(step.url));
       else if (action === 'snapshot') outputs.push(await this.snapshot());
@@ -263,6 +281,9 @@ export class ForgeBrowserController {
       else if (action === 'close_tab') outputs.push(await this.closeTab(step.index));
       else if (action === 'screenshot') outputs.push(await this.screenshot(step.name));
       else throw new Error(`Unsupported browser step: ${action}`);
+      } catch (error) {
+        throw new Error(JSON.stringify({ message: 'Browser batch stopped. Do not replay completed steps. Inspect current state before retrying the failed step; its action may already have happened.', completedSteps: outputs.length, failedStepIndex: index, failedAction: step.action, error: error instanceof Error ? error.message : String(error) }));
+      }
     }
     return outputs;
   }

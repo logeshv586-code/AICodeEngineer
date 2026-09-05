@@ -3,6 +3,8 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../../../../base/common/uri.js';
+import { StagingSelectionItem } from '../../../../../common/chatThreadServiceTypes.js';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useRawAccessor, useSettingsState } from '../../util/services.tsx';
 import { ChatView, ChatViewMessage } from './ChatView.tsx';
@@ -81,6 +83,17 @@ export const ConversationShell: React.FC = () => {
 		if (restoredThread?.messages.length) chatThreadsService.createNewThread();
 	}, [chatThreadsService]);
 
+	useEffect(() => {
+		const addContext = (event: Event) => {
+			const detail = (event as CustomEvent<{ kind?: string; content?: string }>).detail;
+			if (typeof detail?.content !== 'string' || !detail.content.trim()) return;
+			chatThreadsService.addNewStagingSelection({ type: 'BrowserComponent', title: detail.kind || 'Browser context', content: detail.content,
+				uri: URI.from({ scheme: 'forge-context', path: `/${Date.now()}-${Math.random().toString(36).slice(2)}` }) });
+		};
+		window.addEventListener('forge:add-context', addContext);
+		return () => window.removeEventListener('forge:add-context', addContext);
+	}, [chatThreadsService]);
+
 	const messages = useMemo<ChatViewMessage[]>(() => {
 		if (!currentThread) return [];
 		return currentThread.messages
@@ -114,42 +127,13 @@ export const ConversationShell: React.FC = () => {
 		const backendMessage = effectiveMessage;
 		const displayLabel = displayLabelOverride ?? generatedTaskDisplayLabels.get(effectiveMessage) ?? effectiveMessage;
 
-		const applyVisibleLabel = () => {
-			const state = chatThreadsService.state;
-			const thread = state.allThreads[threadId];
-			if (!thread) return;
+		await chatThreadsService.addUserMessageAndStreamResponse({ userMessage: backendMessage, displayLabelOverride: displayLabel, _chatSelections: selections, threadId });
+		// Only clear the selections consumed by this send, and never another thread's draft.
+		if (chatThreadsService.state.currentThreadId === threadId) {
+			const current = chatThreadsService.getCurrentThreadState().stagingSelections;
+			chatThreadsService.setCurrentThreadState({ stagingSelections: current.filter(item => !selections.includes(item)) });
+		}
 
-			let targetIndex = -1;
-			for (let index = thread.messages.length - 1; index >= 0; index--) {
-				const candidate = thread.messages[index];
-				if (candidate.role === 'user' && (candidate.content === backendMessage || candidate.displayContent === backendMessage)) {
-					targetIndex = index;
-					break;
-				}
-			}
-			if (targetIndex < 0) return;
-
-			const nextMessages = thread.messages.slice();
-			const userMessage = nextMessages[targetIndex];
-			if (userMessage.role !== 'user' || userMessage.displayContent === displayLabel) return;
-			nextMessages[targetIndex] = { ...userMessage, displayContent: displayLabel };
-			chatThreadsService.dangerousSetState({
-				...state,
-				allThreads: {
-					...state.allThreads,
-					[threadId]: { ...thread, messages: nextMessages },
-				},
-			});
-		};
-
-		const responsePromise = chatThreadsService.addUserMessageAndStreamResponse({ userMessage: backendMessage, _chatSelections: selections, threadId });
-		applyVisibleLabel();
-		queueMicrotask(applyVisibleLabel);
-		window.setTimeout(applyVisibleLabel, 0);
-
-		await responsePromise;
-		applyVisibleLabel();
-		chatThreadsService.setCurrentThreadState({ stagingSelections: [] });
 	}, [chatThreadsService]);
 
 	const slashContext = useMemo<SlashCommandContext>(() => ({
@@ -182,6 +166,7 @@ export const ConversationShell: React.FC = () => {
 					onClose={closeSidebar}
 				/>
 				<ChatView
+					key={currentThreadId}
 					messages={messages}
 					isStreaming={isStreaming}
 					onSendMessage={sendMessage}
@@ -189,6 +174,8 @@ export const ConversationShell: React.FC = () => {
 					slashContext={slashContext}
 					workspaceReady={workspaceReady}
 					selectedFiles={stagedFiles}
+					browserSelections={stagedSelections.filter((s): s is Extract<StagingSelectionItem, { type: 'BrowserComponent' }> => s.type === 'BrowserComponent')}
+					onRemoveBrowserSelection={uri => chatThreadsService.setCurrentThreadState({ stagingSelections: stagedSelections.filter(s => s.type !== 'BrowserComponent' || s.uri.toString() !== uri) })}
 					providerName={selectedModel?.providerName ?? ''}
 					modelName={selectedModel?.modelName ?? ''}
 					onOpenSettings={openSettings}

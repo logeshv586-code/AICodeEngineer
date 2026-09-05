@@ -60,6 +60,8 @@ const requiredSuperAgentFiles = [
 	'scripts/forge-brand-contract-test.mjs',
 	'scripts/forge-work-self-test.mjs',
 	'scripts/forge-mcp-server.mjs',
+	'scripts/forge-document-reader.mjs',
+	'scripts/forge-document-reader.py',
 	'scripts/forge-integrations.mjs',
 	'scripts/forge-node24-runtime.mjs',
 	'scripts/forge-work.mjs',
@@ -104,8 +106,11 @@ if (initialMissing.length > 0) {
 	if (run(npmCommand, ['run', 'compile']) !== 0) process.exit(1);
 }
 
-// Rebuild React because build.js also synchronizes Forge compatibility paths.
-if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);
+// Rebuild React because build.js also synchronizes Forge compatibility paths. CI may
+// explicitly build React immediately before this guard and opt out of the duplicate work.
+if (process.env.FORGE_SKIP_REACT_REBUILD === '1') {
+	console.log('[forge-guard] React rebuild already completed by the caller; verifying artifacts only.');
+} else if (run(npmCommand, ['run', 'buildreact']) !== 0) process.exit(1);
 
 const remainingMissing = missingFiles();
 if (remainingMissing.length > 0) {

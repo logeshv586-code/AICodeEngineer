@@ -458,8 +458,8 @@ ${page.fileContents}
 						sortByScore: true,
 					})
 					const data = await searchService.fileSearch(query, CancellationToken.None)
-					const fromIdx = MAX_CHILDREN_URIS_PAGE * (pageNumber - 1)
-					const toIdx = MAX_CHILDREN_URIS_PAGE * pageNumber - 1
+					const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
+					const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
 					return { uris: data.results.slice(fromIdx, toIdx + 1).map(({ resource }) => resource), hasNextPage: (data.results.length - 1) - toIdx >= 1 }
 				}
 				const pages = await Promise.all(queryStrings.map(searchOne))
@@ -478,8 +478,8 @@ ${page.fileContents}
 				const searchOne = async (pattern: string) => {
 					const query = queryBuilder.text({ pattern, isRegExp: isRegex }, searchFolders)
 					const data = await searchService.textSearch(query, CancellationToken.None)
-					const fromIdx = MAX_CHILDREN_URIS_PAGE * (pageNumber - 1)
-					const toIdx = MAX_CHILDREN_URIS_PAGE * pageNumber - 1
+					const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
+					const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
 					return { uris: data.results.slice(fromIdx, toIdx + 1).map(({ resource }) => resource), hasNextPage: (data.results.length - 1) - toIdx >= 1 }
 				}
 				const pages = await Promise.all(queryStrings.map(searchOne))

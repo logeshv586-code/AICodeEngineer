@@ -21,6 +21,7 @@ export type AgentPlanItem = {
 export type QueuedUserMessage = {
 	id: string;
 	content: string;
+	displayLabelOverride?: string;
 	createdAt: number;
 	selections?: StagingSelectionItem[];
 };

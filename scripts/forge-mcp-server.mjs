@@ -8,6 +8,7 @@ import { graphStatus, openViewer, searchGraph, stopViewer, viewerStatus } from '
 import { sidecarStatus, startSidecar, stopSidecar } from './forge-sidecars.mjs';
 import { learningStatus, recordLearningTrace, skillOptSleep } from './forge-learning.mjs';
 import { runSelfTest } from './forge-super-agent-self-test.mjs';
+import { documentStatus, readDocument } from './forge-document-reader.mjs';
 
 const browser = new ForgeBrowserController();
 const server = new Server(
@@ -92,6 +93,19 @@ const tools = [
     },
   },
   {
+    name: 'forge_document',
+    description: 'Read local requirement and context documents for the coding agent. Supports PDF (when pypdf/PyMuPDF/pdftotext is available), DOCX, XLSX, PPTX, CSV, RTF, text, markdown, JSON/XML/YAML and source text. Returns extracted text with page/slide/sheet markers where available.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'status | read' },
+        path: { type: 'string', description: 'Absolute local file path from an attachment or workspace.' },
+        maxChars: { type: 'number', description: 'Maximum extracted characters to return (1000-250000).' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'forge_learning',
     description: 'Record sanitized coding outcomes for offline learning and run SkillOpt-Sleep validation. Agent Lightning training stays opt-in/offline; never mutate live skills merely because a task completed.',
     inputSchema: {
@@ -111,7 +125,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   const name = request.params.name;
   const args = request.params.arguments || {};
   try {
-    if (name === 'forge_browser') {
+    if (name === 'forge_browser') return await browser.runExclusive(async () => {
       const action = args.action;
       if (action === 'status') return textResult(await browser.status());
       if (action === 'open') return textResult(await browser.open(args.url));
@@ -137,7 +151,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
       if (action === 'evaluate') return textResult(await browser.evaluate(args.expression, args.allowUnsafe === true));
       if (action === 'close') return textResult(await browser.close());
       throw new Error(`Unsupported browser action: ${action}`);
-    }
+    });
 
     if (name === 'forge_integrations') {
       if (args.action === 'status') return textResult(integrationStatus());
@@ -182,6 +196,12 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
       if (args.action === 'remove') return textResult({ removed: removeWorkflow(args.id) });
       if (args.action === 'tick') return textResult(tickWorkflows());
       throw new Error(`Unsupported workflow action: ${args.action}`);
+    }
+
+    if (name === 'forge_document') {
+      if (args.action === 'status') return textResult(documentStatus());
+      if (args.action === 'read') return textResult(await readDocument({ path: args.path, maxChars: args.maxChars }));
+      throw new Error(`Unsupported document action: ${args.action}`);
     }
 
     if (name === 'forge_learning') {

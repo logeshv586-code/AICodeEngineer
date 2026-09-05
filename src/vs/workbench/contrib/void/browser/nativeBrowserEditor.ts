@@ -475,40 +475,12 @@ class NativeBrowserPane extends EditorPane {
 
 		this.addToChatButton = document.createElement('button');
 		this.addToChatButton.type = 'button';
-		this.addToChatButton.textContent = nls.localize('nativeBrowserAddToChat', 'Add to Chat ▾');
+		this.addToChatButton.textContent = nls.localize('nativeBrowserAddToChat', 'Add Chat');
 		this.addToChatButton.title = nls.localize('nativeBrowserAddToChatTitle', 'Add this reusable component to the Forge AI chat bar');
 		this.addToChatButton.style.cssText = 'background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:0;border-radius:3px;padding:5px 10px;cursor:pointer;';
 
-		const addMenu = document.createElement('div');
-		addMenu.style.cssText = 'display:none;position:absolute;right:8px;top:40px;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:100;flex-direction:column;';
-		const createMenuItem = (label: string, onClick: () => void) => {
-			const item = document.createElement('button');
-			item.type = 'button';
-			item.textContent = label;
-			item.style.cssText = 'background:none;border:none;color:var(--vscode-dropdown-foreground);padding:6px 12px;text-align:left;cursor:pointer;white-space:nowrap;';
-			item.onmouseover = () => item.style.background = 'var(--vscode-list-activeSelectionBackground)';
-			item.onmouseout = () => item.style.background = 'none';
-			this._register(addDisposableListener(item, EventType.CLICK, () => {
-				addMenu.style.display = 'none';
-				onClick();
-			}));
-			return item;
-		};
-		addMenu.append(
-			createMenuItem('Page Content', () => this.addSelectionToChat('page')),
-			createMenuItem('Full Component', () => this.addSelectionToChat('full'))
-		);
-		header.append(this.collapseButton, this.inspectorTitle, this.inspectorMeta, this.addToChatButton, addMenu);
-
-		this._register(addDisposableListener(this.addToChatButton, EventType.CLICK, (e) => {
-			addMenu.style.display = addMenu.style.display === 'none' ? 'flex' : 'none';
-			e.stopPropagation();
-		}));
-		this._register(addDisposableListener(document, EventType.CLICK, (e) => {
-			if (e.target !== this.addToChatButton) {
-				addMenu.style.display = 'none';
-			}
-		}));
+		header.append(this.collapseButton, this.inspectorTitle, this.inspectorMeta, this.addToChatButton);
+		this._register(addDisposableListener(this.addToChatButton, EventType.CLICK, () => this.addSelectionToChat('full')));
 
 		const actions = document.createElement('div');
 		actions.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border);';
@@ -752,14 +724,13 @@ class NativeBrowserPane extends EditorPane {
 			];
 		}
 
-		const event = new CustomEvent('forge:add-context', {
-			detail: {
-				kind: mode === 'page' ? `Page Content: ${selection.page.title || 'Untitled'}` : `Component: ${selection.name}`,
-				content: userMessage.filter(Boolean).join('\n')
-			}
+		this.chatThreadService.addNewStagingSelection({
+			type: 'BrowserComponent', title: selection.name,
+			uri: URI.parse(selection.url).with({ fragment: `forge-component=${encodeURIComponent(selection.selector)}` }),
+			content: userMessage.filter(Boolean).join('\n'),
 		});
-		window.dispatchEvent(event);
-		
+		void this.viewsService.openViewContainer(VOID_VIEW_CONTAINER_ID).then(() => this.chatThreadService.focusCurrentChat());
+
 		this.notificationService.notify({ severity: Severity.Info, message: nls.localize('nativeBrowserAdded', 'Component added to chat.') });
 	}
 

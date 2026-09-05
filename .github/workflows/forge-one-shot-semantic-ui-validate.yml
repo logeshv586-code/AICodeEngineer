@@ -1,16 +1,17 @@
-name: Forge One-Shot Semantic UI Validate
+name: Forge Full Runtime Validate
 
+# Maintained source is committed in PRs. Full builds are explicit and never push code.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/forge-one-shot-semantic-ui-validate.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  NODE_OPTIONS: --max-old-space-size=8192
 
 jobs:
-  validate-and-commit:
+  validate-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -23,12 +24,6 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           package-manager-cache: false
-      - name: Apply semantic-search UI fix
-        run: python3 scripts/apply-forge-semantic-ui-fix.py
-      - name: Apply final orchestration compatibility fix
-        run: python3 scripts/apply-forge-orchestration-final-fix.py
-      - name: Apply autonomous coding runtime
-        run: python3 scripts/apply-forge-autonomous-runtime-v1.py
       - name: Run fast Forge contracts
         run: |
           node scripts/forge-agent-tool-contract-test.mjs
@@ -49,21 +44,3 @@ jobs:
         env:
           FORGE_SKIP_REACT_REBUILD: '1'
         run: node scripts/forge-runtime-guard.mjs
-      - name: Commit validated fix
-        run: |
-          git config user.name 'forge-fix-bot'
-          git config user.email 'forge-fix-bot@users.noreply.github.com'
-          git add src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx \
-                  src/vs/workbench/contrib/void/common/toolActivityMessages.ts \
-                  src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/components/ChatView.tsx \
-                  src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/slashCommandRouter.tsx \
-                  src/vs/workbench/contrib/void/browser/react/src/workspace-tsx/utils/autonomousTaskPolicy.ts \
-                  scripts/forge-agent-tool-contract-test.mjs \
-                  scripts/forge-runtime-guard.mjs \
-                  scripts/forge-autonomous-runtime-contract-test.mjs \
-                  scripts/forge-mcp-server.mjs \
-                  scripts/forge-document-reader.mjs \
-                  scripts/forge-document-reader.py
-          git diff --cached --check
-          git commit -m 'feat: complete Forge autonomous coding runtime'
-          git push origin HEAD:main
