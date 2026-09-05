@@ -320,7 +320,7 @@ export interface IChatThreadService {
 	editUserMessageAndStreamResponse({ userMessage, messageIdx, threadId }: { userMessage: string, messageIdx: number, threadId: string }): Promise<void>;
 
 	// call to add a message
-	addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }): Promise<void>;
+	addUserMessageAndStreamResponse({ userMessage, displayLabelOverride, _chatSelections, threadId }: { userMessage: string, displayLabelOverride?: string, _chatSelections?: StagingSelectionItem[], threadId: string }): Promise<void>;
 
 	// approve/reject
 	approveLatestToolRequest(threadId: string): void;
@@ -627,9 +627,9 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		this._onDidChangeCurrentThread.fire()
 	}
 
-	private _queueUserMessage(threadId: string, content: string, selections?: StagingSelectionItem[]) {
+	private _queueUserMessage(threadId: string, content: string, selections?: StagingSelectionItem[], displayLabelOverride?: string) {
 		const queue = this.queuedMessages[threadId] ?? []
-		queue.push({ id: generateUuid(), content, createdAt: Date.now(), selections: selections?.slice() })
+		queue.push({ id: generateUuid(), content, displayLabelOverride, createdAt: Date.now(), selections: selections?.slice() })
 		this.queuedMessages[threadId] = queue
 		this._fireQueueChanged(threadId)
 	}
@@ -638,6 +638,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		const message = this.queuedMessages[threadId]?.find(item => item.id === messageId)
 		if (!message || !content.trim()) return
 		message.content = content.trim()
+		message.displayLabelOverride = content.trim()
 		this._fireQueueChanged(threadId)
 	}
 
@@ -653,7 +654,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		const next = this.queuedMessages[threadId]?.shift()
 		if (!next) return
 		this._fireQueueChanged(threadId)
-		await this._addUserMessageAndStreamResponse({ userMessage: next.content, _chatSelections: next.selections, threadId })
+		await this._addUserMessageAndStreamResponse({ userMessage: next.content, displayLabelOverride: next.displayLabelOverride, _chatSelections: next.selections, threadId })
 	}
 
 	async resumeAgent(threadId: string, instruction = 'Continue the interrupted task from the current workspace state. Finish the original request and verify the result.'): Promise<void> {
@@ -894,6 +895,12 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			// false by default each iteration
 			shouldSendAnotherMessage = false
 			isRunningWhenEnd = undefined
+			if (nMessagesSent >= 80) {
+				this.pausedQueueThreads.add(threadId)
+				this._setStreamState(threadId, { isRunning: undefined, error: { message: 'Agent paused after 80 turns. Review progress and resume from the saved conversation.', fullError: null } })
+				this._addUserCheckpoint({ threadId })
+				return
+			}
 			nMessagesSent += 1
 
 			this._setStreamState(threadId, { isRunning: 'idle', interrupt: idleInterruptor, agentRunStartedAt })
@@ -923,8 +930,16 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					| { type: 'llmError', error?: { message: string; fullError: Error | null; } }
 					| { type: 'llmAborted' }
 
-				let resMessageIsDonePromise: (res: ResTypes) => void // resolves when user approves this tool use (or if tool doesn't require approval)
-				const messageIsDonePromise = new Promise<ResTypes>((res, rej) => { resMessageIsDonePromise = res })
+				let settled = false
+				let requestTimer: ReturnType<typeof setTimeout> | undefined
+				let resolveMessage!: (res: ResTypes) => void
+				const messageIsDonePromise = new Promise<ResTypes>(resolve => { resolveMessage = resolve })
+				const resMessageIsDonePromise = (result: ResTypes) => {
+					if (settled) return
+					settled = true
+					clearTimeout(requestTimer)
+					resolveMessage(result)
+				}
 
 				const llmCancelToken = this._llmMessageService.sendLLMMessage({
 					messagesType: 'chatMessages',
@@ -936,6 +951,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					logging: { loggingName: `Chat - ${chatMode}`, loggingExtras: { threadId, nMessagesSent, chatMode } },
 					separateSystemMessage: separateSystemMessage,
 					onText: ({ fullText, fullReasoning, toolCall }) => {
+						if (settled) return
 						// Tool turns are execution state, not chat replies. As soon as the
 						// provider exposes a tool call, move progress into the tool UI and
 						// suppress routine "Let me inspect..." narration from the sidebar.
@@ -966,11 +982,16 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 				// mark as streaming
 				if (!llmCancelToken) {
+					resMessageIsDonePromise({ type: 'llmAborted' })
 					this._setStreamState(threadId, { isRunning: undefined, error: { message: 'There was an unexpected error when sending your chat message.', fullError: null } })
 					break
 				}
 
 				this._setStreamState(threadId, { isRunning: 'LLM', llmInfo: { displayContentSoFar: '', reasoningSoFar: '', toolCallSoFar: null }, interrupt: Promise.resolve(() => this._llmMessageService.abort(llmCancelToken)), agentRunStartedAt })
+				if (!settled) requestTimer = setTimeout(() => {
+					resMessageIsDonePromise({ type: 'llmError', error: { message: 'Model request timed out after 5 minutes. No pending tool action was executed.', fullError: null } })
+					this._llmMessageService.abort(llmCancelToken)
+				}, 300_000)
 				const llmRes = await messageIsDonePromise // wait for message to complete
 
 				// if something else started running in the meantime
@@ -1461,7 +1482,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 	}
 
 
-	private async _addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
+	private async _addUserMessageAndStreamResponse({ userMessage, displayLabelOverride, _chatSelections, threadId }: { userMessage: string, displayLabelOverride?: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
 		const thread = this.state.allThreads[threadId]
 		if (!thread) return // should never happen
 
@@ -1475,8 +1496,16 @@ We only need to do it for files that were edited since `from`, ie files between 
 		const instructions = userMessage
 		const currSelns: StagingSelectionItem[] = _chatSelections ?? thread.state.stagingSelections
 
-		const userMessageContent = await chat_userMessageContent(instructions, currSelns, { directoryStrService: this._directoryStringService, fileService: this._fileService }) // user message + names of files (NOT content)
-		const userHistoryElt: ChatMessage = { role: 'user', content: userMessageContent, displayContent: instructions, selections: currSelns, state: defaultMessageState }
+		const userMessageContent = await chat_userMessageContent(instructions, currSelns, { directoryStrService: this._directoryStringService, fileService: this._fileService,
+			readDocument: async uri => {
+				const tool = this._mcpService.getMCPTools()?.find(t => t.mcpServerName === 'forge-super-agent' && t.name === 'forge_document');
+				if (!tool) throw new Error('Forge document reader is unavailable. Run Super Agent setup and reconnect its MCP server.');
+				const { result } = await this._mcpService.callMCPTool({ serverName: 'forge-super-agent', toolName: tool.name, params: { action: 'read', path: uri.fsPath, maxChars: 60000 } });
+				if (result.event === 'error') throw new Error(this._mcpService.stringifyResult(result));
+				return this._mcpService.stringifyResult(result);
+			},
+		})
+		const userHistoryElt: ChatMessage = { role: 'user', content: userMessageContent, displayContent: displayLabelOverride ?? instructions, selections: currSelns, state: defaultMessageState }
 		this._addMessageToThread(threadId, userHistoryElt)
 
 		this._setThreadState(threadId, { currCheckpointIdx: null }) // no longer at a checkpoint because started streaming
@@ -1493,12 +1522,12 @@ We only need to do it for files that were edited since `from`, ie files between 
 	}
 
 
-	async addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
+	async addUserMessageAndStreamResponse({ userMessage, displayLabelOverride, _chatSelections, threadId }: { userMessage: string, displayLabelOverride?: string, _chatSelections?: StagingSelectionItem[], threadId: string }) {
 		const thread = this.state.allThreads[threadId];
 		if (!thread) return
 		const selections = _chatSelections ?? thread.state.stagingSelections
 		if (this.streamState[threadId]?.isRunning) {
-			this._queueUserMessage(threadId, userMessage, selections)
+			this._queueUserMessage(threadId, userMessage, selections, displayLabelOverride)
 			return
 		}
 		this.pausedQueueThreads.delete(threadId)
@@ -1523,7 +1552,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 		}
 
 		// Now call the original method to add the user message and stream the response
-		await this._addUserMessageAndStreamResponse({ userMessage, _chatSelections: selections, threadId });
+		await this._addUserMessageAndStreamResponse({ userMessage, displayLabelOverride, _chatSelections: selections, threadId });
 
 	}
 

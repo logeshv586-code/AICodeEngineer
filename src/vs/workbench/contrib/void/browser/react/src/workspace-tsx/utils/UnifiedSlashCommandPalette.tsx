@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bot, CheckCircle2, Play, TestTube2, Wrench } from 'lucide-react';
-import { SlashCommand, SlashCommandPaletteProps } from './slashCommandRouter.tsx';
+import { createAllCommands, SlashCommand, SlashCommandPaletteProps } from './slashCommandRouter.tsx';
 
 const command = (name: string, label: string, description: string, icon: React.ReactNode): SlashCommand => ({
 	name,
@@ -45,13 +45,13 @@ export const UnifiedSlashCommandPalette: React.FC<SlashCommandPaletteProps> = ({
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const panelRef = useRef<HTMLDivElement>(null);
-	void context;
+	const allCommands = useMemo(() => [...PRODUCT_COMMANDS, ...createAllCommands(context).filter(item => !PRODUCT_COMMANDS.some(product => product.name === item.name))], [context]);
 
 	const filtered = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
 		if (!normalized) return PRODUCT_COMMANDS;
-		return PRODUCT_COMMANDS.filter(item => `${item.name} ${item.label} ${item.description}`.toLowerCase().includes(normalized));
-	}, [query]);
+		return allCommands.filter(item => `${item.name} ${item.label} ${item.description}`.toLowerCase().includes(normalized));
+	}, [query, allCommands]);
 
 	useEffect(() => {
 		if (!isOpen) return;

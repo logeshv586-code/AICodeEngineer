@@ -17,6 +17,6 @@ export class RAGAgent extends BaseForgeAgent {
 	}
 
 	protected async runTask(task: string, _context: Record<string, any>, _token?: CancellationToken): Promise<any> {
-		return { action: 'context_retrieved', summary: `Retrieved semantic hits and rules for: ${task}` };
+		throw new Error(`${this.config.name} has no connected execution backend. Use the sidebar agent tool loop for real execution.`);
 	}
 }

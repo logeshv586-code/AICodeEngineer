@@ -28,7 +28,7 @@ jobs:
       - name: Install Linux native build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config xvfb
+          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3 pkg-config xvfb poppler-utils
 
       - name: Install dependencies
         run: npm ci --foreground-scripts
@@ -51,6 +51,8 @@ jobs:
         run: npm run buildreact
 
       - name: Verify runtime artifacts locally only
+        env:
+          FORGE_SKIP_REACT_REBUILD: '1'
         run: node scripts/forge-runtime-guard.mjs
 
       - name: Live Forge Electron UI smoke

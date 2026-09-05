@@ -17,6 +17,6 @@ export class DeploymentAgent extends BaseForgeAgent {
 	}
 
 	protected async runTask(task: string, _context: Record<string, any>, _token?: CancellationToken): Promise<any> {
-		return { action: 'deployed', commitHash: 'abc1234', branch: 'main' };
+		throw new Error(`${this.config.name} has no connected execution backend. Use the sidebar agent tool loop for real execution.`);
 	}
 }

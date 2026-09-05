@@ -30,6 +30,7 @@ export interface ComposerControlCenterProps {
 	workspaceReady?: boolean;
 	workspaceFileCount?: number;
 	selectedFiles?: string[];
+	hasBrowserContext?: boolean;
 	providerName?: string;
 	modelName?: string;
 	onOpenSettings?: () => void;
@@ -52,12 +53,12 @@ const attachmentName = (attachment: Attachment): string => attachment.name || at
 
 export const ComposerControlCenter: React.FC<ComposerControlCenterProps> = ({
 	value, onChange, onSubmit, onAbort, isStreaming, isDisabled = false,
-	selectedFiles = [],
+	selectedFiles = [], hasBrowserContext = false,
 	attachments = [], onAddAttachment, onPickFiles, onAttachmentError, onRemoveAttachment,
 	onKeyDown: onComposerKeyDown, placeholder = 'Describe the outcome you want Forge to deliver…', textareaRef,
 }) => {
 	const imageInputRef = useRef<HTMLInputElement>(null);
-	const canSubmit = !isDisabled && (value.trim().length > 0 || attachments.length > 0);
+	const canSubmit = !isDisabled && (value.trim().length > 0 || attachments.length > 0 || selectedFiles.length > 0 || hasBrowserContext);
 
 	const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {

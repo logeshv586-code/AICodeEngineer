@@ -11,6 +11,7 @@ const toolTypes = read('src/vs/workbench/contrib/void/common/toolsServiceTypes.t
 const messageTypes = read('src/vs/workbench/contrib/void/common/sendLLMMessageTypes.ts');
 const chatService = read('src/vs/workbench/contrib/void/browser/chatThreadService.ts');
 const sidebar = read('src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx');
+const toolActivityMessages = read('src/vs/workbench/contrib/void/common/toolActivityMessages.ts');
 const conversion = read('src/vs/workbench/contrib/void/browser/convertToLLMMessageService.ts');
 const transport = read('src/vs/workbench/contrib/void/electron-main/llmMessage/sendLLMMessage.impl.ts');
 const capabilities = read('src/vs/workbench/contrib/void/common/modelCapabilities.ts');
@@ -182,6 +183,22 @@ check(
     'const registeredToolNames = [...mcpToolNames, ...builtInToolNames]',
   ]),
   'Persisted assistant text must strip leaked calls for read/search tools as well as edit/terminal tools.',
+);
+
+check(
+  'semantic search has complete sidebar coverage',
+  hasAll(sidebar, [
+    "'semantic_search': { done: 'Searched code index'",
+    "BuiltinToolCallParams['semantic_search']",
+    "'semantic_search': {\n\t\tresultWrapper",
+    'result.hits.map((hit, index)',
+    'voidOpenFileFn(hitUri, accessor, [hit.startLine, hit.endLine])',
+  ])
+    && hasAll(toolActivityMessages, [
+      "semantic_search: 'Searching code index...'",
+      "semantic_search: 'search the code index'",
+    ]),
+  'Every registered semantic-search tool state must have a typed label, description, result renderer, navigation target, and activity/error text.',
 );
 
 check(

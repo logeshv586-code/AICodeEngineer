@@ -13,7 +13,7 @@ class WorkspaceWorker implements IForgeWorker {
 	readonly category = 'workspace';
 
 	async executeTask(input: WorkerTaskInput, _token?: CancellationToken): Promise<WorkerTaskOutput> {
-		return { success: true, data: { action: 'workspace_task_executed', title: input.title } };
+		return { success: false, error: `${this.name} has no connected execution backend. Use the sidebar agent tool loop.` };
 	}
 }
 
@@ -23,7 +23,7 @@ class BrowserWorker implements IForgeWorker {
 	readonly category = 'browser';
 
 	async executeTask(input: WorkerTaskInput, _token?: CancellationToken): Promise<WorkerTaskOutput> {
-		return { success: true, data: { action: 'browser_task_executed', title: input.title } };
+		return { success: false, error: `${this.name} has no connected execution backend. Use the sidebar agent tool loop.` };
 	}
 }
 
@@ -33,7 +33,7 @@ class TestingWorker implements IForgeWorker {
 	readonly category = 'testing';
 
 	async executeTask(input: WorkerTaskInput, _token?: CancellationToken): Promise<WorkerTaskOutput> {
-		return { success: true, data: { action: 'tests_executed', passed: true } };
+		return { success: false, error: `${this.name} has no connected execution backend. Use the sidebar agent tool loop.` };
 	}
 }
 
@@ -43,7 +43,7 @@ class ReviewWorker implements IForgeWorker {
 	readonly category = 'review';
 
 	async executeTask(input: WorkerTaskInput, _token?: CancellationToken): Promise<WorkerTaskOutput> {
-		return { success: true, data: { action: 'diff_reviewed', approved: true } };
+		return { success: false, error: `${this.name} has no connected execution backend. Use the sidebar agent tool loop.` };
 	}
 }
 

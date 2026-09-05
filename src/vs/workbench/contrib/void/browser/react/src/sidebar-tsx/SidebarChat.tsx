@@ -1474,6 +1474,10 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 	const hasReasoning = !!reasoningStr
 	const isDoneReasoning = !!chatMessage.displayContent
 	const thread = chatThreadsService.getCurrentThread()
+	const nextMessage = thread.messages[messageIdx + 1]
+	const isExecutionPreamble = isCommitted
+		&& (nextMessage?.role === 'tool' || nextMessage?.role === 'interrupted_streaming_tool')
+		&& isRoutineAgentPreamble(chatMessage.displayContent)
 
 	// Get current model selection for display in the footer
 	const modelSel = settingsService.state.modelSelectionOfFeature['Chat']
@@ -1487,6 +1491,7 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 
 	const isEmpty = !chatMessage.displayContent && !chatMessage.reasoning
 	if (isEmpty) return null
+	if (isExecutionPreamble) return null
 
 	return <>
 		{/* reasoning token */}
@@ -1576,6 +1581,7 @@ const titleOfBuiltinToolName = {
 	'get_dir_tree': { done: 'Inspected folder tree', proposed: 'Inspect folder tree', running: loadingTitleWrapper('Inspecting folder tree') },
 	'search_pathnames_only': { done: 'Searched by file name', proposed: 'Search by file name', running: loadingTitleWrapper('Searching by file name') },
 	'search_for_files': { done: 'Searched', proposed: 'Search', running: loadingTitleWrapper('Searching') },
+	'semantic_search': { done: 'Searched code index', proposed: 'Search code index', running: loadingTitleWrapper('Searching code index') },
 	'create_file_or_folder': { done: `Created`, proposed: `Create`, running: loadingTitleWrapper(`Creating`) },
 	'delete_file_or_folder': { done: `Deleted`, proposed: `Delete`, running: loadingTitleWrapper(`Deleting`) },
 	'edit_file': { done: `Edited file`, proposed: 'Edit file', running: loadingTitleWrapper('Editing file') },
@@ -1645,8 +1651,9 @@ const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinToolCallP
 	const x = {
 		'read_file': () => {
 			const toolParams = _toolParams as BuiltinToolCallParams['read_file']
+			const batchSuffix = toolParams.uris && toolParams.uris.length > 1 ? ` +${toolParams.uris.length - 1}` : ''
 			return {
-				desc1: getBasename(toolParams.uri.fsPath),
+				desc1: `${getBasename(toolParams.uri.fsPath)}${batchSuffix}`,
 				desc1Info: getRelative(toolParams.uri, accessor),
 			};
 		},
@@ -1659,14 +1666,23 @@ const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinToolCallP
 		},
 		'search_pathnames_only': () => {
 			const toolParams = _toolParams as BuiltinToolCallParams['search_pathnames_only']
+			const batchSuffix = toolParams.queries && toolParams.queries.length > 1 ? ` +${toolParams.queries.length - 1}` : ''
 			return {
-				desc1: `"${toolParams.query}"`,
+				desc1: `"${toolParams.query}"${batchSuffix}`,
 			}
 		},
 		'search_for_files': () => {
 			const toolParams = _toolParams as BuiltinToolCallParams['search_for_files']
+			const batchSuffix = toolParams.queries && toolParams.queries.length > 1 ? ` +${toolParams.queries.length - 1}` : ''
 			return {
-				desc1: `"${toolParams.query}"`,
+				desc1: `"${toolParams.query}"${batchSuffix}`,
+			}
+		},
+		'semantic_search': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['semantic_search']
+			const batchSuffix = toolParams.queries && toolParams.queries.length > 1 ? ` +${toolParams.queries.length - 1}` : ''
+			return {
+				desc1: `"${toolParams.query}"${batchSuffix}`,
 			}
 		},
 		'search_in_file': () => {
@@ -2123,8 +2139,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			if (toolMessage.type === 'success') {
 				const { result } = toolMessage
 				componentParams.onClick = () => { voidOpenFileFn(params.uri, accessor, range) }
+				const pageChars = params.uris && params.uris.length > 1 ? Math.min(MAX_FILE_CHARS_PAGE, 100_000) : MAX_FILE_CHARS_PAGE
 				if (result.hasNextPage && params.pageNumber === 1)  // first page
-					componentParams.desc2 = `(truncated after ${Math.round(MAX_FILE_CHARS_PAGE) / 1000}k)`
+					componentParams.desc2 = `(truncated after ${Math.round(pageChars) / 1000}k per file)`
 				else if (params.pageNumber > 1) // subsequent pages
 					componentParams.desc2 = `(part ${params.pageNumber})`
 			}
@@ -2347,6 +2364,55 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 
+	'semantic_search': {
+		resultWrapper: ({ toolMessage }) => {
+			const accessor = useAccessor()
+			const workspaceContextService = accessor.get('IWorkspaceContextService')
+			const title = getTitle(toolMessage)
+			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
+			const icon = null
+
+			if (toolMessage.type === 'tool_request') return null
+			if (toolMessage.type === 'running_now') return null
+
+			const isError = false
+			const isRejected = toolMessage.type === 'rejected'
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected }
+
+			if (toolMessage.type === 'success') {
+				const { result } = toolMessage
+				componentParams.numResults = result.hits.length
+				componentParams.children = result.hits.length === 0 ? undefined : <ToolChildrenWrapper>
+					{result.hits.map((hit, index) => {
+						const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri
+						const isAbsolutePath = /^(?:[A-Za-z]:[\\/]|[\\/])/.test(hit.filePath)
+						const hitUri = isAbsolutePath
+							? URI.file(hit.filePath)
+							: workspaceRoot
+								? URI.joinPath(workspaceRoot, ...hit.filePath.split(/[\\/]+/).filter(Boolean))
+								: URI.file(hit.filePath)
+						const relativePath = getRelative(hitUri, accessor) ?? hit.filePath
+						return <ListableToolItem
+							key={`${hit.filePath}:${hit.startLine}:${hit.endLine}:${index}`}
+							name={<span className='flex min-w-0 items-center gap-2'>
+								<span className='truncate'>{relativePath}</span>
+								<span className='shrink-0 text-[10px] text-void-fg-4'>L{hit.startLine}-{hit.endLine} · {Math.round(hit.score * 100)}%</span>
+							</span>}
+							className='w-full overflow-hidden'
+							onClick={() => voidOpenFileFn(hitUri, accessor, [hit.startLine, hit.endLine])}
+						/>
+					})}
+				</ToolChildrenWrapper>
+			}
+			else if (toolMessage.type === 'tool_error') {
+				componentParams.bottomChildren = <BottomChildren title='Error'>
+					<CodeChildren>{toolMessage.result}</CodeChildren>
+				</BottomChildren>
+			}
+
+			return <ToolHeaderWrapper {...componentParams} />
+		},
+	},
 	'search_in_file': {
 		resultWrapper: ({ toolMessage }) => {
 			const accessor = useAccessor();
@@ -3219,14 +3285,8 @@ export const SidebarChat = () => {
 		const handleForgeContext = (event: Event) => {
 			const detail = (event as CustomEvent<{ kind?: string; content?: string }>).detail;
 			if (!detail?.content) return;
-			const prefix = detail.kind ? `[${detail.kind}]\n` : '';
-			setDraftText(current => {
-				const next = current ? `${current}\n\n${prefix}${detail.content}` : `${prefix}${detail.content}`;
-				textAreaFnsRef.current?.setValue(next);
-				return next;
-			});
-			setInstructionsAreEmpty(false);
-			textAreaFnsRef.current?.focus();
+			chatThreadsService.addNewStagingSelection({ type: 'BrowserComponent', title: detail.kind || 'Browser context', content: detail.content,
+				uri: URI.from({ scheme: 'forge-context', path: `/${Date.now()}-${Math.random().toString(36).slice(2)}` }) });
 		};
 		const handleAddStagingSelection = (event: Event) => {
 			const detail = (event as CustomEvent<any>).detail;
@@ -3242,7 +3302,7 @@ export const SidebarChat = () => {
 		};
 	}, [chatThreadsService])
 
-	const onSubmit = useCallback(async (_forceSubmit?: string) => {
+	const onSubmit = useCallback(async (_forceSubmit?: string, displayLabelOverride?: string) => {
 
 		if (isDisabled && !_forceSubmit) return
 		const threadId = chatThreadsService.state.currentThreadId
@@ -3276,9 +3336,10 @@ export const SidebarChat = () => {
 		}
 
 		try {
-			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, _chatSelections: selections.slice(), threadId })
+			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, displayLabelOverride, _chatSelections: chatThreadsService.getCurrentThreadState().stagingSelections.slice(), threadId })
 		} catch (e) {
 			console.error('Error while sending message in chat:', e)
+			throw e // Preserve the draft and attachments when submission fails.
 		}
 
 		setSelections([]) // clear staging
@@ -3352,11 +3413,11 @@ export const SidebarChat = () => {
 		args: '',
 		onClose: () => {},
 		setActiveTool: (tool: string) => { setActiveTool(tool) },
-		sendMessage: (msg: string) => {
-			setDraftText(msg)
+		sendMessage: (msg: string, displayLabelOverride?: string) => {
+			setDraftText(displayLabelOverride ?? msg)
 			setInstructionsAreEmpty(false)
 			textAreaFnsRef.current?.setValue(msg)
-			void onSubmit(msg)
+			void onSubmit(msg, displayLabelOverride)
 		},
 	}), [accessor, commandService, chatThreadsService, onSubmit, setInstructionsAreEmpty])
 
@@ -3690,6 +3751,8 @@ export const SidebarChat = () => {
 					modelName={settingsState.modelSelectionOfFeature['Chat']?.modelName ?? ''}
 					onOpenSettings={() => commandService.executeCommand(VOID_OPEN_SETTINGS_ACTION_ID)}
 					attachments={attachments}
+					browserSelections={selections.filter((s): s is Extract<StagingSelectionItem, { type: 'BrowserComponent' }> => s.type === 'BrowserComponent')}
+					onRemoveBrowserSelection={uri => setSelections(selections.filter(s => s.type !== 'BrowserComponent' || s.uri.toString() !== uri))}
 					onRemoveAttachment={onRemoveAttachment}
 				/>
 				<ForgeContextPanel
